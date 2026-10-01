@@ -156,9 +156,9 @@ export const DEFAULT_OPS: PreschoolOpsState = {
       note: "Circle time with monsoon rhymes, fruit snack, and outdoor play in the sand pit.",
       tags: ["circle time", "snack", "outdoor play"],
       media: [
-        { id: "m1", kind: "photo", label: "Circle time", tone: "from-amber-200 to-orange-300", src: "/media/journal/journal-circle-time.png" },
-        { id: "m2", kind: "photo", label: "Snack table", tone: "from-lime-200 to-emerald-300", src: "/media/journal/journal-snack-table.png" },
-        { id: "m3", kind: "video", label: "Outdoor play", tone: "from-sky-200 to-indigo-300", src: "/media/journal/journal-outdoor-play.png" },
+        { id: "m1", kind: "photo", label: "Circle time", tone: "from-amber-200 to-orange-300", src: "https://res.cloudinary.com/dn98ovhm7/image/upload/v1790830239/arka_kids/daily_journal/journal-circle-time.png" },
+        { id: "m2", kind: "photo", label: "Snack table", tone: "from-lime-200 to-emerald-300", src: "https://res.cloudinary.com/dn98ovhm7/image/upload/v1790830254/arka_kids/daily_journal/journal-snack-table.png" },
+        { id: "m3", kind: "video", label: "Outdoor play", tone: "from-sky-200 to-indigo-300", src: "https://res.cloudinary.com/dn98ovhm7/image/upload/v1790830252/arka_kids/daily_journal/journal-outdoor-play.png" },
       ],
     },
     {
@@ -170,8 +170,8 @@ export const DEFAULT_OPS: PreschoolOpsState = {
       note: "Number matching trays indoors, then water play. Quiet time with picture books.",
       tags: ["learning", "water play", "story"],
       media: [
-        { id: "m4", kind: "photo", label: "Number trays", tone: "from-violet-200 to-fuchsia-300", src: "/media/journal/journal-number-trays.png" },
-        { id: "m5", kind: "photo", label: "Story corner", tone: "from-rose-200 to-pink-300", src: "/media/journal/journal-story-corner.png" },
+        { id: "m4", kind: "photo", label: "Number trays", tone: "from-violet-200 to-fuchsia-300", src: "https://res.cloudinary.com/dn98ovhm7/image/upload/v1790830249/arka_kids/daily_journal/journal-number-trays.png" },
+        { id: "m5", kind: "photo", label: "Story corner", tone: "from-rose-200 to-pink-300", src: "https://res.cloudinary.com/dn98ovhm7/image/upload/v1790830258/arka_kids/daily_journal/journal-story-corner.png" },
       ],
     },
     {
@@ -183,8 +183,8 @@ export const DEFAULT_OPS: PreschoolOpsState = {
       note: "Independence Day craft, group song practice, and garden walk.",
       tags: ["craft", "music", "garden"],
       media: [
-        { id: "m6", kind: "photo", label: "Flag craft", tone: "from-orange-200 to-amber-300", src: "/media/journal/journal-flag-craft.png" },
-        { id: "m7", kind: "video", label: "Group song", tone: "from-teal-200 to-cyan-300", src: "/media/journal/journal-group-song.png" },
+        { id: "m6", kind: "photo", label: "Flag craft", tone: "from-orange-200 to-amber-300", src: "https://res.cloudinary.com/dn98ovhm7/image/upload/v1790830242/arka_kids/daily_journal/journal-flag-craft.png" },
+        { id: "m7", kind: "video", label: "Group song", tone: "from-teal-200 to-cyan-300", src: "https://res.cloudinary.com/dn98ovhm7/image/upload/v1790830246/arka_kids/daily_journal/journal-group-song.png" },
       ],
     },
   ],

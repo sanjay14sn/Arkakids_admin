@@ -335,7 +335,7 @@ function BdeAttendanceCalendar({
         record.loginTime = manualLogin.trim() || "09:30 AM"
         record.logoutTime = manualLogout.trim() || "06:30 PM"
       }
-      await api.saveAttendance(selectedDateKey, "bde", [record])
+      await api.saveAttendance({ date: selectedDateKey, className: "bde", batchId: undefined, submitted: true, submittedBy: "Admin", records: [record] })
       await onRefresh()
     } catch (error) {
       console.error("Failed to save BDE attendance:", error)

@@ -102,6 +102,9 @@ export default function SchoolCalendarPage() {
     if (filterBranch !== "all" && e.branch !== "All branches" && e.branch !== filterBranch) return false
     return true
   })
+  
+  const todayISO = today.toISOString().slice(0, 10)
+  const upcomingFilteredEvents = filteredEvents.filter(e => e.date >= todayISO)
 
   const eventsOn = (day: number) => {
     const iso = `${cursor.year}-${String(cursor.month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`
@@ -172,7 +175,6 @@ export default function SchoolCalendarPage() {
   }
 
   // Next major event calculation
-  const todayISO = today.toISOString().slice(0, 10)
   const nextMajorEvent = allEvents.find((e) => e.date >= todayISO)
 
   if (!ready) {
@@ -376,7 +378,7 @@ export default function SchoolCalendarPage() {
                 <CardTitle className="text-sm font-bold text-foreground">Upcoming Dates</CardTitle>
               </div>
               <span className="text-[11px] font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-full border border-border">
-                {filteredEvents.length} scheduled
+                {upcomingFilteredEvents.length} scheduled
               </span>
             </div>
 
@@ -406,13 +408,13 @@ export default function SchoolCalendarPage() {
           </CardHeader>
 
           <CardContent className="p-0 flex-1 overflow-y-auto divide-y divide-border/50 max-h-[500px]">
-            {filteredEvents.length === 0 ? (
+            {upcomingFilteredEvents.length === 0 ? (
               <div className="p-10 text-center text-xs text-muted-foreground space-y-2">
                 <CalendarDays className="h-8 w-8 text-muted-foreground/40 mx-auto" />
-                <p>No calendar events match the filters.</p>
+                <p>No upcoming calendar events match the filters.</p>
               </div>
             ) : (
-              filteredEvents.map((event) => (
+              upcomingFilteredEvents.map((event) => (
                 <div key={event.id} className="p-4 hover:bg-muted/30 transition-colors space-y-2 group">
                   <div className="flex items-start justify-between gap-2">
                     <div>

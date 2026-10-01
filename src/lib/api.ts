@@ -315,6 +315,7 @@ export const api = {
   getStudents: () => fetchAPI('/students'),
   getStudentProfile: () => fetchAPI('/students/profile/me'),
   createStudent: (data: any) => fetchAPI('/students', { method: 'POST', body: JSON.stringify(data) }),
+  updateStudent: (id: string, data: any) => fetchAPI(`/students/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   updateStudentStatus: (id: string, status: string) => fetchAPI(`/students/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
   updateStudentFees: (id: string, data: {
     feesPaid?: number
@@ -393,10 +394,38 @@ export const api = {
   getAttendanceByEntity: (entityId: string, type: string = 'student') => fetchAPI(`/attendance?entityId=${entityId}&type=${type}`),
   getMyAttendance: () => fetchAPI('/attendance'),
   getMyBdeShiftLogs: () => fetchAPI('/attendance'),
-  saveAttendance: (date: string, type: string, records: any[]) => fetchAPI('/attendance', {
+  // Fetch student attendance sessions
+  getStudentAttendance: (params?: { date?: string; month?: string }) => {
+    const q = new URLSearchParams({ type: 'student' })
+    if (params?.date) q.set('date', params.date)
+    if (params?.month) q.set('month', params.month)
+    return fetchAPI(`/attendance?${q.toString()}`)
+  },
+  saveAttendance: (payload: { date: string; className: string; batchId?: string; submitted?: boolean; submittedBy?: string; submittedAt?: string; records: any[] }) => fetchAPI('/attendance', {
     method: 'POST',
-    body: JSON.stringify({ date, type, records })
+    body: JSON.stringify({ ...payload, type: 'student' })
   }),
+
+  // Child Leave (parent absence requests)
+  getChildLeaves: () => fetchAPI('/attendance/child-leave'),
+  createChildLeave: (data: {
+    childId: string
+    childName?: string
+    className?: string
+    parentName?: string
+    fromDate: string
+    toDate: string
+    reason: string
+    requestedBy?: string
+  }) => fetchAPI('/attendance/child-leave', { method: 'POST', body: JSON.stringify(data) }),
+  reviewChildLeave: (id: string, status: 'approved' | 'rejected', decidedBy?: string) =>
+    fetchAPI(`/attendance/child-leave/${id}/review`, { method: 'PUT', body: JSON.stringify({ status, decidedBy }) }),
+  deleteChildLeave: (id: string) => fetchAPI(`/attendance/child-leave/${id}`, { method: 'DELETE' }),
+  // Staff
+  getStaff: () => fetchAPI('/staff'),
+  createStaff: (data: any) => fetchAPI('/staff', { method: 'POST', body: JSON.stringify(data) }),
+  updateStaff: (id: string, data: any) => fetchAPI(`/staff/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteStaff: (id: string) => fetchAPI(`/staff/${id}`, { method: 'DELETE' }),
 
   // HR & Payroll Suite
   getHROverview: (month?: string) => fetchAPI(`/hr/overview${month ? `?month=${month}` : ''}`),
@@ -514,4 +543,10 @@ export const api = {
   updateSupportTicket: (id: string, data: { status?: string; response?: string }) =>
     fetchAPI(`/support/tickets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   getAnnouncements: () => fetchAPI('/support/announcements'),
+
+  // Classroom Daily Journal
+  getJournals: () => fetchAPI('/journal'),
+  createJournal: (data: any) => fetchAPI('/journal', { method: 'POST', body: JSON.stringify(data) }),
+  updateJournal: (id: string, data: any) => fetchAPI(`/journal/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteJournal: (id: string) => fetchAPI(`/journal/${id}`, { method: 'DELETE' }),
 };

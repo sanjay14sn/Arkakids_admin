@@ -9,23 +9,43 @@ import { cn } from "@/lib/utils"
 import { isPolicyFeatureEnabled } from "@/lib/centerPolicyClient"
 import { BRAND_NAME, BRAND_TAGLINE } from "@/lib/portalRoles"
 import { getPortalNavLinks } from "@/lib/portalNav"
+import { usePreschoolOps } from "@/lib/preschoolOps"
 
 export function Sidebar() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const currentSection = searchParams.get("section")
+  const currentTab = searchParams.get("tab") || "overview"
   const { sidebarCollapsed, toggleSidebar, user, centerPolicy, supportQueueCount } = useStore()
 
-  // State to track expanded sub-menus (e.g. /staff)
-  const [expandedMenus, setExpandedMenus] = React.useState<Record<string, boolean>>({})
+  // State to track expanded sub-menus (e.g. /staff, /fees)
+  const [expandedMenus, setExpandedMenus] = React.useState<Record<string, boolean>>(() => ({
+    "/staff": pathname.startsWith("/staff"),
+    "/fees": pathname.startsWith("/fees"),
+  }))
+
+  React.useEffect(() => {
+    if (pathname.startsWith("/staff")) {
+      setExpandedMenus(prev => ({ ...prev, "/staff": true }))
+    }
+    if (pathname.startsWith("/fees")) {
+      setExpandedMenus(prev => ({ ...prev, "/fees": true }))
+    }
+  }, [pathname])
 
   const policyOk = (feature: Parameters<typeof isPolicyFeatureEnabled>[1]) =>
     user?.role === "super_admin" || isPolicyFeatureEnabled(centerPolicy, feature)
+
+  const { state: ops } = usePreschoolOps()
+  const pendingLeavesCount = user?.role === "trainer" || user?.role === "owner" || user?.role === "super_admin" 
+    ? ops?.leaves?.filter(l => l.status === "pending").length || 0 
+    : undefined
 
   const links = getPortalNavLinks({
     role: user?.role,
     policyOk,
     supportQueueCount,
+    pendingLeavesCount
   })
 
   const toggleSubMenu = (path: string, e: React.MouseEvent) => {
@@ -153,10 +173,17 @@ export function Sidebar() {
                 >
                   {link.subLinks!.map((sub) => {
                     const SubIcon = sub.icon
-                    const isSubActive =
-                      pathname === "/staff" &&
-                      ((sub.path.includes("coordinators") && currentSection === "coordinators") ||
-                        (sub.path.includes("teachers") && currentSection === "teachers"))
+                    const isSubActive = (() => {
+                      if (pathname === "/staff") {
+                        if (sub.path.includes("coordinators") && currentSection === "coordinators") return true
+                        if (sub.path.includes("teachers") && currentSection === "teachers") return true
+                      }
+                      if (pathname === "/fees") {
+                        const subTab = new URLSearchParams(sub.path.split("?")[1] || "").get("tab")
+                        if (subTab === currentTab) return true
+                      }
+                      return pathname === sub.path
+                    })()
 
                     return (
                       <Link

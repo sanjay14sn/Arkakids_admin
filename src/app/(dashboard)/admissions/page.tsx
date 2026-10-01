@@ -306,53 +306,7 @@ export default function AdmissionsPage() {
         />
       )}
 
-      {/* Stats Summary row */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card className="bg-primary-light/40 border-primary/15 overflow-hidden relative">
-          <span className="absolute inset-x-0 top-0 h-[3px] bg-highlight" />
-          <CardContent className="p-5 flex items-center gap-4">
-            <div className="h-10 w-10 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shrink-0">
-              <BadgeCheck className="h-5 w-5" />
-            </div>
-            <div>
-              <span className="text-[10px] uppercase font-bold tracking-wider text-primary/70 block">Conversions this month</span>
-              <h3 className="text-2xl font-extrabold text-primary">{myConvertedLeads.length}</h3>
-            </div>
-          </CardContent>
-        </Card>
 
-        <Card className="bg-success-light border-success/15 overflow-hidden relative">
-          <span className="absolute inset-x-0 top-0 h-[3px] bg-success" />
-          <CardContent className="p-5 flex items-center gap-4">
-            <div className="h-10 w-10 rounded-xl bg-success text-success-foreground flex items-center justify-center shrink-0">
-              <Landmark className="h-5 w-5" />
-            </div>
-            <div>
-              <span className="text-[10px] uppercase font-bold tracking-wider text-success block">Revenue generated</span>
-              <h3 className="text-2xl font-extrabold text-success">
-                {formatCurrency(myConvertedLeads.reduce((acc, curr) => acc + curr.value, 0))}
-              </h3>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-warning-light border-warning/15 overflow-hidden relative">
-          <span className="absolute inset-x-0 top-0 h-[3px] bg-highlight" />
-          <CardContent className="p-5 flex items-center gap-4">
-            <div className="h-10 w-10 rounded-xl bg-warning text-warning-foreground flex items-center justify-center shrink-0">
-              <Target className="h-5 w-5" />
-            </div>
-            <div>
-              <span className="text-[10px] uppercase font-bold tracking-wider text-warning block">Pipeline Conversion Rate</span>
-              <h3 className="text-2xl font-extrabold text-warning">
-                {myLeads.length > 0
-                  ? Math.round((myConvertedLeads.length / myLeads.length) * 100)
-                  : 0}%
-              </h3>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Owner: pending conversion requests */}
       {isOwner && ownerPendingRequests.length > 0 && (

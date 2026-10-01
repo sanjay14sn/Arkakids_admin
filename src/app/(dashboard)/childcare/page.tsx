@@ -4,7 +4,7 @@ import * as React from "react"
 import {
   HeartPulse, Utensils, Moon, Cake, Phone, AlertTriangle,
   Plus, X, Search, ChevronDown, Check, Printer, Download,
-  User, Syringe, ShieldAlert, Clock, CalendarDays, Baby,
+  User, Syringe, ShieldAlert, Clock, CalendarDays, Baby, Activity,
 } from "lucide-react"
 import { CHILDREN, type ChildRecord } from "@/lib/preschoolOps"
 import { cn } from "@/lib/utils"
@@ -140,6 +140,21 @@ function SectionHeader({ icon: Icon, title, sub }: { icon: React.ElementType; ti
   )
 }
 
+const STANDARD_VACCINES = [
+  "BCG (Tuberculosis)",
+  "Hepatitis B",
+  "DTP / DTaP (Diphtheria, Tetanus, Pertussis)",
+  "Polio (OPV / IPV)",
+  "MMR (Measles, Mumps, Rubella)",
+  "Rotavirus",
+  "Pneumococcal (PCV)",
+  "Chickenpox (Varicella)",
+  "Hepatitis A",
+  "Typhoid",
+  "Influenza (Flu)",
+  "Hib (Haemophilus influenzae type b)",
+]
+
 // ─── Tab 1: Health & Medical ───────────────────────────────────────────────────
 function HealthTab({ child }: { child: ChildRecord }) {
   const [rec, setRec] = React.useState<MedicalRecord>(() => INIT_MEDICAL[child.id] ?? {
@@ -159,84 +174,163 @@ function HealthTab({ child }: { child: ChildRecord }) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
       {/* Overview row */}
-      <div className="grid sm:grid-cols-3 gap-3">
-        <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Blood Group</p>
-          <p className="text-2xl font-extrabold text-primary mt-1">{rec.bloodGroup || "—"}</p>
-          <input className={INPUT + " mt-2 h-8 text-xs"} placeholder="e.g. O+" value={rec.bloodGroup}
-            onChange={e => setRec(p => ({ ...p, bloodGroup: e.target.value }))} />
-        </div>
-        <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Allergies</p>
-          <div className="flex flex-wrap gap-1 mb-2 min-h-[24px]">
-            {rec.allergies.map((a, i) => (
-              <span key={i} className="inline-flex items-center gap-1 rounded-full bg-red-50 border border-red-200 text-red-700 text-[10px] px-2 py-0.5 font-semibold">
-                {a}<button type="button" onClick={() => setRec(p => ({ ...p, allergies: p.allergies.filter((_, j) => j !== i) }))}><X className="h-2.5 w-2.5" /></button>
-              </span>
-            ))}
-            {rec.allergies.length === 0 && <span className="text-[11px] text-muted-foreground">None recorded</span>}
+      <div className="grid sm:grid-cols-3 gap-4">
+        {/* Blood Group */}
+        <div className="rounded-2xl border border-rose-200/60 bg-gradient-to-br from-rose-50/80 to-white p-5 shadow-xs relative overflow-hidden group">
+          <div className="absolute -right-4 -top-4 opacity-[0.03] group-hover:opacity-10 transition-opacity">
+            <HeartPulse className="h-28 w-28 text-rose-600" />
           </div>
-          <div className="flex gap-1">
-            <input className={INPUT + " h-7 text-xs"} placeholder="Add allergy" value={allergyInput} onChange={e => setAllergyInput(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && addAllergy()} />
-            <button type="button" onClick={addAllergy} className="h-7 px-2 rounded-lg bg-primary text-white text-xs flex items-center"><Plus className="h-3 w-3" /></button>
+          <div className="relative z-10 flex flex-col h-full justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-rose-600/80 mb-1 flex items-center gap-1.5"><HeartPulse className="h-3.5 w-3.5" /> Blood Group</p>
+              <p className="text-4xl font-black text-rose-700 tracking-tighter">{rec.bloodGroup || "—"}</p>
+            </div>
+            <input className={INPUT + " h-8 text-xs bg-white/80 border-rose-200 focus:border-rose-400 focus:ring-rose-400/20 shadow-xs font-bold"} placeholder="Update (e.g. O+)" value={rec.bloodGroup}
+              onChange={e => setRec(p => ({ ...p, bloodGroup: e.target.value }))} />
           </div>
         </div>
-        <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Medical Conditions</p>
-          <div className="flex flex-wrap gap-1 mb-2 min-h-[24px]">
-            {rec.conditions.map((c, i) => (
-              <span key={i} className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[10px] px-2 py-0.5 font-semibold">
-                {c}<button type="button" onClick={() => setRec(p => ({ ...p, conditions: p.conditions.filter((_, j) => j !== i) }))}><X className="h-2.5 w-2.5" /></button>
-              </span>
-            ))}
-            {rec.conditions.length === 0 && <span className="text-[11px] text-muted-foreground">None recorded</span>}
+        
+        {/* Allergies */}
+        <div className="rounded-2xl border border-amber-200/60 bg-gradient-to-br from-amber-50/80 to-white p-5 shadow-xs relative overflow-hidden group">
+          <div className="absolute -right-4 -top-4 opacity-[0.03] group-hover:opacity-10 transition-opacity">
+            <ShieldAlert className="h-28 w-28 text-amber-600" />
           </div>
-          <div className="flex gap-1">
-            <input className={INPUT + " h-7 text-xs"} placeholder="Add condition" value={condInput} onChange={e => setCondInput(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && addCondition()} />
-            <button type="button" onClick={addCondition} className="h-7 px-2 rounded-lg bg-primary text-white text-xs flex items-center"><Plus className="h-3 w-3" /></button>
+          <div className="relative z-10 flex flex-col h-full justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-amber-600/80 mb-2 flex items-center gap-1.5"><ShieldAlert className="h-3.5 w-3.5" /> Allergies</p>
+              <div className="flex flex-wrap gap-1.5 min-h-[32px]">
+                {rec.allergies.map((a, i) => (
+                  <span key={i} className="inline-flex items-center gap-1.5 rounded-lg bg-amber-100/50 border border-amber-200 text-amber-800 text-[10px] px-2 py-1 font-bold shadow-xs">
+                    {a}<button type="button" onClick={() => setRec(p => ({ ...p, allergies: p.allergies.filter((_, j) => j !== i) }))} className="hover:text-red-600 transition-colors opacity-60 hover:opacity-100"><X className="h-3 w-3" /></button>
+                  </span>
+                ))}
+                {rec.allergies.length === 0 && <span className="text-xs font-bold text-amber-700/40">No allergies recorded</span>}
+              </div>
+            </div>
+            <div className="flex gap-1.5">
+              <input className={INPUT + " h-8 text-xs bg-white/80 border-amber-200 focus:border-amber-400 focus:ring-amber-400/20 font-bold shadow-xs"} placeholder="Add allergy..." value={allergyInput} onChange={e => setAllergyInput(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && addAllergy()} />
+              <button type="button" onClick={addAllergy} className="h-8 px-2.5 rounded-lg bg-amber-500 hover:bg-amber-600 transition-colors text-white text-xs flex items-center shadow-xs"><Plus className="h-4 w-4" /></button>
+            </div>
+          </div>
+        </div>
+
+        {/* Medical Conditions */}
+        <div className="rounded-2xl border border-blue-200/60 bg-gradient-to-br from-blue-50/80 to-white p-5 shadow-xs relative overflow-hidden group">
+          <div className="absolute -right-4 -top-4 opacity-[0.03] group-hover:opacity-10 transition-opacity">
+            <Activity className="h-28 w-28 text-blue-600" />
+          </div>
+          <div className="relative z-10 flex flex-col h-full justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600/80 mb-2 flex items-center gap-1.5"><Activity className="h-3.5 w-3.5" /> Medical Conditions</p>
+              <div className="flex flex-wrap gap-1.5 min-h-[32px]">
+                {rec.conditions.map((c, i) => (
+                  <span key={i} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-100/50 border border-blue-200 text-blue-800 text-[10px] px-2 py-1 font-bold shadow-xs">
+                    {c}<button type="button" onClick={() => setRec(p => ({ ...p, conditions: p.conditions.filter((_, j) => j !== i) }))} className="hover:text-red-600 transition-colors opacity-60 hover:opacity-100"><X className="h-3 w-3" /></button>
+                  </span>
+                ))}
+                {rec.conditions.length === 0 && <span className="text-xs font-bold text-blue-700/40">No conditions recorded</span>}
+              </div>
+            </div>
+            <div className="flex gap-1.5">
+              <input className={INPUT + " h-8 text-xs bg-white/80 border-blue-200 focus:border-blue-400 focus:ring-blue-400/20 font-bold shadow-xs"} placeholder="Add condition..." value={condInput} onChange={e => setCondInput(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && addCondition()} />
+              <button type="button" onClick={addCondition} className="h-8 px-2.5 rounded-lg bg-blue-500 hover:bg-blue-600 transition-colors text-white text-xs flex items-center shadow-xs"><Plus className="h-4 w-4" /></button>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Vaccinations */}
-      <div className="rounded-xl border border-border bg-card p-4">
-        <div className="flex items-center justify-between mb-3">
-          <SectionHeader icon={Syringe} title="Vaccination Record" />
+      <div className="rounded-2xl border border-border/60 bg-card p-6 shadow-xs mt-6">
+        <div className="flex items-center justify-between mb-5">
+          <SectionHeader icon={Syringe} title="Vaccination Record" sub="Immunisation history and due dates" />
           <button type="button" onClick={() => setShowVaxForm(p => !p)}
-            className="h-8 px-3 rounded-lg bg-primary text-white text-xs font-semibold flex items-center gap-1 hover:bg-primary/90">
-            <Plus className="h-3.5 w-3.5" /> Add
+            className="h-9 px-4 rounded-xl bg-primary text-white text-xs font-bold flex items-center gap-1.5 hover:bg-primary/90 shadow-xs transition-colors">
+            <Plus className="h-4 w-4" /> Add Vaccination
           </button>
         </div>
+        
         {showVaxForm && (
-          <div className="grid sm:grid-cols-3 gap-2 mb-3 p-3 bg-muted/30 rounded-lg border border-border/50">
-            <div><label className={LABEL}>Vaccine Name</label><input className={INPUT + " mt-1"} placeholder="e.g. MMR" value={vaxName} onChange={e => setVaxName(e.target.value)} /></div>
-            <div><label className={LABEL}>Date Given</label><input type="date" className={INPUT + " mt-1"} value={vaxDate} onChange={e => setVaxDate(e.target.value)} /></div>
-            <div><label className={LABEL}>Next Due (optional)</label><input type="date" className={INPUT + " mt-1"} value={vaxDue} onChange={e => setVaxDue(e.target.value)} /></div>
-            <div className="sm:col-span-3 flex gap-2 justify-end">
-              <button type="button" onClick={() => setShowVaxForm(false)} className="h-8 px-3 rounded-lg border border-border text-xs text-muted-foreground hover:text-foreground">Cancel</button>
-              <button type="button" onClick={addVax} className="h-8 px-3 rounded-lg bg-primary text-white text-xs font-semibold">Save</button>
+          <div className="space-y-4 mb-6 p-5 bg-muted/30 rounded-2xl border border-border/60 shadow-inner">
+            <div>
+              <label className={LABEL}>Select Standard Vaccine</label>
+              <select
+                className={SELECT + " mt-1"}
+                value={STANDARD_VACCINES.includes(vaxName) ? vaxName : ""}
+                onChange={e => setVaxName(e.target.value)}
+              >
+                <option value="">-- Choose standard vaccine or type custom name below --</option>
+                {STANDARD_VACCINES.map(v => (
+                  <option key={v} value={v}>{v}</option>
+                ))}
+              </select>
+            </div>
+            <div className="grid sm:grid-cols-3 gap-4">
+              <div>
+                <label className={LABEL}>Vaccine Name <span className="text-red-500">*</span></label>
+                <input className={INPUT + " mt-1"} placeholder="e.g. MMR, Hepatitis B" value={vaxName} onChange={e => setVaxName(e.target.value)} />
+              </div>
+              <div>
+                <label className={LABEL}>Date Given</label>
+                <input type="date" className={INPUT + " mt-1"} value={vaxDate} onChange={e => setVaxDate(e.target.value)} />
+              </div>
+              <div>
+                <label className={LABEL}>Next Due (optional)</label>
+                <input type="date" className={INPUT + " mt-1"} value={vaxDue} onChange={e => setVaxDue(e.target.value)} />
+              </div>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Quick Select Common Vaccines:</p>
+              <div className="flex flex-wrap gap-2">
+                {["BCG", "Hepatitis B", "DTP", "Polio", "MMR", "Chickenpox", "Rotavirus", "Influenza", "Typhoid"].map(name => (
+                  <button
+                    key={name}
+                    type="button"
+                    onClick={() => setVaxName(name)}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-xs font-bold border transition-all",
+                      vaxName === name ? "bg-primary text-white border-primary shadow-xs" : "bg-card text-foreground border-border hover:border-primary/50"
+                    )}
+                  >
+                    + {name}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end pt-4 border-t border-border/40 mt-2">
+              <button type="button" onClick={() => setShowVaxForm(false)} className="h-9 px-4 rounded-xl border border-border text-xs font-bold text-muted-foreground hover:text-foreground transition-colors bg-card">Cancel</button>
+              <button type="button" onClick={addVax} disabled={!vaxName.trim()} className="h-9 px-4 rounded-xl bg-primary text-white text-xs font-bold disabled:opacity-50 shadow-xs transition-colors">Save Vaccination</button>
             </div>
           </div>
         )}
-        <div className="divide-y divide-border/40">
-          {rec.vaccinations.length === 0 && <p className="text-xs text-muted-foreground py-3">No vaccinations recorded yet.</p>}
+        
+        <div className="space-y-3">
+          {rec.vaccinations.length === 0 && <p className="text-sm font-medium text-muted-foreground text-center py-6 border border-dashed rounded-xl border-border/60">No vaccinations recorded yet.</p>}
           {rec.vaccinations.map((v, i) => (
-            <div key={i} className="py-2.5 flex items-center justify-between">
+            <div key={i} className="p-4 rounded-xl border border-border/60 bg-muted/10 flex items-center justify-between group hover:bg-muted/30 transition-colors">
               <div>
-                <p className="text-sm font-semibold text-foreground">{v.name}</p>
-                <p className="text-[11px] text-muted-foreground">
-                  {v.date ? `Given: ${new Date(v.date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}` : "Date not recorded"}
-                  {v.due ? ` · Due: ${new Date(v.due).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}` : ""}
+                <p className="text-sm font-bold text-foreground flex items-center gap-2">
+                  <Syringe className="h-3.5 w-3.5 text-muted-foreground" />
+                  {v.name}
                 </p>
+                <div className="flex items-center gap-3 mt-1.5">
+                  {v.date ? (
+                     <p className="text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-md">Given: {new Date(v.date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</p>
+                  ) : (
+                     <p className="text-xs font-medium text-muted-foreground">Date not recorded</p>
+                  )}
+                  {v.due && (
+                     <p className="text-xs font-medium text-amber-700 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-md">Due: {new Date(v.due).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</p>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                {v.date && <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2 py-0.5 font-semibold">Done</span>}
-                {!v.date && v.due && <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5 font-semibold">Pending</span>}
-                <button type="button" onClick={() => setRec(p => ({ ...p, vaccinations: p.vaccinations.filter((_, j) => j !== i) }))} className="text-muted-foreground hover:text-destructive"><X className="h-3.5 w-3.5" /></button>
+              <div className="flex items-center gap-3">
+                {v.date && <span className="text-[10px] uppercase tracking-wider bg-emerald-500 text-white rounded-full px-3 py-1 font-bold shadow-xs">Done</span>}
+                {!v.date && v.due && <span className="text-[10px] uppercase tracking-wider bg-amber-500 text-white rounded-full px-3 py-1 font-bold shadow-xs">Pending</span>}
+                <button type="button" onClick={() => setRec(p => ({ ...p, vaccinations: p.vaccinations.filter((_, j) => j !== i) }))} className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity bg-background border border-border rounded-lg p-1.5"><X className="h-4 w-4" /></button>
               </div>
             </div>
           ))}
@@ -641,12 +735,12 @@ function BirthdayTracker() {
 
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 const MAIN_TABS = [
-  { id: "health",    label: "Health & Medical", icon: HeartPulse },
-  { id: "meals",     label: "Meals",            icon: Utensils },
-  { id: "naps",      label: "Nap Log",          icon: Moon },
-  { id: "emergency", label: "Emergency",        icon: Phone },
-  { id: "incidents", label: "Incidents",        icon: ShieldAlert },
-  { id: "birthdays", label: "Birthdays",        icon: Cake },
+  { id: "health", label: "Health & Medical", icon: HeartPulse },
+  { id: "meals", label: "Meals", icon: Utensils },
+  { id: "naps", label: "Nap Log", icon: Moon },
+  { id: "emergency", label: "Emergency", icon: Phone },
+  { id: "incidents", label: "Incidents", icon: ShieldAlert },
+  { id: "birthdays", label: "Birthdays", icon: Cake },
 ] as const
 type MainTab = typeof MAIN_TABS[number]["id"]
 
@@ -698,60 +792,62 @@ export default function ChildCarePage() {
 
       {/* Per-child tabs — show child selector */}
       {!isBirthdayTab && (
-        <div className="flex flex-col lg:flex-row gap-4">
-          {/* Child selector sidebar */}
-          <div className="lg:w-52 shrink-0 space-y-2">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <input type="text" placeholder="Search child..." value={search} onChange={e => setSearch(e.target.value)}
-                className="w-full h-8 pl-8 pr-3 rounded-lg border border-border bg-card text-xs focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all" />
-            </div>
-            <div className="space-y-1">
-              {filteredChildren.map(child => (
-                <button
-                  key={child.id}
-                  type="button"
-                  onClick={() => setSelectedChildId(child.id)}
-                  className={cn(
-                    "w-full text-left px-3 py-2.5 rounded-xl border flex items-center gap-2.5 transition-colors",
-                    selectedChildId === child.id
-                      ? "bg-primary text-white border-primary"
-                      : "bg-card border-border hover:border-primary/40 hover:bg-primary/5"
-                  )}
+        <div className="space-y-4">
+          {/* Child selector top bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4 p-3 bg-muted/30 border border-border/60 rounded-2xl shadow-sm">
+            <div className="flex items-center gap-3 flex-1 max-w-xl">
+              <div className="relative flex-1">
+                <select 
+                  value={selectedChild.className}
+                  onChange={e => {
+                    const firstInClass = CHILDREN.find(c => c.className === e.target.value)
+                    if (firstInClass) setSelectedChildId(firstInClass.id)
+                  }}
+                  className="w-full h-10 pl-4 pr-10 appearance-none bg-card border border-border rounded-xl text-sm font-semibold focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer shadow-xs"
                 >
-                  <div className={cn(
-                    "h-7 w-7 rounded-full font-bold text-xs flex items-center justify-center shrink-0",
-                    selectedChildId === child.id ? "bg-white/20 text-white" : "bg-primary/10 text-primary border border-primary/15"
-                  )}>
-                    {child.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
-                  </div>
-                  <div className="min-w-0">
-                    <p className={cn("text-xs font-semibold truncate", selectedChildId === child.id ? "text-white" : "text-foreground")}>{child.name}</p>
-                    <p className={cn("text-[10px] truncate", selectedChildId === child.id ? "text-white/70" : "text-muted-foreground")}>{child.className}</p>
-                  </div>
-                </button>
-              ))}
+                  {Array.from(new Set(CHILDREN.map(c => c.className))).map(cls => (
+                    <option key={cls} value={cls}>{cls}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              </div>
+
+              <div className="relative flex-[1.5]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <select 
+                  value={selectedChildId}
+                  onChange={e => setSelectedChildId(e.target.value)}
+                  className="w-full h-10 pl-9 pr-10 appearance-none bg-card border border-border rounded-xl text-sm font-semibold focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer shadow-xs"
+                >
+                  {CHILDREN.filter(c => c.className === selectedChild.className).map(child => (
+                    <option key={child.id} value={child.id}>
+                      {child.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              </div>
+            </div>
+            
+            {/* Child header quick summary */}
+            <div className="hidden sm:flex items-center gap-3 ml-auto pr-2 border-l border-border/60 pl-6">
+              <div className="h-9 w-9 rounded-full bg-primary/10 text-primary font-bold text-xs flex items-center justify-center shrink-0 border border-primary/20 shadow-xs">
+                {selectedChild.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+              </div>
+              <div className="min-w-0 text-right">
+                <p className="text-sm font-bold text-foreground leading-none">{selectedChild.name}</p>
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-1">{selectedChild.className} · {selectedChild.branch.replace("ARKA KIDS ", "")}</p>
+              </div>
             </div>
           </div>
 
           {/* Content panel */}
-          <div className="flex-1 min-w-0 rounded-xl border border-border bg-card p-4">
-            {/* Child header */}
-            <div className="flex items-center gap-3 mb-5 pb-3 border-b border-border/50">
-              <div className="h-10 w-10 rounded-full bg-primary text-white font-bold text-sm flex items-center justify-center shrink-0">
-                {selectedChild.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
-              </div>
-              <div>
-                <p className="text-sm font-bold text-foreground">{selectedChild.name}</p>
-                <p className="text-[11px] text-muted-foreground">{selectedChild.className} · {selectedChild.branch.replace("ARKA KIDS ", "")}</p>
-              </div>
-            </div>
-
-            {activeTab === "health"    && <HealthTab    child={selectedChild} />}
-            {activeTab === "meals"     && <MealTab      child={selectedChild} />}
-            {activeTab === "naps"      && <NapTab       child={selectedChild} />}
+          <div className="rounded-2xl border border-border/60 bg-card p-5 lg:p-6 shadow-sm min-h-[400px]">
+            {activeTab === "health" && <HealthTab child={selectedChild} />}
+            {activeTab === "meals" && <MealTab child={selectedChild} />}
+            {activeTab === "naps" && <NapTab child={selectedChild} />}
             {activeTab === "emergency" && <EmergencyTab child={selectedChild} />}
-            {activeTab === "incidents" && <IncidentTab  child={selectedChild} />}
+            {activeTab === "incidents" && <IncidentTab child={selectedChild} />}
           </div>
         </div>
       )}

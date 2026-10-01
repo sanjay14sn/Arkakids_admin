@@ -4,7 +4,6 @@ import * as React from "react"
 import {
   Megaphone,
   MessageSquare,
-  Bell,
   Send,
   Search,
   CheckCheck,
@@ -12,14 +11,12 @@ import {
   MoreVertical,
   ChevronLeft,
   Sparkles,
-  Users,
-  CheckCircle2,
 } from "lucide-react"
 import { Badge } from "@/components/ui/Badge"
 import { Button } from "@/components/ui/Button"
 import { useStore } from "@/store/useStore"
-import { PARENT_ALERTS, useParentPortal, type ParentMessage } from "@/lib/parentPortal"
-import { CHILDREN, CLASSES, type ChildRecord } from "@/lib/preschoolOps"
+import { useParentPortal } from "@/lib/parentPortal"
+import { CHILDREN, CLASSES } from "@/lib/preschoolOps"
 import { AccessRestricted } from "@/components/shared/AccessRestricted"
 import { cn } from "@/lib/utils"
 
@@ -87,10 +84,10 @@ function formatBubbleTime(iso: string) {
 }
 
 export default function ParentCommunicationPage() {
-  const { user, notifications, markAsRead, markAllAsRead, addNotification } = useStore()
+  const { user, addNotification } = useStore()
   const { state, update, ready } = useParentPortal()
   
-  const [tab, setTab] = React.useState<"announcements" | "messages" | "notifications">("announcements")
+  const [tab, setTab] = React.useState<"announcements" | "messages">("announcements")
   const [announcements, setAnnouncements] = React.useState<SchoolAnnouncement[]>(SEED_ANNOUNCEMENTS)
   const [title, setTitle] = React.useState("")
   const [body, setBody] = React.useState("")
@@ -155,7 +152,6 @@ export default function ParentCommunicationPage() {
   }
 
   const thread = [...state.messages].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-  const unreadCount = notifications.filter((item) => !item.read).length
   const isOwner = user?.role === "owner"
 
   const filteredContacts = CHILDREN.filter((c) =>
@@ -195,7 +191,7 @@ export default function ParentCommunicationPage() {
             Parent Communication
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Manage circulars, direct parent messaging, and automated alerts.
+            Manage circulars and direct parent messaging.
           </p>
         </div>
       </div>
@@ -230,23 +226,6 @@ export default function ParentCommunicationPage() {
         >
           <MessageSquare className="h-3.5 w-3.5" />
           <span>Messages</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setTab("notifications")}
-          className={cn(
-            "flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-colors",
-            tab === "notifications" ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
-          )}
-        >
-          <Bell className="h-3.5 w-3.5" />
-          <span>Notifications</span>
-          {unreadCount > 0 && (
-            <span className="bg-primary text-white px-1.5 py-0.2 rounded-full text-[10px] font-bold">
-              {unreadCount}
-            </span>
-          )}
         </button>
       </div>
 
@@ -510,62 +489,7 @@ export default function ParentCommunicationPage() {
         </div>
       )}
 
-      {/* ── TAB 3: NOTIFICATIONS ── */}
-      {tab === "notifications" && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between bg-card p-4 rounded-2xl border border-border">
-            <div>
-              <h3 className="text-sm font-bold text-foreground">In-App Notices & Alerts</h3>
-              <p className="text-xs text-muted-foreground">Automated system alerts delivered to parent mobile app.</p>
-            </div>
-            {notifications.length > 0 && (
-              <Button variant="outline" size="sm" onClick={markAllAsRead} icon={CheckCircle2}>
-                Mark all read
-              </Button>
-            )}
-          </div>
 
-          <div className="space-y-2">
-            {PARENT_ALERTS.map((alert) => (
-              <div key={alert.id} className="rounded-2xl border border-border bg-card p-4 flex items-start gap-3.5 shadow-xs">
-                <div className="h-9 w-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 border border-primary/15">
-                  <Bell className="h-4.5 w-4.5" />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-bold text-foreground">{alert.title}</h4>
-                    <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full border border-border">System Alert</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">{alert.body}</p>
-                </div>
-              </div>
-            ))}
-
-            {notifications.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => markAsRead(item.id)}
-                className="w-full text-left rounded-2xl border border-border bg-card p-4 hover:border-primary/30 transition-all flex items-start gap-3.5"
-              >
-                <div className="h-9 w-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 border border-primary/15">
-                  <Bell className="h-4.5 w-4.5" />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-bold text-foreground">{item.title}</h4>
-                    {!item.read && <Badge variant="success" className="text-[9px]">New</Badge>}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">{item.description}</p>
-                  <p className="text-[10px] text-muted-foreground mt-2">
-                    {new Date(item.timestamp).toLocaleString("en-IN")}
-                  </p>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   )
 }

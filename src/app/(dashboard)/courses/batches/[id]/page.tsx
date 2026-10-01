@@ -6,7 +6,7 @@ import {
   ArrowLeft, Calendar, Clock, UserCheck, Users, Sparkles,
   Video, ExternalLink, MapPin, Save, BookOpen, ShieldAlert,
   Search, Check, Info, AlertTriangle, Monitor, PlayCircle, Eye,
-  CheckCircle2, RotateCcw
+  CheckCircle2, RotateCcw, ChevronLeft, ChevronRight, Filter
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/Card"
@@ -27,10 +27,11 @@ interface Student {
   name: string
   email: string
   status: "active" | "completed" | "dropped"
+  course?: string
 }
 
 const mockActiveStudents: Student[] = [
-  { id: "s-101", name: "David Miller", email: "david.m@student.com", status: "active" },
+  { id: "s-101", name: "David Miller", email: "david.m@student.com", status: "active", course: "Toddler Program" },
   { id: "s-102", name: "Elena Rostova", email: "elena.r@student.com", status: "active" },
   { id: "s-103", name: "Hiroshi Tanaka", email: "hiroshi.t@student.com", status: "active" },
   { id: "s-104", name: "Chloe Dupont", email: "chloe.d@student.com", status: "active" },
@@ -84,8 +85,49 @@ export default function EditBatchPage() {
   const [completedAt, setCompletedAt] = React.useState<string | null>(null)
   const [isUpdatingStatus, setIsUpdatingStatus] = React.useState(false)
 
-  // Student Search
+  // Student Search, Filter, Pagination
   const [studentSearchQuery, setStudentSearchQuery] = React.useState("")
+  const [filterStatus, setFilterStatus] = React.useState<"all" | "enrolled" | "unassigned">("all")
+  const [currentPage, setCurrentPage] = React.useState(1)
+  const itemsPerPage = 10
+
+  React.useEffect(() => {
+    setCurrentPage(1)
+  }, [studentSearchQuery, filterStatus])
+
+  const filteredStudents = React.useMemo(() => {
+    return activeStudentsList.filter((st) => {
+      // Role logic
+      if (isTrainer && !selectedStudentIds.includes(st.id)) return false
+      
+      // Text search
+      const query = studentSearchQuery.toLowerCase()
+      if (query && !st.name.toLowerCase().includes(query) && !st.email.toLowerCase().includes(query)) {
+        return false
+      }
+
+      // Dropdown filter
+      const isSelected = selectedStudentIds.includes(st.id)
+      if (filterStatus === "enrolled" && !isSelected) return false
+      if (filterStatus === "unassigned" && isSelected) return false
+
+      // Course constraint: only show students enrolled in this batch's course
+      if (courseName && st.course) {
+        // If the DB course wrongly contains the batch name (e.g. Toddler Program - A), we check if it includes the courseName
+        if (st.course !== courseName && !st.course.startsWith(courseName)) {
+          return false
+        }
+      }
+
+      return true
+    })
+  }, [activeStudentsList, studentSearchQuery, filterStatus, selectedStudentIds, isTrainer, courseName])
+
+  const totalPages = Math.max(1, Math.ceil(filteredStudents.length / itemsPerPage))
+  const paginatedStudents = filteredStudents.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  )
 
   React.useEffect(() => {
     const loadBatchAndData = async () => {
@@ -133,7 +175,8 @@ export default function EditBatchPage() {
               id: st.id || st._id,
               name: st.name,
               email: st.email,
-              status: st.status
+              status: st.status,
+              course: st.course || st.className || st.classId || ""
             }))
           setActiveStudentsList(formattedStudents)
         }
@@ -175,8 +218,8 @@ export default function EditBatchPage() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!code || !schedule) {
-      alert("Please fill in the Batch Code and Weekly Timetable.")
+    if (!code) {
+      alert("Please fill in the Batch Code.")
       return
     }
 
@@ -289,9 +332,6 @@ export default function EditBatchPage() {
     )
   }
 
-  const occupancyRate = (selectedStudentIds.length / Number(capacity)) * 100
-  const isFull = selectedStudentIds.length >= Number(capacity)
-
   return (
     <motion.div 
       initial={{ opacity: 0, y: 15 }} 
@@ -319,8 +359,8 @@ export default function EditBatchPage() {
           </h1>
           <p className="text-xs text-muted-foreground">
             {isTrainer
-              ? "Update schedules, live session links, and upcoming class sessions for your batch."
-              : "Modify schedules, delivery channels, classroom environments, and update cohort student enrollment."}
+              ? "Update schedules and upcoming class information for your batch."
+              : "Modify schedules, room allocation, and update cohort student enrollment."}
           </p>
         </div>
         <div className="flex flex-col items-stretch sm:items-end gap-2">
@@ -367,513 +407,176 @@ export default function EditBatchPage() {
         </div>
       )}
 
-      <form onSubmit={handleSave} className="grid gap-6 lg:grid-cols-3">
-        {/* Left Column - Core Fields (2/3 width) */}
-        <div className="lg:col-span-2 space-y-6">
+      <form onSubmit={handleSave} className="space-y-4">
+        {/* Top Control Bar */}
+        <div className="flex flex-col sm:flex-row justify-between items-center bg-card p-4 rounded-xl shadow-sm border border-border/60 gap-4">
+          <div className="flex items-center gap-3 w-full sm:w-1/2">
+            <div className="relative w-full max-w-sm">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search students..."
+                value={studentSearchQuery}
+                onChange={(e) => setStudentSearchQuery(e.target.value)}
+                className="pl-9 bg-muted/20 border-border/80 h-9 text-xs w-full focus-visible:ring-1 focus-visible:ring-primary/50"
+              />
+            </div>
+            
+            <div className="relative w-36">
+              <Select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value as any)}
+                className="bg-muted/20 border-border/80 h-9 text-xs w-full focus-visible:ring-1 focus-visible:ring-primary/50"
+              >
+                <option value="all">All Status</option>
+                <option value="enrolled">Enrolled Only</option>
+                <option value="unassigned">Unassigned Only</option>
+              </Select>
+            </div>
+          </div>
           
-          {/* Card 1: Core Configuration */}
-          <Card className="bg-card shadow-md hover:shadow-lg border-border/80 transition-all duration-300">
-            <CardHeader className="border-b border-border/30 pb-3">
-              <CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
-                <Users className="h-4 w-4 text-primary" />
-                <span>Core Cohort Information</span>
-              </CardTitle>
-              <CardDescription className="text-[11px]">Define naming structure, program alignment, center allocation and capacity.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 pt-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-muted-foreground block">Batch Code *</label>
-                  <Input
-                    required
-                    readOnly={isTrainer}
-                    placeholder="e.g. Apex-B20"
-                    value={code}
-                    onChange={(e) => setCode(e.target.value)}
-                    className="bg-card/40 text-xs h-10 border-border focus:ring-1 focus:ring-primary/40 focus:border-primary transition-all font-mono font-semibold"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-muted-foreground block">Campus Center *</label>
-                  {user?.role === "super_admin" && centersList.length > 1 ? (
-                    <Select
-                      value={selectedCenterName}
-                      onChange={(e) => setSelectedCenterName(e.target.value)}
-                      className="bg-card/40 text-xs h-10 border-border"
-                    >
-                      {centersList.map((c) => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </Select>
-                  ) : (
-                    <div className="h-10 flex items-center rounded-md border border-border/70 bg-muted/20 px-3 text-xs font-medium text-foreground">
-                      {selectedCenterName || user?.tenantId || "—"}
-                    </div>
-                  )}
-                </div>
-              </div>
+          <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+            <span className="text-xs font-semibold text-muted-foreground mr-2">
+              <span className="text-primary font-bold">{selectedStudentIds.length}</span> selected
+            </span>
+            <Button type="button" variant="outline" size="sm" onClick={() => router.push("/courses")} className="h-8 text-xs">
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" size="sm" isLoading={isSaving} icon={Save} className="h-8 text-xs shadow-sm">
+              Save Roster
+            </Button>
+          </div>
+        </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-muted-foreground block">Course Program *</label>
-                  <Select
-                    value={courseName}
-                    onChange={(e) => setCourseName(e.target.value)}
-                    disabled={isTrainer}
-                    className="bg-card/40 text-xs h-10 border-border"
-                  >
-                    {courses.map((course) => (
-                      <option key={course.id || course._id} value={course.name}>
-                        {course.name}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-muted-foreground block">Class Capacity Limit *</label>
-                  <Input
-                    type="number"
-                    value={capacity}
-                    onChange={(e) => setCapacity(e.target.value)}
-                    readOnly={isTrainer}
-                    className="bg-card/40 text-xs h-10 border-border"
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Card 2: Scheduling & Trainer */}
-          <Card className="bg-card shadow-md hover:shadow-lg border-border/80 transition-all duration-300">
-            <CardHeader className="border-b border-border/30 pb-3">
-              <CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
-                <Clock className="h-4 w-4 text-primary" />
-                <span>Timetable & Trainer Assignment</span>
-              </CardTitle>
-              <CardDescription className="text-[11px]">Define weekly class hours and assign primary instructors.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 pt-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-muted-foreground block">Weekly Timetable *</label>
-                  <Input
-                    required
-                    placeholder="e.g. Mon, Wed • 09:00 AM"
-                    value={schedule}
-                    onChange={(e) => setSchedule(e.target.value)}
-                    className="bg-card/40 text-xs h-10 border-border"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-muted-foreground block">Assigned Trainer *</label>
-                  <Select
-                    value={trainerName}
-                    onChange={(e) => setTrainerName(e.target.value)}
-                    disabled={isTrainer}
-                    className="bg-card/40 text-xs h-10 border-border"
-                  >
-                    {(trainers.length > 0 ? trainers : [{ name: trainerName }]).map((t) => (
-                      <option key={t.id || t.name} value={t.name}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Card 3: Class Delivery Settings */}
-          <Card className="bg-card shadow-md hover:shadow-lg border-border/80 transition-all duration-300">
-            <CardHeader className="border-b border-border/30 pb-3">
-              <CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
-                <Monitor className="h-4 w-4 text-primary" />
-                <span>Class Delivery Mode & Infrastructure</span>
-              </CardTitle>
-              <CardDescription className="text-[11px]">Configure location types, live conference integration, or catalog links.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 pt-4">
-              {/* Premium Delivery Mode Selector */}
-              <div className="grid grid-cols-3 gap-3">
-                {[
-                  { key: "online", label: "Online Class", desc: "Virtual Meet Link", icon: Video, color: "border-blue-500/30 text-blue-400 bg-blue-500/5 hover:bg-blue-500/10" },
-                  { key: "offline", label: "In-Person", desc: "Physical Classrooms", icon: MapPin, color: "border-amber-500/30 text-amber-400 bg-amber-500/5 hover:bg-amber-500/10" },
-                  { key: "recorded", label: "Recorded", desc: "Self-Paced Library", icon: PlayCircle, color: "border-purple-500/30 text-purple-400 bg-purple-500/5 hover:bg-purple-500/10" }
-                ].map((item) => {
-                  const isActive = mode === item.key
+        {/* Zoho-style List View */}
+        <div className="bg-card rounded-xl shadow-sm border border-border/60 overflow-hidden flex flex-col">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left">
+              <thead>
+                <tr className="border-b border-border/60 bg-muted/30 text-muted-foreground uppercase">
+                  <th className="p-3 w-12 text-center">
+                    {!isTrainer && (
+                      <div
+                        onClick={() => {
+                          if (selectedStudentIds.length === activeStudentsList.length) {
+                            setSelectedStudentIds([])
+                          } else {
+                            setSelectedStudentIds(activeStudentsList.map(s => s.id))
+                          }
+                        }}
+                        className={cn(
+                          "h-4 w-4 rounded border flex items-center justify-center cursor-pointer mx-auto transition-colors",
+                          selectedStudentIds.length === activeStudentsList.length && activeStudentsList.length > 0
+                            ? "bg-primary border-primary text-primary-foreground"
+                            : "border-muted-foreground/30 bg-card hover:border-primary/50"
+                        )}
+                      >
+                        {selectedStudentIds.length === activeStudentsList.length && activeStudentsList.length > 0 && <Check className="h-3 w-3" />}
+                      </div>
+                    )}
+                  </th>
+                  <th className="p-3 font-semibold">Student Name</th>
+                  <th className="p-3 font-semibold">Contact / Email</th>
+                  <th className="p-3 font-semibold">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/40 min-h-[400px]">
+                {paginatedStudents.map((st) => {
+                  const isSelected = selectedStudentIds.includes(st.id)
+                  const initials = getInitials(st.name)
+                  
                   return (
-                    <button
-                      key={item.key}
-                      type="button"
-                      onClick={() => setMode(item.key as BatchMode)}
+                    <tr
+                      key={st.id}
+                      onClick={() => {
+                        if (isTrainer) return
+                        if (isSelected) {
+                          setSelectedStudentIds(selectedStudentIds.filter((id) => id !== st.id))
+                        } else {
+                          setSelectedStudentIds([...selectedStudentIds, st.id])
+                        }
+                      }}
                       className={cn(
-                        "flex flex-col items-center justify-center p-3 rounded-xl border-2 text-center transition-all cursor-pointer",
-                        isActive 
-                          ? item.key === "online" 
-                            ? "border-blue-500 bg-blue-500/10 text-blue-500 shadow-sm"
-                            : item.key === "offline"
-                              ? "border-amber-500 bg-amber-500/10 text-amber-500 shadow-sm"
-                              : "border-purple-500 bg-purple-500/10 text-purple-500 shadow-sm"
-                          : "border-border bg-card/25 text-muted-foreground hover:text-foreground"
+                        "transition-colors group",
+                        isTrainer ? "cursor-default" : "cursor-pointer hover:bg-muted/20",
+                        isSelected ? "bg-primary/[0.02]" : ""
                       )}
                     >
-                      <item.icon className="h-5 w-5 mb-1.5 shrink-0" />
-                      <span className="text-xs font-bold">{item.label}</span>
-                      <span className="text-[9px] opacity-75 mt-0.5">{item.desc}</span>
-                    </button>
+                      <td className="p-3 text-center">
+                        <div className={cn(
+                          "h-4 w-4 rounded border flex items-center justify-center mx-auto transition-colors",
+                          isSelected
+                            ? "bg-primary border-primary text-primary-foreground"
+                            : "border-muted-foreground/30 bg-card group-hover:border-primary/50"
+                        )}>
+                          {isSelected && <Check className="h-3 w-3" />}
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <div className="flex items-center gap-3">
+                          <div className={cn(
+                            "h-7 w-7 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0",
+                            isSelected ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                          )}>
+                            {initials}
+                          </div>
+                          <span className={cn("font-semibold text-[13px]", isSelected ? "text-foreground" : "text-muted-foreground")}>
+                            {st.name}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="p-3 text-muted-foreground">{st.email || "—"}</td>
+                      <td className="p-3">
+                        {isSelected ? (
+                          <Badge variant="success" className="text-[10px] h-5 px-1.5">Enrolled</Badge>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground font-medium px-1.5">Unassigned</span>
+                        )}
+                      </td>
+                    </tr>
                   )
                 })}
-              </div>
+                {paginatedStudents.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="p-8 text-center text-muted-foreground">
+                      No students found matching your filters.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
 
-              {/* Context-aware Sub-fields */}
-              <motion.div 
-                layout 
-                className="pt-2 border-t border-border/30"
+          {/* Pagination Footer */}
+          <div className="border-t border-border/60 bg-muted/10 p-3 flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">
+              Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredStudents.length)} of {filteredStudents.length} students
+            </span>
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="h-7 w-7"
               >
-                {mode === "online" && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-muted-foreground block">Virtual Conference Link</label>
-                      <Input
-                        placeholder="https://meet.google.com/..."
-                        value={meetLink}
-                        onChange={(e) => setMeetLink(e.target.value)}
-                        className="bg-card/40 text-xs h-10 border-border"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-muted-foreground block">Meeting Platform</label>
-                      <Select
-                        value={platform}
-                        onChange={(e) => setPlatform(e.target.value as any)}
-                        className="bg-card/40 text-xs h-10 border-border"
-                      >
-                        <option value="gmeet">Google Meet</option>
-                        <option value="zoom">Zoom Video</option>
-                        <option value="teams">Microsoft Teams</option>
-                        <option value="discord">Discord Guild</option>
-                      </Select>
-                    </div>
-                  </div>
-                )}
-
-                {mode === "offline" && (
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-semibold text-muted-foreground block">Classroom / Room Code</label>
-                    <Input
-                      placeholder="e.g. Lab 201, Room 104"
-                      value={roomName}
-                      onChange={(e) => setRoomName(e.target.value)}
-                      className="bg-card/40 text-xs h-10 border-border"
-                    />
-                  </div>
-                )}
-
-                {mode === "recorded" && (
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-semibold text-muted-foreground block">Recorded Content / LMS URL</label>
-                    <Input
-                      placeholder="https://lms.example.com/recordings/..."
-                      value={meetLink}
-                      onChange={(e) => setMeetLink(e.target.value)}
-                      className="bg-card/40 text-xs h-10 border-border"
-                    />
-                  </div>
-                )}
-              </motion.div>
-            </CardContent>
-          </Card>
-
-          {/* Card 4: Scheduled Class Sessions */}
-          <Card className="bg-card shadow-md hover:shadow-lg border-border/80 transition-all duration-300">
-            <CardHeader className="border-b border-border/30 pb-3 flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
-                  <Calendar className="h-4 w-4 text-primary" />
-                  <span>Scheduled Class Sessions</span>
-                </CardTitle>
-                <CardDescription className="text-[11px]">Draft lesson parameters and manage multiple upcoming class schedules.</CardDescription>
+                <ChevronLeft className="h-3 w-3" />
+              </Button>
+              <div className="flex items-center justify-center px-3 text-xs font-semibold">
+                Page {currentPage} of {totalPages}
               </div>
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
-                onClick={() => setSessions([...sessions, { topic: "", date: "", endDate: "" }])}
-                className="text-xs h-8 border-primary/20 hover:border-primary/40 text-primary hover:bg-primary/5 cursor-pointer"
+                size="icon"
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="h-7 w-7"
               >
-                + Add Scheduled Class
+                <ChevronRight className="h-3 w-3" />
               </Button>
-            </CardHeader>
-            <CardContent className="space-y-4 pt-4">
-              {sessions.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-8 text-center border border-dashed border-border rounded-xl bg-secondary/5 space-y-2">
-                  <Calendar className="h-8 w-8 text-muted-foreground" />
-                  <p className="text-xs font-semibold text-foreground">No Classes Scheduled</p>
-                  <p className="text-[10px] text-muted-foreground max-w-xs">
-                    Click "+ Add Scheduled Class" above to start scheduling sessions for this cohort.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3.5">
-                  {sessions.map((session, index) => (
-                    <div key={index} className="flex items-end gap-3 p-3 bg-secondary/15 rounded-xl border border-border/60 relative group">
-                      <div className="flex-1 grid grid-cols-3 gap-3">
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-muted-foreground block">Session #{index + 1} Topic</label>
-                          <Input
-                            placeholder="e.g. Hooks, API Routing, etc."
-                            value={session.topic}
-                            onChange={(e) => {
-                              const updated = [...sessions]
-                              updated[index].topic = e.target.value
-                              setSessions(updated)
-                            }}
-                            className="bg-card/60 text-xs h-9 border-border"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-muted-foreground block">Start Date & Time</label>
-                          <Input
-                            type="datetime-local"
-                            value={session.date}
-                            onChange={(e) => {
-                              const updated = [...sessions]
-                              updated[index].date = e.target.value
-                              if (e.target.value && !updated[index].endDate) {
-                                updated[index].endDate = defaultSessionEndFromStart(e.target.value)
-                              }
-                              setSessions(updated)
-                            }}
-                            className="bg-card/60 text-xs h-9 border-border text-foreground"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-muted-foreground block">End Date & Time</label>
-                          <Input
-                            type="datetime-local"
-                            value={session.endDate || ""}
-                            onChange={(e) => {
-                              const updated = [...sessions]
-                              updated[index].endDate = e.target.value
-                              setSessions(updated)
-                            }}
-                            className="bg-card/60 text-xs h-9 border-border text-foreground"
-                          />
-                        </div>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          const updated = sessions.filter((_, i) => i !== index)
-                          setSessions(updated)
-                        }}
-                        className="h-9 w-9 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0 cursor-pointer border border-border/50"
-                        title="Remove Session"
-                      >
-                        <span className="text-sm font-bold">&times;</span>
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Student Timetable Preview Block */}
-              {sessions.length > 0 && (
-                <div className="p-3 bg-secondary/10 border border-primary/10 rounded-xl space-y-2 mt-1">
-                  <h5 className="text-xs font-bold text-foreground flex items-center gap-1">
-                    <Sparkles className="h-3.5 w-3.5 text-primary animate-pulse" />
-                    <span>Student Portal TIMETABLE Preview:</span>
-                  </h5>
-                  <div className="max-h-24 overflow-y-auto space-y-1.5 pr-1 text-[10px] text-muted-foreground">
-                    {sessions.map((session, index) => (
-                      <div key={index} className="flex justify-between items-center bg-card/40 px-2 py-1 rounded border border-border/30 animate-scale-in">
-                        <span className="font-semibold text-foreground">{session.topic || `Session #${index + 1}`}</span>
-                        {session.date && (
-                          <span className="font-mono text-primary font-bold text-right">
-                            {formatSessionTimeRange(session)}
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Right Column - Cohort Enrollment (1/3 width) */}
-        <div className="space-y-6">
-          <Card className="bg-card border-border/80 shadow-md flex flex-col h-[700px] justify-between">
-            <div className="space-y-4">
-              <CardHeader className="border-b border-border/30 pb-3">
-                <div className="flex justify-between items-center">
-                  <CardTitle className="text-sm font-bold flex items-center gap-1.5 text-foreground">
-                    <Users className="h-4.5 w-4.5 text-primary" />
-                    <span>Cohort Enrollment</span>
-                  </CardTitle>
-                  <Badge variant={isFull ? "destructive" : "info"} className="font-bold text-[10px]">
-                    {selectedStudentIds.length} / {capacity} Enrolled
-                  </Badge>
-                </div>
-                <CardDescription className="text-[11px]">
-                  {isTrainer ? "View students enrolled in this batch." : "Search and register student profiles to this cohort."}
-                </CardDescription>
-              </CardHeader>
-
-              <div className="px-6 space-y-3">
-                {/* Visual Occupancy Bar */}
-                <div className="space-y-1">
-                  <div className="flex justify-between text-[10px] font-medium text-muted-foreground">
-                    <span>Enrollment Capacity</span>
-                    <span>{occupancyRate.toFixed(0)}% Filled</span>
-                  </div>
-                  <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
-                    <div
-                      className={cn("h-full transition-all duration-300", isFull ? "bg-red-500" : "bg-primary")}
-                      style={{ width: `${Math.min(occupancyRate, 100)}%` }}
-                    />
-                  </div>
-                </div>
-
-                {!isTrainer && (
-                  <>
-                    <div className="relative">
-                      <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Search name or email..."
-                        value={studentSearchQuery}
-                        onChange={(e) => setStudentSearchQuery(e.target.value)}
-                        className="pl-9 bg-card text-xs h-9"
-                      />
-                    </div>
-
-                    <div className="flex justify-between items-center text-[10px] text-muted-foreground pt-1 px-0.5">
-                      <span>Active students checklist</span>
-                      <div className="flex gap-2.5 font-bold">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedStudentIds(activeStudentsList.map((s) => s.id))}
-                          className="hover:text-primary transition-colors cursor-pointer"
-                        >
-                          Select All
-                        </button>
-                        <span>|</span>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedStudentIds([])}
-                          className="hover:text-primary transition-colors cursor-pointer"
-                        >
-                          Clear Selection
-                        </button>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* Scrollable list */}
-              <div className="px-6 overflow-y-auto max-h-[380px] space-y-2">
-                <AnimatePresence initial={false}>
-                  {activeStudentsList
-                    .filter((st) => {
-                      if (isTrainer && !selectedStudentIds.includes(st.id)) return false
-                      const query = studentSearchQuery.toLowerCase()
-                      return (
-                        st.name.toLowerCase().includes(query) ||
-                        st.email.toLowerCase().includes(query)
-                      )
-                    })
-                    .map((st) => {
-                      const isSelected = selectedStudentIds.includes(st.id)
-                      const initials = getInitials(st.name)
-                      
-                      return (
-                        <motion.div
-                          key={st.id}
-                          layout
-                          onClick={() => {
-                            if (isTrainer) return
-                            if (isSelected) {
-                              setSelectedStudentIds(selectedStudentIds.filter((id) => id !== st.id))
-                            } else {
-                              setSelectedStudentIds([...selectedStudentIds, st.id])
-                            }
-                          }}
-                          className={cn(
-                            "flex items-center justify-between p-2 rounded-xl border-2 transition-all select-none",
-                            isTrainer ? "cursor-default border-border bg-card/40" : "cursor-pointer",
-                            !isTrainer && isSelected
-                              ? "border-primary bg-primary/5 text-foreground"
-                              : !isTrainer
-                                ? "border-border bg-card/40 hover:bg-muted/40 text-muted-foreground hover:text-foreground"
-                                : "text-foreground"
-                          )}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className={cn(
-                              "h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 transition-colors",
-                              isSelected 
-                                ? "bg-primary text-primary-foreground" 
-                                : "bg-muted text-muted-foreground"
-                            )}>
-                              {initials}
-                            </div>
-                            <div className="text-left leading-snug">
-                              <p className="text-xs font-bold text-foreground">{st.name}</p>
-                              <p className="text-[10px] text-muted-foreground truncate max-w-[150px]">{st.email}</p>
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-center">
-                            {isSelected ? (
-                              <div className="h-4.5 w-4.5 rounded-full bg-primary flex items-center justify-center text-primary-foreground">
-                                <Check className="h-3 w-3 stroke-[3]" />
-                              </div>
-                            ) : (
-                              <div className="h-4.5 w-4.5 rounded-full border border-border bg-transparent" />
-                            )}
-                          </div>
-                        </motion.div>
-                      )
-                    })}
-                </AnimatePresence>
-              </div>
             </div>
-
-            {/* In-Panel Card Warnings */}
-            <div className="p-4 bg-secondary/15 border-t border-border/40 rounded-b-xl space-y-3">
-              {isFull && (
-                <div className="flex items-center gap-2 text-[10px] text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1.5 rounded-lg">
-                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                  <span>Cohort capacity limit reached. Adjust limits before registering more students.</span>
-                </div>
-              )}
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => router.push("/courses")}
-                  className="w-1/2 justify-center"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  variant="primary"
-                  size="sm"
-                  isLoading={isSaving}
-                  icon={Save}
-                  className="w-1/2 justify-center shadow-md shadow-primary/10"
-                >
-                  Save Changes
-                </Button>
-              </div>
-            </div>
-          </Card>
+          </div>
         </div>
       </form>
     </motion.div>

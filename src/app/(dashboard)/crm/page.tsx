@@ -646,55 +646,7 @@ export default function CRMPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="inline-flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-1.5">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-semibold uppercase text-muted-foreground">Auto Reply</span>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={globalAutoReply}
-                disabled={!isOwner || settingsSaving === "autoReply"}
-                title={isOwner ? (globalAutoReply ? "Auto reply on for all leads" : "Auto reply off") : "Owner only"}
-                onClick={() => void handleGlobalChatbotToggle("autoReplyEnabled", !globalAutoReply)}
-                className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
-                  globalAutoReply ? "bg-teal-600" : "bg-muted-foreground/30"
-                }`}
-              >
-                <span
-                  className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
-                    globalAutoReply ? "translate-x-[18px]" : "translate-x-[2px]"
-                  }`}
-                />
-              </button>
-            </div>
-            <div className="h-4 w-px bg-border" />
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-semibold uppercase text-muted-foreground">Follow-ups</span>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={globalFollowUps}
-                disabled={!isOwner || settingsSaving === "followUps"}
-                title={isOwner ? (globalFollowUps ? "Follow-ups on for all leads" : "Follow-ups off") : "Owner only"}
-                onClick={() => void handleGlobalChatbotToggle("followUpsEnabled", !globalFollowUps)}
-                className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
-                  globalFollowUps ? "bg-indigo-600" : "bg-muted-foreground/30"
-                }`}
-              >
-                <span
-                  className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
-                    globalFollowUps ? "translate-x-[18px]" : "translate-x-[2px]"
-                  }`}
-                />
-              </button>
-            </div>
-          </div>
 
-          {isOwner && (
-            <Button variant="outline" size="sm" icon={Link2} onClick={() => setIsIntegrationsOpen(true)}>
-              Integrations
-            </Button>
-          )}
 
           {allowLeadCsvImport && (
             <Button variant="outline" size="sm" icon={Upload} onClick={() => { resetImportDialog(); setIsImportOpen(true) }}>
@@ -828,7 +780,7 @@ export default function CRMPage() {
                           const replyCount = Array.isArray(lead.incomingReplies) ? lead.incomingReplies.length : 0
                           return (
                           <tr 
-                            key={lead.id} 
+                            key={lead.id || (lead as any)._id} 
                             onClick={() => setSelectedLead(lead)}
                             className="hover:bg-muted/40 cursor-pointer transition-colors"
                           >
@@ -866,19 +818,7 @@ export default function CRMPage() {
                             <td className="p-4 text-muted-foreground">{formatDate(lead.createdAt || lead.createdDate)}</td>
                             <td className="p-4 text-right" onClick={(e) => e.stopPropagation()}>
                               <div className="flex justify-end items-center gap-1.5">
-                                <button
-                                  type="button"
-                                  title="Email chatbot"
-                                  onClick={() => setChatLead(lead)}
-                                  className="relative inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border hover:bg-muted text-teal-600"
-                                >
-                                  <MessageCircle className="h-4 w-4" />
-                                  {replyCount > 0 && (
-                                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-emerald-500 text-white text-[9px] font-bold flex items-center justify-center">
-                                      {replyCount}
-                                    </span>
-                                  )}
-                                </button>
+
                                 {isOwner && pendingRequest ? (
                                   <>
                                     <Button
@@ -1027,119 +967,6 @@ export default function CRMPage() {
                 </div>
               </div>
 
-               {/* AI Pipeline Widget */}
-              {(() => {
-                const hasOutreachSent = !!selectedLead.outreachSentAt || selectedLead.notes?.some(n => n.text.toLowerCase().includes("outreach email sent") || n.text.toLowerCase().includes("outreach sent"));
-                const outreachSentNote = selectedLead.notes?.find(n => n.text.toLowerCase().includes("outreach email sent") || n.text.toLowerCase().includes("outreach sent"));
-                const outreachDate = selectedLead.outreachSentAt || outreachSentNote?.date;
-
-                const hasFollowUpSent = selectedLead.notes?.some(n => n.text.toLowerCase().includes("auto follow-up"));
-                const followUpNote = selectedLead.notes?.find(n => n.text.toLowerCase().includes("auto follow-up"));
-                const followUpDate = followUpNote?.date;
-
-                const hasReplied = !!selectedLead.repliedAt || (selectedLead.incomingReplies && selectedLead.incomingReplies.length > 0) || selectedLead.notes?.some(n => n.text.toLowerCase().includes("replied") || n.text.toLowerCase().includes("reply received"));
-                const replyNote = selectedLead.notes?.find(n => n.text.toLowerCase().includes("replied") || n.text.toLowerCase().includes("reply received"));
-                const replyDate = selectedLead.repliedAt || replyNote?.date || selectedLead.incomingReplies?.[0]?.receivedAt;
-
-                let progressWidth = "0%";
-                if (hasReplied) progressWidth = "100%";
-                else if (hasFollowUpSent) progressWidth = "66%";
-                else if (hasOutreachSent) progressWidth = "33%";
-
-                return (
-                  <div className="border-t border-border/40 pt-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-teal-600 dark:text-teal-400 uppercase tracking-wider flex items-center gap-1">
-                        <Sparkles className="h-3.5 w-3.5 text-teal-500 animate-pulse animate-duration-1000" />
-                        <span>AI Outreach Pipeline</span>
-                      </span>
-                      {selectedLead.intentScore !== undefined && (
-                        <span className="text-[9px] font-semibold bg-teal-500/10 text-teal-600 dark:text-teal-400 px-2 py-0.5 rounded-full">
-                          Intent: {selectedLead.intentScore}%
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="bg-teal-500/5 dark:bg-teal-950/20 rounded-xl border border-teal-500/15 p-3.5 space-y-4">
-                      {/* Step Progress Line */}
-                      <div className="relative flex justify-between items-start">
-                        {/* Background Progress Track Line */}
-                        <div className="absolute top-3.5 left-4 right-4 h-0.5 bg-muted/60 dark:bg-muted/30 -z-10" />
-                        {/* Active Progress Track Line */}
-                        <div 
-                          className="absolute top-3.5 left-4 h-0.5 bg-teal-500 dark:bg-teal-400 -z-10 transition-all duration-500" 
-                          style={{ width: `calc(${progressWidth} - 2rem)` }}
-                        />
-
-                        {/* Step 1: Outreach */}
-                        <div className="flex flex-col items-center text-center space-y-1 flex-1">
-                          <div className={`w-7 h-7 rounded-full flex items-center justify-center border-2 text-[10px] font-bold transition-all ${
-                            hasOutreachSent 
-                              ? "bg-teal-500 border-teal-500 text-white shadow-md shadow-teal-500/20" 
-                              : "bg-card border-muted-foreground/30 text-muted-foreground"
-                          }`}>
-                            {hasOutreachSent ? "✓" : "1"}
-                          </div>
-                          <span className="text-[9px] font-bold text-foreground">Outreach</span>
-                          {outreachDate && (
-                            <span className="text-[8px] text-muted-foreground/80 leading-none">{formatDate(outreachDate)}</span>
-                          )}
-                        </div>
-
-                        {/* Step 2: Auto Follow-up */}
-                        <div className="flex flex-col items-center text-center space-y-1 flex-1">
-                          <div className={`w-7 h-7 rounded-full flex items-center justify-center border-2 text-[10px] font-bold transition-all ${
-                            hasFollowUpSent 
-                              ? "bg-teal-500 border-teal-500 text-white shadow-md shadow-teal-500/20" 
-                              : "bg-card border-muted-foreground/30 text-muted-foreground"
-                          }`}>
-                            {hasFollowUpSent ? "✓" : "2"}
-                          </div>
-                          <span className="text-[9px] font-bold text-foreground">Follow-up</span>
-                          {followUpDate && (
-                            <span className="text-[8px] text-muted-foreground/80 leading-none">{formatDate(followUpDate)}</span>
-                          )}
-                        </div>
-
-                        {/* Step 3: Response */}
-                        <div className="flex flex-col items-center text-center space-y-1 flex-1">
-                          <div className={`w-7 h-7 rounded-full flex items-center justify-center border-2 text-[10px] font-bold transition-all ${
-                            hasReplied 
-                              ? "bg-teal-500 border-teal-500 text-white shadow-md shadow-teal-500/20" 
-                              : "bg-card border-muted-foreground/30 text-muted-foreground"
-                          }`}>
-                            {hasReplied ? "✓" : "3"}
-                          </div>
-                          <span className="text-[9px] font-bold text-foreground">Response</span>
-                          {replyDate && (
-                            <span className="text-[8px] text-muted-foreground/80 leading-none">{formatDate(replyDate)}</span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Intent score & Last Intent */}
-                      {(selectedLead.lastIntent || selectedLead.intentScore !== undefined) && (
-                        <div className="border-t border-teal-500/10 pt-2.5 flex items-center justify-between text-[10px] text-foreground font-medium">
-                          {selectedLead.lastIntent && (
-                            <span className="flex items-center gap-1 capitalize">
-                              <span className="w-1.5 h-1.5 rounded-full bg-teal-500" />
-                              Intent: <strong className="text-teal-600 dark:text-teal-400">{selectedLead.lastIntent}</strong>
-                            </span>
-                          )}
-                          {selectedLead.intentScore !== undefined && (
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-muted-foreground">Confidence:</span>
-                              <div className="w-16 h-1.5 bg-muted-foreground/20 rounded-full overflow-hidden">
-                                <div className="h-full bg-teal-500" style={{ width: `${selectedLead.intentScore}%` }} />
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })()}
 
               {/* Note taking Timeline */}
               <div className="border-t border-border/60 pt-4 space-y-3">
@@ -1212,15 +1039,6 @@ export default function CRMPage() {
             })()}
 
             <div className="border-t border-border/80 pt-4 flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setChatLead(selectedLead)}
-                icon={MessageCircle}
-                className="flex-1 text-xs"
-              >
-                Email Chat
-              </Button>
               <Button
                 variant="destructive"
                 size="sm"
@@ -1583,7 +1401,7 @@ export default function CRMPage() {
         isOpen={isAddOpen}
         onClose={() => setIsAddOpen(false)}
         title="Add Enquiry"
-        description="Child DOB auto-suggests Toddler, Nursery, Jr KG, or Sr KG. Under 2 goes to waitlist."
+        description="Enter the child's details to log a new enquiry."
         className="max-w-xl"
       >
         <EnquiryForm submitLabel="Save Enquiry" onSuccess={() => setIsAddOpen(false)} />

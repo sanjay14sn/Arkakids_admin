@@ -22,6 +22,7 @@ import { formatCurrency } from "@/lib/utils"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import type { StudentRisk } from "@/lib/studentRiskStats"
+import { DailyJournalDashboardWidget } from "./DailyJournalDashboardWidget"
 
 interface CenterData {
   id: string
@@ -350,18 +351,6 @@ export function OwnerDashboard() {
             </div>
           )}
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" icon={Wallet} onClick={() => window.location.href = "/hr"}>
-              HR & Payroll
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              icon={FileText}
-              onClick={() => void handleExportReports()}
-              disabled={isExporting}
-            >
-              {isExporting ? "Exporting…" : "Export Reports"}
-            </Button>
             <Button
               variant="primary"
               size="sm"
@@ -407,6 +396,9 @@ export function OwnerDashboard() {
           delay={0.15}
         />
       </div>
+
+      {/* Daily Journal Status / Reminder Widget */}
+      <DailyJournalDashboardWidget />
 
       {/* Analytics Row */}
       <div className="grid gap-6 lg:grid-cols-3">

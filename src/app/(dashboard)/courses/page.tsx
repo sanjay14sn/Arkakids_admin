@@ -109,13 +109,13 @@ function matchesGrade(student: Student, grade: string) {
   return !student.ageBand || student.ageBand === band
 }
 
-function staffByKind(kind: (typeof PREVIEW_STAFF)[number]["kind"], trainers: { name?: string }[]) {
-  const base = PREVIEW_STAFF.filter((staff) => staff.kind === kind).map((staff) => staff.name)
-  const extra = trainers
-    .map((item) => item.name)
-    .filter((name): name is string => typeof name === "string" && name.length > 0)
-    .filter((name) => !base.includes(name))
-  return [...base, ...extra]
+function staffByKind(kind: "coordinator" | "teacher" | "assistant", trainers: { name?: string, role?: string }[]) {
+  const roles = kind === "coordinator" ? ["Center Coordinator"] :
+                kind === "teacher" ? ["Lead Educator"] :
+                ["Assistant Teacher", "Caregiver / Support"];
+                
+  const matches = trainers.filter(t => roles.includes(t.role || "")).map(t => t.name)
+  return matches.filter((name): name is string => typeof name === "string" && name.length > 0)
 }
 
 function batchTitle(batch: Batch) {
@@ -135,6 +135,7 @@ export default function CoursesPage() {
   const searchParams = useSearchParams()
   const { user, addNotification, activeTenant } = useStore()
   const isTrainer = user?.role === "trainer"
+  const isSuperAdmin = user?.role === "super_admin"
   const isAdmin = user?.role === "owner" || user?.role === "super_admin"
   const { allowTrainerDeleteBatch } = useCenterPolicy()
   const canDeleteBatch = isAdmin || (isTrainer && allowTrainerDeleteBatch)
@@ -187,7 +188,7 @@ export default function CoursesPage() {
         const [batchesData, coursesData, trainersData, studentsData, centersData] = await Promise.all([
           fetchAPI('/batches'),
           fetchAPI('/courses'),
-          isTrainer ? Promise.resolve([]) : fetchAPI('/trainers').catch(() => []),
+          isTrainer ? Promise.resolve([]) : api.getStaff().catch(() => []),
           isTrainer ? api.getTrainerStudents().catch(() => []) : fetchAPI('/students').catch(() => []),
           isAdmin ? fetchAPI('/centers').catch(() => []) : Promise.resolve([])
         ]);
@@ -242,7 +243,7 @@ export default function CoursesPage() {
   const [editingBatch, setEditingBatch] = React.useState<Batch | null>(null)
   const [code, setCode] = React.useState("")
   const [courseName, setCourseName] = React.useState("")
-  const [trainerName, setTrainerName] = React.useState("Priya Kumar")
+  const [trainerName, setTrainerName] = React.useState("")
   const [schedule, setSchedule] = React.useState("")
   const [capacity, setCapacity] = React.useState("25")
   const [meetLink, setMeetLink] = React.useState("")
@@ -257,8 +258,8 @@ export default function CoursesPage() {
   const [academicYear, setAcademicYear] = React.useState<string>("2026–27")
   const [grade, setGrade] = React.useState<string>("")
   const [section, setSection] = React.useState<string>("A")
-  const [classTeacherName, setClassTeacherName] = React.useState("Anitha")
-  const [assistantTeacherName, setAssistantTeacherName] = React.useState("Kavya")
+  const [classTeacherName, setClassTeacherName] = React.useState("")
+  const [assistantTeacherName, setAssistantTeacherName] = React.useState("")
   const [startTime, setStartTime] = React.useState("09:00")
   const [endTime, setEndTime] = React.useState("12:30")
   const [workingDays, setWorkingDays] = React.useState<string[]>(["Mon", "Tue", "Wed", "Thu", "Fri"])
@@ -288,9 +289,9 @@ export default function CoursesPage() {
     setSection("A")
     setCode(makeBatchCode(uniqueProgramNames(courses)[0] || "CLS", "A", "2026–27"))
     setCourseName(uniqueProgramNames(courses)[0] || "")
-    setTrainerName(staffByKind("coordinator", trainers)[0] || "Priya Kumar")
-    setClassTeacherName(staffByKind("teacher", trainers)[0] || "Anitha")
-    setAssistantTeacherName(staffByKind("assistant", trainers)[0] || "Kavya")
+    setTrainerName(staffByKind("coordinator", trainers)[0] || "")
+    setClassTeacherName(staffByKind("teacher", trainers)[0] || "")
+    setAssistantTeacherName(staffByKind("assistant", trainers)[0] || "")
     setSchedule("")
     setCapacity("25")
     setMeetLink("")
@@ -502,8 +503,8 @@ export default function CoursesPage() {
     setCourseName(batch.courseName || uniqueProgramNames(courses)[0] || "")
     setSection(batch.section || batch.code.split("-")[1] || "A")
     setAcademicYear(batch.academicYear || "2026–27")
-    setTrainerName(batch.trainerName || staffByKind("coordinator", trainers)[0] || "Priya Kumar")
-    setClassTeacherName(batch.classTeacherName || staffByKind("teacher", trainers)[0] || "Anitha")
+    setTrainerName(batch.trainerName || staffByKind("coordinator", trainers)[0] || "")
+    setClassTeacherName(batch.classTeacherName || staffByKind("teacher", trainers)[0] || "")
     setAssistantTeacherName(batch.assistantTeacherName || "")
     setSchedule(batch.schedule)
     setCapacity(String(batch.capacity))
@@ -660,65 +661,137 @@ export default function CoursesPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
             <BookOpen className="h-5 w-5 text-primary" />
-            <span>Classes & Programs</span>
+            <span>{isSuperAdmin ? "Class Programs" : "Classes & Programs"}</span>
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {isTrainer
-              ? "Your assigned class batches, timings, and enrolled children."
-              : "Class programs and batches: year, grade, section, staff, and student assignment."}
+            {isSuperAdmin 
+              ? "Manage the master catalog of class programs, age ranges, and capacities."
+              : isTrainer
+                ? "Your assigned class batches, timings, and enrolled children."
+                : "Class programs and batches: year, grade, section, staff, and student assignment."}
           </p>
         </div>
-        {isAdmin && (
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" icon={Plus} onClick={openAddCourseDialog}>
-              Add Class Program
-            </Button>
-            <Button variant="outline" size="sm" icon={Plus} onClick={openCreateBatch}>
-              Create Batch
-            </Button>
-          </div>
+        {isSuperAdmin ? (
+          <Button variant="primary" size="sm" icon={Plus} onClick={openAddCourseDialog}>
+            Add Class Program
+          </Button>
+        ) : (
+          isAdmin && (
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" icon={Plus} onClick={openCreateBatch}>
+                Create Batch
+              </Button>
+            </div>
+          )
         )}
       </div>
 
-      {isAdmin && (
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs text-muted-foreground">
-            {displayedBatches.length} batch{displayedBatches.length === 1 ? "" : "es"}
-          </p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => router.push("/courses/manage")}
-            className="text-xs"
-          >
-            Manage Class Programs
-          </Button>
-        </div>
-      )}
-
-      {/* Batch List */}
-      <Card className="bg-card">
-        <CardHeader className="border-b border-border/40 pb-3">
-          <CardTitle className="text-sm font-bold">Class Batches</CardTitle>
-          <CardDescription className="text-xs">
-            Academic year, grade, section, classroom staff, and enrolled children.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-0">
-          {displayedBatches.length === 0 ? (
-            <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
-              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-secondary/80">
-                <Users className="h-6 w-6 text-muted-foreground" />
+      {isSuperAdmin ? (
+        <Card className="bg-card">
+          <CardHeader className="border-b border-border/40 pb-3">
+            <CardTitle className="text-sm font-bold">Available Programs</CardTitle>
+            <CardDescription className="text-xs">
+              View, edit, and manage saved class programs.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            {courses.length === 0 ? (
+              <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
+                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-secondary/80">
+                  <BookOpen className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <p className="text-sm font-semibold text-foreground">No programs saved yet</p>
+                <p className="mt-1 max-w-md text-xs text-muted-foreground leading-relaxed">
+                  Click 'Add Class Program' to create the first program in the catalog.
+                </p>
               </div>
-              <p className="text-sm font-semibold text-foreground">
-                {user?.role === "student" ? "No batch assigned" : "No class batches"}
-              </p>
-              <p className="mt-1 max-w-md text-xs text-muted-foreground leading-relaxed">
-                {user?.role === "student"
-                  ? "Your class batch and timetable will appear here after you are assigned."
-                  : "Create a class batch to assign a coordinator, teachers, room, and children."}
-              </p>
-              {isAdmin && (
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead>
+                    <tr className="border-b border-border text-muted-foreground uppercase font-semibold">
+                      <th className="p-4 min-w-[140px]">Program Name</th>
+                      <th className="p-4 min-w-[100px]">Code</th>
+                      <th className="p-4 min-w-[100px]">Age Group</th>
+                      <th className="p-4 min-w-[80px]">Status</th>
+                      <th className="p-4 text-right min-w-[120px]">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/60">
+                    {courses.map((course, index) => (
+                      <tr key={course.id || course._id || `course-${index}`} className="hover:bg-muted/30 transition-colors align-top">
+                        <td className="p-4">
+                          <p className="font-bold text-foreground">{course.name}</p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5 max-w-[200px] truncate">{course.description || "—"}</p>
+                        </td>
+                        <td className="p-4 font-mono font-medium text-muted-foreground">{course.code}</td>
+                        <td className="p-4 text-foreground">{course.ageGroup || formatAgeGroup(course.ageFrom, course.ageTo) || "—"}</td>
+                        <td className="p-4">
+                          <Badge variant={course.status === "active" ? "success" : "secondary"} className="text-[10px]">
+                            {course.status === "active" ? "Active" : "Inactive"}
+                          </Badge>
+                        </td>
+                        <td className="p-4 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                              onClick={() => {
+                                fillProgramForm(course)
+                                setIsCourseAddOpen(true)
+                              }}
+                              title="Edit Program"
+                            >
+                              <Edit className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => {
+                                if (window.confirm(`Are you sure you want to delete ${course.name}?`)) {
+                                  const newCourses = courses.filter(c => (c.id || c._id) !== (course.id || course._id));
+                                  setCourses(newCourses);
+                                  persistPrograms(newCourses);
+                                }
+                              }}
+                              title="Delete Program"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="bg-card">
+          <CardHeader className="border-b border-border/40 pb-3">
+            <CardTitle className="text-sm font-bold">Class Batches</CardTitle>
+            <CardDescription className="text-xs">
+              Academic year, grade, section, classroom staff, and enrolled children.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            {displayedBatches.length === 0 ? (
+              <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
+                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-secondary/80">
+                  <Users className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <p className="text-sm font-semibold text-foreground">
+                  {user?.role === "student" ? "No batch assigned" : "No class batches"}
+                </p>
+                <p className="mt-1 max-w-md text-xs text-muted-foreground leading-relaxed">
+                  {user?.role === "student"
+                    ? "Your class batch and timetable will appear here after you are assigned."
+                    : "Create a class batch to assign a coordinator, teachers, room, and children."}
+                </p>
                 <Button
                   variant="outline"
                   size="sm"
@@ -728,75 +801,78 @@ export default function CoursesPage() {
                 >
                   Create Batch
                 </Button>
-              )}
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left">
-                <thead>
-                  <tr className="border-b border-border text-muted-foreground uppercase font-semibold">
-                    <th className="p-4 min-w-[140px]">Batch</th>
-                    <th className="p-4 min-w-[90px]">Year</th>
-                    <th className="p-4 min-w-[140px]">Timing</th>
-                    <th className="p-4 min-w-[90px]">Room</th>
-                    <th className="p-4 min-w-[110px]">Coordinator</th>
-                    <th className="p-4 min-w-[110px]">Class Teacher</th>
-                    {user?.role !== "student" && <th className="p-4 min-w-[110px]">Students</th>}
-                    <th className="p-4 min-w-[80px]">Status</th>
-                    {(isAdmin || isTrainer) && <th className="p-4 text-right min-w-[140px]">Actions</th>}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/60">
-                  {displayedBatches.map((batch) => {
-                    const occupancyRate = batch.capacity ? (batch.enrolled / batch.capacity) * 100 : 0
-                    const isFull = batch.enrolled >= batch.capacity
-                    const isCompleted = batch.status === "completed"
-                    const status = statusBadge(batch.status)
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead>
+                    <tr className="border-b border-border text-muted-foreground uppercase font-semibold">
+                      <th className="p-4 min-w-[140px]">Batch</th>
+                      <th className="p-4 min-w-[90px]">Year</th>
+                      <th className="p-4 min-w-[140px]">Timing</th>
+                      <th className="p-4 min-w-[90px]">Room</th>
+                      <th className="p-4 min-w-[110px]">Coordinator</th>
+                      <th className="p-4 min-w-[110px]">Class Teacher</th>
+                      {user?.role !== "student" && <th className="p-4 min-w-[110px]">Students</th>}
+                      <th className="p-4 min-w-[80px]">Status</th>
+                      <th className="p-4 text-right min-w-[140px]">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/60">
+                    {displayedBatches.map((batch, index) => {
+                      const occupancyRate = batch.capacity ? (batch.enrolled / batch.capacity) * 100 : 0
+                      const isFull = batch.enrolled >= batch.capacity
+                      const isCompleted = batch.status === "completed"
+                      const status = statusBadge(batch.status)
 
-                    return (
-                      <tr key={batch.id} className="hover:bg-muted/30 transition-colors align-top">
-                        <td className="p-4">
-                          <p className="font-bold text-foreground">{batchTitle(batch)}</p>
-                          <p className="text-[10px] font-semibold text-muted-foreground mt-0.5">{batch.code}</p>
-                        </td>
-                        <td className="p-4 text-muted-foreground">{batch.academicYear || "—"}</td>
-                        <td className="p-4 text-muted-foreground">
-                          <span className="inline-flex items-center gap-1.5">
-                            <Clock className="h-3.5 w-3.5 shrink-0" />
-                            {batch.schedule}
-                          </span>
-                        </td>
-                        <td className="p-4 text-muted-foreground">{batch.roomName || "—"}</td>
-                        <td className="p-4 text-foreground">{batch.trainerName || "—"}</td>
-                        <td className="p-4 text-foreground">{batch.classTeacherName || "—"}</td>
-                        {user?.role !== "student" && (
+                      return (
+                        <tr key={batch.id || `batch-${index}`} className="hover:bg-muted/30 transition-colors align-top">
                           <td className="p-4">
-                            <div className="space-y-1.5 min-w-[110px]">
-                              <div className="flex justify-between text-[10px] text-muted-foreground">
-                                <span>{batch.enrolled}/{batch.capacity}</span>
-                                <span>{occupancyRate.toFixed(0)}%</span>
-                              </div>
-                              <div className="h-1 w-full bg-secondary rounded-full overflow-hidden">
-                                <div
-                                  className={`h-full ${isFull ? "bg-red-500" : "bg-primary"}`}
-                                  style={{ width: `${Math.min(occupancyRate, 100)}%` }}
-                                />
-                              </div>
-                            </div>
+                            <p className="font-bold text-foreground">{batchTitle(batch)}</p>
+                            <p className="text-[10px] font-semibold text-muted-foreground mt-0.5">{batch.code}</p>
                           </td>
-                        )}
-                        <td className="p-4">
-                          <Badge variant={status.variant} className="text-[10px]">{status.label}</Badge>
-                        </td>
-                        {(isAdmin || isTrainer) && (
+                          <td className="p-4 text-muted-foreground">{batch.academicYear?.includes('-') ? batch.academicYear.split('-').reverse().join('-') : batch.academicYear || "—"}</td>
+                          <td className="p-4 text-muted-foreground">
+                            <span className="inline-flex items-center gap-1.5">
+                              <Clock className="h-3.5 w-3.5 shrink-0" />
+                              {batch.schedule}
+                            </span>
+                          </td>
+                          <td className="p-4 text-muted-foreground">{batch.roomName || "—"}</td>
+                          <td className="p-4 text-foreground">{batch.trainerName || "—"}</td>
+                          <td className="p-4 text-foreground">{batch.classTeacherName || "—"}</td>
+                          {user?.role !== "student" && (
+                            <td className="p-4">
+                              <div className="space-y-1.5 min-w-[110px]">
+                                <div className="text-[12px] text-muted-foreground font-medium">
+                                  {batch.enrolled}
+                                </div>
+                              </div>
+                            </td>
+                          )}
+                          <td className="p-4">
+                            <Badge variant={status.variant} className="text-[10px]">{status.label}</Badge>
+                          </td>
                           <td className="p-4">
                             <div className="flex items-center justify-end gap-1 flex-wrap">
+                              {user?.role !== "student" && (
+                                <Button
+                                  variant="primary"
+                                  size="sm"
+                                  className="h-7 text-[10px] px-2 font-bold"
+                                  onClick={() => router.push(`/courses/batches/${batch.id || (batch as any)._id}`)}
+                                  title="Assign Students & Edit"
+                                >
+                                  <Users className="h-3 w-3 mr-1" />
+                                  Assign Students
+                                </Button>
+                              )}
                               <Button
                                 variant="outline"
                                 size="sm"
                                 className="h-7 w-7 p-0"
                                 onClick={() => handleOpenEditBatch(batch)}
-                                title="Edit Batch"
+                                title="Quick Edit Batch"
                               >
                                 <Edit className="h-3.5 w-3.5" />
                               </Button>
@@ -805,7 +881,7 @@ export default function CoursesPage() {
                                   variant="outline"
                                   size="sm"
                                   className="h-7 w-7 p-0"
-                                  onClick={() => router.push(`/attendance?batch=${batch.id}`)}
+                                  onClick={() => router.push(`/attendance?batch=${batch.id || (batch as any)._id}`)}
                                   title="Attendance"
                                 >
                                   <ClipboardList className="h-3.5 w-3.5" />
@@ -822,39 +898,18 @@ export default function CoursesPage() {
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </Button>
                               )}
-                              {isAdmin && (
-                                isCompleted ? (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-7 text-[10px] px-2"
-                                    onClick={() => handleUpdateBatchStatus(batch, "active")}
-                                  >
-                                    Reopen
-                                  </Button>
-                                ) : (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-7 text-[10px] px-2"
-                                    onClick={() => handleUpdateBatchStatus(batch, "completed")}
-                                  >
-                                    Complete
-                                  </Button>
-                                )
-                              )}
                             </div>
                           </td>
-                        )}
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Add Batch Dialog */}
       <Dialog
@@ -883,17 +938,14 @@ export default function CoursesPage() {
             <div className="space-y-3.5">
               <div className="grid grid-cols-2 gap-3.5">
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">Academic Year *</label>
-                  <Select
+                  <label className="text-xs font-semibold text-muted-foreground">Academic Year Date *</label>
+                  <Input
+                    type="date"
                     value={academicYear}
                     onChange={(e) => setAcademicYear(e.target.value)}
                     className="bg-card text-xs h-9.5"
                     required
-                  >
-                    {ACADEMIC_YEARS.map((year) => (
-                      <option key={`year-${year}`} value={year}>{year}</option>
-                    ))}
-                  </Select>
+                  />
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-muted-foreground">Class / Grade *</label>
@@ -905,8 +957,8 @@ export default function CoursesPage() {
                       required
                     >
                       <option value="">Select program</option>
-                      {savedProgramNames.map((item) => (
-                        <option key={`grade-${item}`} value={item}>{item}</option>
+                      {savedProgramNames.map((item, index) => (
+                        <option key={`grade-${item}-${index}`} value={item}>{item}</option>
                       ))}
                       {grade && !savedProgramNames.includes(grade) && (
                         <option value={grade}>{grade}</option>
@@ -926,56 +978,23 @@ export default function CoursesPage() {
               <div className="grid grid-cols-2 gap-3.5">
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-muted-foreground">Section / Batch *</label>
-                  <Select
+                  <Input
                     value={section}
                     onChange={(e) => setSection(e.target.value)}
                     className="bg-card text-xs h-9.5"
+                    placeholder="e.g. A"
                     required
-                  >
-                    {SECTIONS.map((item) => (
-                      <option key={`section-${item}`} value={item}>{item}</option>
-                    ))}
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">Batch Code</label>
-                  <Input
-                    value={code}
-                    onChange={(e) => {
-                      setCodeTouched(true)
-                      setCode(e.target.value)
-                    }}
-                    className="bg-card text-xs h-9.5"
                   />
-                  <p className="text-[10px] text-muted-foreground">Auto-generated from class, section, and year.</p>
                 </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3.5">
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-muted-foreground">Classroom *</label>
-                  <Select
+                  <Input
                     value={roomName}
                     onChange={(e) => setRoomName(e.target.value)}
                     className="bg-card text-xs h-9.5"
-                    required
-                  >
-                    {CLASSROOMS.map((room) => (
-                      <option key={`room-${room}`} value={room}>{room}</option>
-                    ))}
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">Maximum Capacity *</label>
-                  <Input
-                    type="number"
-                    min={1}
-                    value={capacity}
-                    onChange={(e) => setCapacity(e.target.value)}
-                    className="bg-card text-xs h-9.5"
+                    placeholder="e.g. Room 101"
                     required
                   />
-                  <p className="text-[10px] text-muted-foreground">Current strength: {selectedStudentIds.length} / {maxCapacity}</p>
                 </div>
               </div>
 
@@ -1056,9 +1075,13 @@ export default function CoursesPage() {
                     className="bg-card text-xs h-9.5"
                     required
                   >
+                    <option value="">Select Coordinator</option>
                     {Array.from(new Set([trainerName, ...coordinatorOptions].filter(Boolean))).map((name) => (
                       <option key={`coord-${name}`} value={name}>{name}</option>
                     ))}
+                    {coordinatorOptions.length === 0 && !trainerName && (
+                      <option value="" disabled>No coordinators found</option>
+                    )}
                   </Select>
                 </div>
                 <div className="grid grid-cols-2 gap-3.5">
@@ -1070,9 +1093,13 @@ export default function CoursesPage() {
                       className="bg-card text-xs h-9.5"
                       required
                     >
+                      <option value="">Select Teacher</option>
                       {Array.from(new Set([classTeacherName, ...teacherOptions].filter(Boolean))).map((name) => (
                         <option key={`teacher-${name}`} value={name}>{name}</option>
                       ))}
+                      {teacherOptions.length === 0 && !classTeacherName && (
+                        <option value="" disabled>No teachers found</option>
+                      )}
                     </Select>
                   </div>
                   <div className="space-y-1">
@@ -1086,6 +1113,9 @@ export default function CoursesPage() {
                       {Array.from(new Set([assistantTeacherName, ...assistantOptions].filter(Boolean))).map((name) => (
                         <option key={`assistant-${name}`} value={name}>{name}</option>
                       ))}
+                      {assistantOptions.length === 0 && !assistantTeacherName && (
+                        <option value="" disabled>No assistants found</option>
+                      )}
                     </Select>
                   </div>
                 </div>
@@ -1295,8 +1325,8 @@ export default function CoursesPage() {
                 required
               />
               <datalist id="program-name-options">
-                {savedProgramNames.map((name) => (
-                  <option key={`name-opt-${name}`} value={name} />
+                {savedProgramNames.map((name, index) => (
+                  <option key={`name-opt-${name}-${index}`} value={name} />
                 ))}
               </datalist>
             </div>
@@ -1355,51 +1385,6 @@ export default function CoursesPage() {
 
           <div className="grid grid-cols-2 gap-3.5">
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted-foreground">Program Duration</label>
-              <Input
-                list="program-duration-options"
-                value={newCourseDuration}
-                onChange={(e) => setNewCourseDuration(e.target.value)}
-                placeholder="e.g. 1 Year, 10 months, Term"
-                className="bg-card text-xs h-9.5"
-              />
-              <datalist id="program-duration-options">
-                {savedDurations.map((item) => (
-                  <option key={`duration-opt-${item}`} value={item} />
-                ))}
-              </datalist>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted-foreground">Maximum Student Capacity</label>
-              <Input
-                type="number"
-                min={1}
-                value={programCapacity}
-                onChange={(e) => setProgramCapacity(e.target.value)}
-                className="bg-card text-xs h-9.5"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3.5">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted-foreground">Default Class Timing</label>
-              <div className="grid grid-cols-2 gap-2">
-                <Input
-                  type="time"
-                  value={programStartTime}
-                  onChange={(e) => setProgramStartTime(e.target.value)}
-                  className="bg-card text-xs h-9.5"
-                />
-                <Input
-                  type="time"
-                  value={programEndTime}
-                  onChange={(e) => setProgramEndTime(e.target.value)}
-                  className="bg-card text-xs h-9.5"
-                />
-              </div>
-            </div>
-            <div className="space-y-1">
               <label className="text-xs font-semibold text-muted-foreground">Status</label>
               <div className="flex h-9.5 items-center gap-2">
                 <button
@@ -1438,9 +1423,9 @@ export default function CoursesPage() {
               </p>
             ) : (
               <div className="grid grid-cols-2 gap-2">
-                {courses.map((program) => (
+                {courses.map((program, index) => (
                   <button
-                    key={`avail-${programKey(program)}`}
+                    key={`avail-${programKey(program)}-${index}`}
                     type="button"
                     onClick={() => fillProgramForm(program)}
                     className={`text-left rounded-md border px-2.5 py-2 cursor-pointer ${

@@ -5,13 +5,15 @@ import { Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import {
   UserCog, Search, Phone, Mail, UserPlus, X,
-  ChevronDown, Building2, GraduationCap, Pencil, Trash2, AlertTriangle,
+  ChevronDown, Building2, GraduationCap, Pencil, Trash2, AlertTriangle, Loader2, RefreshCw,
 } from "lucide-react"
 import { Badge } from "@/components/ui/Badge"
 import { Button } from "@/components/ui/Button"
 import { Dialog } from "@/components/ui/Dialog"
 import { formatCurrency } from "@/lib/utils"
 import { cn } from "@/lib/utils"
+import { api } from "@/lib/api"
+import { useStore } from "@/store/useStore"
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 export interface StaffMember {
@@ -29,24 +31,26 @@ export interface StaffMember {
   coordinatorId?: string
 }
 
-const INITIAL_STAFF: StaffMember[] = [
-  { id: "STF-101", name: "Sarah Jenkins", role: "Center Coordinator", branch: "ARKA KIDS Koramangala", email: "sarah.j@arkakids.com", phone: "+91 98765 43210", joiningDate: "2024-01-15", qualification: "M.Ed — Early Childhood Leadership", salary: 65000, status: "active", assignedClass: "Koramangala Operations" },
-  { id: "STF-102", name: "Ananya Sharma", role: "Center Coordinator", branch: "ARKA KIDS Whitefield", email: "ananya.s@arkakids.com", phone: "+91 98765 43211", joiningDate: "2024-03-01", qualification: "B.Ed & International Montessori", salary: 52000, status: "active", assignedClass: "Whitefield Operations" },
-  { id: "STF-103", name: "Priya Nair", role: "Center Coordinator", branch: "ARKA KIDS Indiranagar", email: "priya.n@arkakids.com", phone: "+91 98765 43212", joiningDate: "2024-04-10", qualification: "M.A. Child Psychology & Nursery", salary: 50000, status: "active", assignedClass: "Indiranagar Operations" },
-  { id: "STF-106", name: "Sunita Patel", role: "Center Coordinator", branch: "ARKA KIDS HSR Layout", email: "sunita.p@arkakids.com", phone: "+91 98765 43215", joiningDate: "2024-05-01", qualification: "B.A. Psychology & Early Childhood", salary: 48000, status: "active", assignedClass: "HSR Layout Operations" },
-  { id: "STF-107", name: "Anita Roy", role: "Lead Educator", branch: "ARKA KIDS Koramangala", email: "anita.r@arkakids.com", phone: "+91 98765 43216", joiningDate: "2024-06-15", qualification: "Diploma — Early Childhood Education", salary: 38000, status: "active", assignedClass: "Playgroup & Toddlers A", coordinatorId: "STF-101" },
-  { id: "STF-108", name: "Dev Sharma", role: "Assistant Teacher", branch: "ARKA KIDS Koramangala", email: "dev.s@arkakids.com", phone: "+91 98765 43217", joiningDate: "2024-09-01", qualification: "B.A. Elementary Education", salary: 26000, status: "active", assignedClass: "Playgroup Assistant", coordinatorId: "STF-101" },
-  { id: "STF-104", name: "Rajesh Kumar", role: "Enquiry Executive", branch: "ARKA KIDS Koramangala", email: "rajesh.k@arkakids.com", phone: "+91 98765 43213", joiningDate: "2024-08-01", qualification: "MBA — Education Management", salary: 32000, status: "active", assignedClass: "Admissions Desk", coordinatorId: "STF-101" },
-  { id: "STF-109", name: "Kavita Menon", role: "Lead Educator", branch: "ARKA KIDS Whitefield", email: "kavita.m@arkakids.com", phone: "+91 98765 43218", joiningDate: "2024-02-10", qualification: "B.Ed & Montessori Certified", salary: 40000, status: "active", assignedClass: "Nursery A & B", coordinatorId: "STF-102" },
-  { id: "STF-105", name: "Meena Deshmukh", role: "Assistant Teacher", branch: "ARKA KIDS Whitefield", email: "meena.d@arkakids.com", phone: "+91 98765 43214", joiningDate: "2024-09-15", qualification: "B.A. Child Psychology", salary: 27000, status: "on_leave", assignedClass: "LKG Section 1", coordinatorId: "STF-102" },
-  { id: "STF-110", name: "Ramesh Bhat", role: "Caregiver / Support", branch: "ARKA KIDS Whitefield", email: "ramesh.b@arkakids.com", phone: "+91 98765 43219", joiningDate: "2024-10-01", qualification: "First Aid & Child Safety Cert.", salary: 19000, status: "active", assignedClass: "Toddler Wing", coordinatorId: "STF-102" },
-  { id: "STF-111", name: "Deepa Varma", role: "Lead Educator", branch: "ARKA KIDS Indiranagar", email: "deepa.v@arkakids.com", phone: "+91 98765 43220", joiningDate: "2024-05-20", qualification: "M.Sc Human Development & B.Ed", salary: 42000, status: "active", assignedClass: "LKG & UKG Upper Wing", coordinatorId: "STF-103" },
-  { id: "STF-112", name: "Siddharth Rao", role: "Assistant Teacher", branch: "ARKA KIDS Indiranagar", email: "siddharth.r@arkakids.com", phone: "+91 98765 43221", joiningDate: "2024-07-11", qualification: "Diploma in Special Education", salary: 28000, status: "active", assignedClass: "UKG Section B", coordinatorId: "STF-103" },
-  { id: "STF-113", name: "Vikram Reddy", role: "Lead Educator", branch: "ARKA KIDS HSR Layout", email: "vikram.r@arkakids.com", phone: "+91 98765 43222", joiningDate: "2024-06-01", qualification: "B.Ed Primary Education", salary: 39000, status: "active", assignedClass: "Daycare & Nursery Lead", coordinatorId: "STF-106" },
-  { id: "STF-114", name: "Pooja Hegde", role: "Caregiver / Support", branch: "ARKA KIDS HSR Layout", email: "pooja.h@arkakids.com", phone: "+91 98765 43223", joiningDate: "2024-11-10", qualification: "Childcare & Hygiene Certification", salary: 20000, status: "active", assignedClass: "Daycare Assistant", coordinatorId: "STF-106" },
-]
+/** Fallback used only until API responds */
+const FALLBACK_BRANCHES: string[] = []
 
-const BRANCHES = ["ARKA KIDS Koramangala", "ARKA KIDS Whitefield", "ARKA KIDS Indiranagar", "ARKA KIDS HSR Layout"]
+/** Map raw API staff object to local StaffMember shape */
+function mapApiStaff(s: any): StaffMember {
+  return {
+    id: s._id ?? s.id ?? "",
+    name: s.name ?? "",
+    role: s.role ?? "Lead Educator",
+    branch: s.branch ?? s.center ?? "",
+    email: s.email ?? "",
+    phone: s.phone ?? s.mobile ?? "",
+    joiningDate: s.joiningDate ?? s.createdAt?.slice(0, 10) ?? "",
+    qualification: s.qualification ?? "",
+    salary: Number(s.salary ?? s.monthlySalary ?? 0),
+    status: s.status ?? "active",
+    assignedClass: s.assignedClass ?? s.className ?? undefined,
+    coordinatorId: s.coordinatorId ?? s.reportingTo ?? undefined,
+  }
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function statusBadge(status: StaffMember["status"]) {
@@ -180,47 +184,72 @@ function AddStaffDialog({
   open,
   onClose,
   onAdd,
+  coordinators,
+  branches,
 }: {
   open: boolean
   onClose: () => void
   onAdd: (m: StaffMember) => void
+  coordinators: StaffMember[]
+  branches: string[]
 }) {
   const [name, setName] = React.useState("")
   const [email, setEmail] = React.useState("")
   const [phone, setPhone] = React.useState("")
   const [role, setRole] = React.useState<StaffMember["role"]>("Lead Educator")
-  const [branch, setBranch] = React.useState(BRANCHES[0])
-  const [coordId, setCoordId] = React.useState("STF-101")
+  const [branch, setBranch] = React.useState(branches[0] ?? "")
+
+  // Keep branch in sync if branches list loads after dialog mounts
+  React.useEffect(() => {
+    if (!branch && branches.length > 0) setBranch(branches[0])
+  }, [branches])
+  const [coordId, setCoordId] = React.useState(coordinators[0]?.id ?? "")
   const [cls, setCls] = React.useState("")
   const [qual, setQual] = React.useState("")
   const [salary, setSalary] = React.useState("35000")
+  const [saving, setSaving] = React.useState(false)
+  const [err, setErr] = React.useState("")
 
   const isCoord = role === "Center Coordinator"
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim() || !email.trim() || !phone.trim()) return
-    onAdd({
-      id: `STF-${Math.floor(100 + Math.random() * 900)}`,
-      name: name.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
-      role,
-      branch,
-      joiningDate: new Date().toISOString().slice(0, 10),
-      qualification: qual || "Certified Early Educator",
-      salary: Number(salary) || 35000,
-      status: "active",
-      assignedClass: cls.trim() || undefined,
-      coordinatorId: isCoord ? undefined : coordId,
-    })
-    onClose()
-    setName(""); setEmail(""); setPhone(""); setCls(""); setQual(""); setSalary("35000")
+    setSaving(true)
+    setErr("")
+    try {
+      const payload = {
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        role,
+        branch,
+        joiningDate: new Date().toISOString().slice(0, 10),
+        qualification: qual || "Certified Early Educator",
+        salary: Number(salary) || 35000,
+        status: "active",
+        assignedClass: cls.trim() || undefined,
+        coordinatorId: isCoord ? undefined : (coordId || undefined),
+      }
+      const res = await api.createStaff(payload)
+      onAdd(mapApiStaff(res?.staff ?? res))
+      onClose()
+      setName(""); setEmail(""); setPhone(""); setCls(""); setQual(""); setSalary("35000")
+    } catch (e: any) {
+      setErr(e?.message ?? "Failed to add staff member.")
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
     <Dialog isOpen={open} onClose={onClose} title="Add Staff Member">
       <form onSubmit={submit} className="space-y-4 pt-1">
+        {err && (
+          <div className="text-xs text-destructive bg-destructive/5 border border-destructive/20 rounded-lg px-3 py-2 flex items-center gap-2">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />{err}
+          </div>
+        )}
         <div className="grid sm:grid-cols-2 gap-3">
           <div className="space-y-1">
             <label className="text-xs font-semibold text-foreground">Full Name *</label>
@@ -252,18 +281,19 @@ function AddStaffDialog({
             <label className="text-xs font-semibold text-foreground">Branch</label>
             <select value={branch} onChange={e => setBranch(e.target.value)}
               className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary">
-              {BRANCHES.map(b => <option key={b} value={b}>{b.replace("ARKA KIDS ", "")}</option>)}
+              {branches.map(b => <option key={b} value={b}>{b.replace("ARKA KIDS ", "")}</option>)}
             </select>
           </div>
-          {!isCoord && (
+          {!isCoord && coordinators.length > 0 && (
             <div className="space-y-1">
               <label className="text-xs font-semibold text-foreground">Reports to Coordinator</label>
               <select value={coordId} onChange={e => setCoordId(e.target.value)}
                 className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary">
-                <option value="STF-101">Sarah Jenkins — Koramangala</option>
-                <option value="STF-102">Ananya Sharma — Whitefield</option>
-                <option value="STF-103">Priya Nair — Indiranagar</option>
-                <option value="STF-106">Sunita Patel — HSR Layout</option>
+                {coordinators.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} — {c.branch.replace("ARKA KIDS ", "")}
+                  </option>
+                ))}
               </select>
             </div>
           )}
@@ -284,8 +314,10 @@ function AddStaffDialog({
           </div>
         </div>
         <div className="flex justify-end gap-2 pt-1 border-t border-border/50">
-          <Button type="button" variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-          <Button type="submit" variant="primary" size="sm" icon={UserPlus}>Add Member</Button>
+          <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button type="submit" variant="primary" size="sm" icon={saving ? Loader2 : UserPlus} disabled={saving}>
+            {saving ? "Adding..." : "Add Member"}
+          </Button>
         </div>
       </form>
     </Dialog>
@@ -297,10 +329,12 @@ function EditStaffDialog({
   member,
   onClose,
   onSave,
+  branches,
 }: {
   member: StaffMember
   onClose: () => void
   onSave: (updated: StaffMember) => void
+  branches: string[]
 }) {
   const [name, setName] = React.useState(member.name)
   const [email, setEmail] = React.useState(member.email)
@@ -312,27 +346,44 @@ function EditStaffDialog({
   const [salary, setSalary] = React.useState(String(member.salary))
   const [status, setStatus] = React.useState<StaffMember["status"]>(member.status)
 
-  const submit = (e: React.FormEvent) => {
+  const [saving, setSaving] = React.useState(false)
+  const [err, setErr] = React.useState("")
+
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim()) return
-    onSave({
-      ...member,
-      name: name.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
-      role,
-      branch,
-      assignedClass: cls.trim() || undefined,
-      qualification: qual.trim(),
-      salary: Number(salary) || member.salary,
-      status,
-    })
-    onClose()
+    setSaving(true)
+    setErr("")
+    try {
+      const payload = {
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        role,
+        branch,
+        assignedClass: cls.trim() || undefined,
+        qualification: qual.trim(),
+        salary: Number(salary) || member.salary,
+        status,
+      }
+      const res = await api.updateStaff(member.id, payload)
+      onSave(mapApiStaff({ ...member, ...payload, ...(res?.staff ?? res ?? {}) }))
+      onClose()
+    } catch (e: any) {
+      setErr(e?.message ?? "Failed to save changes.")
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
     <Dialog isOpen onClose={onClose} title={`Edit — ${member.name}`}>
       <form onSubmit={submit} className="space-y-4 pt-1">
+        {err && (
+          <div className="text-xs text-destructive bg-destructive/5 border border-destructive/20 rounded-lg px-3 py-2 flex items-center gap-2">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />{err}
+          </div>
+        )}
         <div className="grid sm:grid-cols-2 gap-3">
           <div className="space-y-1">
             <label className="text-xs font-semibold text-foreground">Full Name *</label>
@@ -373,7 +424,7 @@ function EditStaffDialog({
             <label className="text-xs font-semibold text-foreground">Branch</label>
             <select value={branch} onChange={e => setBranch(e.target.value)}
               className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary">
-              {BRANCHES.map(b => <option key={b} value={b}>{b.replace("ARKA KIDS ", "")}</option>)}
+              {branches.map(b => <option key={b} value={b}>{b.replace("ARKA KIDS ", "")}</option>)}
             </select>
           </div>
           <div className="space-y-1">
@@ -393,8 +444,10 @@ function EditStaffDialog({
           </div>
         </div>
         <div className="flex justify-end gap-2 pt-1 border-t border-border/50">
-          <Button type="button" variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-          <Button type="submit" variant="primary" size="sm" icon={Pencil}>Save Changes</Button>
+          <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button type="submit" variant="primary" size="sm" icon={saving ? Loader2 : Pencil} disabled={saving}>
+            {saving ? "Saving..." : "Save Changes"}
+          </Button>
         </div>
       </form>
     </Dialog>
@@ -406,16 +459,76 @@ function StaffPageInner() {
   const searchParams = useSearchParams()
   const section = searchParams.get("section") // "coordinators" | "teachers" | null
 
-  const [staff, setStaff] = React.useState<StaffMember[]>(INITIAL_STAFF)
+  const { user, activeTenant } = useStore()
+  // Admins / owners see all branches; everyone else sees only their own
+  const isMultiBranch = user?.role === "super_admin" || user?.role === "owner"
+  // The current user's branch name — prefer activeTenant.name, fall back to user.tenantId
+  const myBranchName = (activeTenant?.name ?? user?.tenantId ?? "").trim()
+
+  const [staff, setStaff] = React.useState<StaffMember[]>([])
+  const [loading, setLoading] = React.useState(true)
+  const [error, setError] = React.useState("")
+  const [branches, setBranches] = React.useState<string[]>(FALLBACK_BRANCHES)
   const [search, setSearch] = React.useState("")
   const [addOpen, setAddOpen] = React.useState(false)
   const [editMember, setEditMember] = React.useState<StaffMember | null>(null)
 
+  // ── Fetch staff + centers from API in parallel ────────────────────────────
+  const fetchStaff = React.useCallback(async () => {
+    setLoading(true)
+    setError("")
+    try {
+      const [staffRes, centersRes] = await Promise.all([
+        api.getStaff(),
+        api.getCenters().catch(() => null),
+      ])
+
+      const list: any[] = Array.isArray(staffRes) ? staffRes : (staffRes?.staff ?? staffRes?.data ?? [])
+      setStaff(list.map(mapApiStaff))
+
+      // Normalize centers → branch name strings
+      if (centersRes) {
+        const centerList: any[] = Array.isArray(centersRes)
+          ? centersRes
+          : (centersRes?.centers ?? centersRes?.data ?? [])
+        let names = centerList.map((c: any) =>
+          c.name ?? c.branchName ?? c.centerName ?? ""
+        ).filter(Boolean) as string[]
+
+        // ── Scope to logged-in branch unless multi-branch role ────────────
+        if (!isMultiBranch && myBranchName) {
+          const matched = names.filter(n =>
+            n.trim().toLowerCase() === myBranchName.toLowerCase()
+          )
+          // Use matched list; fall back to the raw name if API list doesn't contain it
+          names = matched.length > 0 ? matched : (myBranchName ? [myBranchName] : names)
+        }
+
+        if (names.length > 0) setBranches(names)
+      } else if (!isMultiBranch && myBranchName) {
+        // Centers API unavailable — still scope to user's branch
+        setBranches([myBranchName])
+      }
+    } catch (e: any) {
+      setError(e?.message ?? "Failed to load staff.")
+    } finally {
+      setLoading(false)
+    }
+  }, [isMultiBranch, myBranchName])
+
+  React.useEffect(() => { fetchStaff() }, [fetchStaff])
+
   const handleEdit = (updated: StaffMember) =>
     setStaff(prev => prev.map(s => s.id === updated.id ? updated : s))
 
-  const handleDelete = (id: string) =>
-    setStaff(prev => prev.filter(s => s.id !== id))
+  const handleDelete = async (id: string) => {
+    setStaff(prev => prev.filter(s => s.id !== id)) // optimistic
+    try {
+      await api.deleteStaff(id)
+    } catch {
+      fetchStaff() // revert on failure
+    }
+  }
 
   // Which tab: "coordinators" | "teachers"
   const [tab, setTab] = React.useState<"coordinators" | "teachers">(
@@ -462,13 +575,42 @@ function StaffPageInner() {
             Staff & Educators
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {active} active · {onLeave} on leave · {staff.length} total
+            {loading && staff.length === 0 ? "Loading..." : `${active} active · ${onLeave} on leave · ${staff.length} total`}
           </p>
         </div>
-        <Button variant="primary" size="sm" icon={UserPlus} onClick={() => setAddOpen(true)}>
-          Add Member
-        </Button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={fetchStaff}
+            disabled={loading}
+            className="h-8 w-8 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors disabled:opacity-50"
+            title="Refresh"
+          >
+            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+          </button>
+          <Button variant="primary" size="sm" icon={UserPlus} onClick={() => setAddOpen(true)}>
+            Add Member
+          </Button>
+        </div>
       </div>
+
+      {/* Error banner */}
+      {error && (
+        <div className="flex items-center gap-2 text-xs text-destructive bg-destructive/5 border border-destructive/20 rounded-lg px-4 py-3">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          {error}
+          <button onClick={fetchStaff} className="ml-auto underline underline-offset-2 font-semibold hover:opacity-80">Retry</button>
+        </div>
+      )}
+
+      {/* Loading skeleton */}
+      {loading && staff.length === 0 && (
+        <div className="space-y-2">
+          {[1,2,3,4].map(i => (
+            <div key={i} className="rounded-xl border border-border/50 bg-card h-14 animate-pulse" />
+          ))}
+        </div>
+      )}
 
       {/* Tab + Search */}
       <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center justify-between">
@@ -518,7 +660,7 @@ function StaffPageInner() {
       {/* ── Coordinators Tab ── */}
       {tab === "coordinators" && (
         <div className="space-y-2">
-          {filtered.length === 0 ? (
+          {filtered.length === 0 && !loading ? (
             <p className="text-sm text-muted-foreground text-center py-10">No coordinators found.</p>
           ) : (
             filtered.map(coord => {
@@ -540,7 +682,7 @@ function StaffPageInner() {
       {/* ── Teachers Tab ── */}
       {tab === "teachers" && (
         <div className="space-y-2">
-          {filtered.length === 0 ? (
+          {filtered.length === 0 && !loading ? (
             <p className="text-sm text-muted-foreground text-center py-10">No staff found.</p>
           ) : (
             filtered.map(member => (
@@ -559,6 +701,8 @@ function StaffPageInner() {
         open={addOpen}
         onClose={() => setAddOpen(false)}
         onAdd={m => setStaff(prev => [m, ...prev])}
+        coordinators={coordinators}
+        branches={branches}
       />
 
       {editMember && (
@@ -566,6 +710,7 @@ function StaffPageInner() {
           member={editMember}
           onClose={() => setEditMember(null)}
           onSave={handleEdit}
+          branches={branches}
         />
       )}
     </div>

@@ -25,9 +25,7 @@ export default function RegisterCenterPage() {
   // Section 1: Institute / Franchise Details
   const [instName, setInstName] = React.useState("")
   const [instCode, setInstCode] = React.useState("")
-  const [franchiseType, setFranchiseType] = React.useState("Franchise")
-  const [brandProgram, setBrandProgram] = React.useState("Play School")
-  const [academicYear, setAcademicYear] = React.useState("2026-27")
+  const [academicYear, setAcademicYear] = React.useState("")
   const [status, setStatus] = React.useState("active")
 
   // Section 2: Owner / Franchisee Details
@@ -68,6 +66,7 @@ export default function RegisterCenterPage() {
   // Section 6: Play School Setup
   const [selectedClasses, setSelectedClasses] = React.useState<string[]>(["Toddler", "Nursery", "Jr. KG", "Sr. KG"])
   const [totalCapacity, setTotalCapacity] = React.useState("120")
+  const [capacityNoLimit, setCapacityNoLimit] = React.useState(false)
   const [classroomsCount, setClassroomsCount] = React.useState("6")
   const [openingDate, setOpeningDate] = React.useState("")
   const [workingDays, setWorkingDays] = React.useState<string[]>(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"])
@@ -173,12 +172,12 @@ export default function RegisterCenterPage() {
   // Save Draft to localStorage
   const handleSaveDraft = () => {
     const draftData = {
-      instName, instCode, franchiseType, brandProgram, academicYear, status,
+      instName, instCode, academicYear, status,
       ownerName, ownerMobile, ownerEmail, ownerAltMobile, ownerDob, ownerPan, ownerAadhaar, ownerPhotoName,
       address1, address2, country, state, city, pincode, gmapsUrl,
       officialEmail, officialMobile, whatsappNumber, website,
       adminName, adminEmail, adminMobile, adminUsername, adminPassword, sendWelcome, sameAsOwner,
-      selectedClasses, totalCapacity, classroomsCount, openingDate, workingDays, openingTime, closingTime,
+      selectedClasses, totalCapacity, capacityNoLimit, classroomsCount, openingDate, workingDays, openingTime, closingTime,
       agreementStartDate, agreementEndDate, franchiseFee, renewalDate, agreementDocName, gstNumber,
       subPlan, subStartDate, subEndDate, studentLimit, staffLimit, paymentStatus,
       uploadedDocs, currentStep
@@ -200,9 +199,7 @@ export default function RegisterCenterPage() {
         const d = JSON.parse(draft)
         setInstName(d.instName || "")
         setInstCode(d.instCode || "")
-        setFranchiseType(d.franchiseType || "Franchise")
-        setBrandProgram(d.brandProgram || "Play School")
-        setAcademicYear(d.academicYear || "2026-27")
+        setAcademicYear(d.academicYear || "")
         setStatus(d.status || "active")
         setOwnerName(d.ownerName || "")
         setOwnerMobile(d.ownerMobile || "")
@@ -232,6 +229,7 @@ export default function RegisterCenterPage() {
         setSameAsOwner(d.sameAsOwner || false)
         setSelectedClasses(d.selectedClasses || ["Toddler", "Nursery", "Jr. KG", "Sr. KG"])
         setTotalCapacity(d.totalCapacity || "120")
+        setCapacityNoLimit(d.capacityNoLimit || false)
         setClassroomsCount(d.classroomsCount || "6")
         setOpeningDate(d.openingDate || "")
         setWorkingDays(d.workingDays || ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"])
@@ -274,13 +272,13 @@ export default function RegisterCenterPage() {
     switch (stepNum) {
       case 1:
         // Franchise Details & Owner Details
-        return !!(instName && instCode && franchiseType && brandProgram && academicYear && status && ownerName && ownerMobile && ownerEmail)
+        return !!(instName && academicYear && status && ownerName && ownerMobile && ownerEmail)
       case 2:
         // Institute Address & Contact Details
         return !!(address1 && country && state && city && pincode && officialEmail && officialMobile)
       case 3:
         // Primary Admin Account & Play School Setup
-        return !!(adminName && adminEmail && adminMobile && adminUsername && adminPassword && totalCapacity && classroomsCount && openingDate && selectedClasses.length > 0 && workingDays.length > 0)
+        return !!(adminName && adminEmail && adminMobile && adminUsername && adminPassword && (capacityNoLimit || totalCapacity) && classroomsCount && openingDate && selectedClasses.length > 0 && workingDays.length > 0)
       case 4:
         // Agreement Details & Subscription Package
         return !!(agreementStartDate && subPlan)
@@ -569,52 +567,27 @@ export default function RegisterCenterPage() {
                     />
                   </div>
 
-                  <div className="space-y-1.5">
+                  <div className="space-y-1.5 hidden">
                     <label className="text-xs font-semibold text-muted-foreground">Institute Code (Auto-generated) *</label>
                     <Input
                       disabled
-                      required
                       placeholder="e.g. IPA-BLR-001"
                       value={instCode}
                       className="text-xs h-10 font-mono bg-disabled-bg/50"
                     />
                   </div>
 
-                  <div className="space-y-1.5">
-                    <Select
-                      label="Franchise Type *"
-                      value={franchiseType}
-                      onChange={e => setFranchiseType(e.target.value)}
-                      className="text-xs h-10"
-                    >
-                      <option value="Franchise">Franchise</option>
-                      <option value="Company Owned">Company Owned</option>
-                    </Select>
-                  </div>
+
 
                   <div className="space-y-1.5">
-                    <Select
-                      label="Brand / Program *"
-                      value={brandProgram}
-                      onChange={e => setBrandProgram(e.target.value)}
-                      className="text-xs h-10"
-                    >
-                      <option value="Play School">Play School</option>
-                      <option value="Ideal Play Abacus">Ideal Play Abacus</option>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Select
-                      label="Academic Year *"
+                    <label className="text-xs font-semibold text-muted-foreground">Academic Year Start Date *</label>
+                    <Input
+                      type="date"
+                      required
                       value={academicYear}
                       onChange={e => setAcademicYear(e.target.value)}
                       className="text-xs h-10"
-                    >
-                      <option value="2026-27">2026–27</option>
-                      <option value="2025-26">2025–26</option>
-                      <option value="2027-28">2027–28</option>
-                    </Select>
+                    />
                   </div>
 
                   <div className="space-y-1.5">
@@ -1086,13 +1059,28 @@ export default function RegisterCenterPage() {
                   <div className="grid gap-5 grid-cols-1 md:grid-cols-3">
                     <div className="space-y-1.5">
                       <label className="text-xs font-semibold text-muted-foreground">Total Student Capacity</label>
-                      <Input
-                        type="number"
-                        placeholder="e.g. 120"
-                        value={totalCapacity}
-                        onChange={e => setTotalCapacity(e.target.value)}
-                        className="text-xs h-10"
-                      />
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type={capacityNoLimit ? "text" : "number"}
+                          placeholder={capacityNoLimit ? "No Limit" : "e.g. 120"}
+                          value={capacityNoLimit ? "" : totalCapacity}
+                          onChange={e => setTotalCapacity(e.target.value)}
+                          disabled={capacityNoLimit}
+                          className="text-xs h-10 flex-1"
+                        />
+                        <label className="flex items-center gap-1.5 text-xs font-medium cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            checked={capacityNoLimit}
+                            onChange={(e) => {
+                              setCapacityNoLimit(e.target.checked);
+                              if (e.target.checked) setTotalCapacity("");
+                            }}
+                            className="rounded border-slate-300 text-primary focus:ring-primary h-3.5 w-3.5"
+                          />
+                          No Limit
+                        </label>
+                      </div>
                     </div>
 
                     <div className="space-y-1.5">

@@ -5,12 +5,11 @@ import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import {
-  Sparkles, Mail, ArrowRight, ArrowLeft,
-  ShieldCheck, CheckCircle2, Lock, Eye, EyeOff, Building2, Smartphone,
-  Users, Briefcase, Clock
+  Mail, ArrowRight, ArrowLeft,
+  CheckCircle2, Lock, Eye, EyeOff, Smartphone, Clock,
+  Building2, ShieldCheck
 } from "lucide-react"
-import { useStore, type UserRole } from "@/store/useStore"
-import { startPreviewSession, PREVIEW_OTP } from "@/lib/previewAuth"
+import { useStore } from "@/store/useStore"
 
 type AuthView = "login" | "forgot" | "otp"
 
@@ -28,7 +27,6 @@ export default function LoginPage() {
   const [phone, setPhone] = React.useState("")
   const [otp, setOtp] = React.useState("")
   const [otpSent, setOtpSent] = React.useState(false)
-  const [selectedRole, setSelectedRole] = React.useState<UserRole | null>(null)
 
   const isAccessDeniedError = errorMsg.includes("on hold") || errorMsg.includes("does not have portal access") || errorMsg.includes("enrollment is completed")
 
@@ -36,20 +34,38 @@ export default function LoginPage() {
     if (isAuthenticated) router.push("/dashboard")
   }, [isAuthenticated, router])
 
-  const enterPreview = (role: UserRole) => {
-    setSelectedRole(role)
-    setIsLoading(true)
-    setTimeout(() => {
-      const previewUser = startPreviewSession(role, email || undefined)
-      login(previewUser)
-      window.location.assign("/dashboard")
-    }, 700)
-  }
+
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setErrorMsg("")
-    enterPreview("owner")
+    if (!email || !password) {
+      setErrorMsg("Please enter your email and password.")
+      return
+    }
+    setIsLoading(true)
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setErrorMsg(data.message || "Login failed. Please check your credentials.")
+        return
+      }
+      // Store token
+      localStorage.setItem("token", data.token)
+      // Set user in store
+      login(data.user)
+      // Redirect to dashboard
+      window.location.assign("/dashboard")
+    } catch {
+      setErrorMsg("Unable to connect. Please check your internet connection.")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleOtpSubmit = (e: React.FormEvent) => {
@@ -61,14 +77,10 @@ export default function LoginPage() {
         return
       }
       setOtpSent(true)
-      setSuccessMsg(`Preview OTP sent. Use ${PREVIEW_OTP}.`)
+      setSuccessMsg("OTP sent to your mobile number.")
       return
     }
-    if (otp.trim() !== PREVIEW_OTP) {
-      setErrorMsg("Invalid OTP. Preview code is 123456.")
-      return
-    }
-    enterPreview("student")
+    setErrorMsg("OTP login coming soon. Please use email & password.")
   }
 
   const handleForgotSubmit = (e: React.FormEvent) => {
@@ -259,7 +271,7 @@ export default function LoginPage() {
                     disabled={isLoading}
                     className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-[#700000] text-white disabled:opacity-60 disabled:cursor-not-allowed text-sm font-semibold rounded-xl py-3 transition-all duration-200 cursor-pointer shadow-sm shadow-primary/20 active:scale-[0.98]"
                   >
-                    {isLoading && selectedRole === null ? (
+                    {isLoading ? (
                       <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     ) : (
                       <>
@@ -270,70 +282,18 @@ export default function LoginPage() {
                   </button>
                 </form>
 
-                {/* ─── SANDBOX PREVIEW HUB ─── */}
-                <div className="space-y-3.5 pt-3.5 border-t border-slate-100">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase">Sandbox Preview Profiles</span>
-                    <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      { role: "super_admin" as const, label: "Super Admin", icon: ShieldCheck, color: "hover:border-primary hover:text-primary hover:bg-primary/5" },
-                      { role: "owner" as const, label: "Franchise Owner", icon: Building2, color: "hover:border-primary hover:text-primary hover:bg-primary/5" },
-                      { role: "trainer" as const, label: "Coordinator", icon: Briefcase, color: "hover:border-primary hover:text-primary hover:bg-primary/5" },
-                      { role: "bde" as const, label: "Enquiry Coord.", icon: Sparkles, color: "hover:border-primary hover:text-primary hover:bg-primary/5" },
-                    ].map((item) => (
-                      <button
-                        key={item.role}
-                        type="button"
-                        disabled={isLoading}
-                        onClick={() => enterPreview(item.role)}
-                        className={`group flex items-center justify-center gap-1.5 px-3 py-2.5 border border-slate-200 text-slate-700 font-semibold rounded-xl text-[11px] bg-white transition-all duration-150 disabled:opacity-50 cursor-pointer ${item.color}`}
-                      >
-                        <item.icon className="h-3.5 w-3.5 text-slate-400 group-hover:text-inherit" />
-                        {item.label}
-                      </button>
-                    ))}
-                    
-                    {/* Parent Profile wide button */}
-                    <button
-                      type="button"
-                      disabled={isLoading}
-                      onClick={() => enterPreview("student")}
-                      className="col-span-2 group flex items-center justify-between px-4 py-2.5 border border-slate-200 text-slate-700 font-semibold rounded-xl text-[11px] bg-white hover:border-primary hover:text-primary hover:bg-primary/5 transition-all duration-150 disabled:opacity-50 cursor-pointer"
+                  {/* New Enquiry Link */}
+                  <div className="pt-3 border-t border-slate-100 text-center">
+                    <a
+                      href="/enquiry"
+                      className="text-[11px] font-semibold text-primary hover:text-[#700000] transition-colors"
                     >
-                      <span className="flex items-center gap-2">
-                        <Users className="h-4 w-4 text-slate-400 group-hover:text-inherit" />
-                        Parent Profile
-                      </span>
-                      {isLoading && selectedRole === "student" ? (
-                        <div className="h-3.5 w-3.5 border-2 border-slate-300 border-t-primary rounded-full animate-spin" />
-                      ) : (
-                        <ArrowRight className="h-3.5 w-3.5 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
-                      )}
-                    </button>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-1">
-                    <button
-                      type="button"
-                      onClick={() => { setView("otp"); setErrorMsg(""); setSuccessMsg(""); setOtpSent(false); setOtp("") }}
-                      className="flex items-center gap-1 text-[11px] font-semibold text-primary hover:text-[#700000] cursor-pointer transition-colors"
-                    >
-                      <Smartphone className="h-3.5 w-3.5" />
-                      Parent OTP login
-                    </button>
-                    <a 
-                      href="/enquiry" 
-                      className="flex items-center gap-0.5 text-[11px] font-semibold text-primary hover:text-[#700000] transition-colors"
-                    >
-                      New enquiry <ArrowRight className="h-3 w-3" />
+                      New enquiry? Register here →
                     </a>
                   </div>
-                </div>
-              </motion.div>
-            )}
+                </motion.div>
+              )}
+
 
             {/* OTP VIEW */}
             {view === "otp" && (
@@ -355,7 +315,7 @@ export default function LoginPage() {
                   </button>
                   <h2 className="text-2xl font-bold tracking-tight text-slate-900 pt-1">Parent OTP login</h2>
                   <p className="text-xs text-slate-500 font-medium">
-                    Preview login. OTP code is always {PREVIEW_OTP}.
+                    Enter your registered mobile number to receive an OTP.
                   </p>
                 </div>
 

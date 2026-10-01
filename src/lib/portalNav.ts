@@ -49,17 +49,18 @@ export function getPortalNavLinks(opts: {
   role?: UserRole | null
   policyOk: (feature: CenterFeatureKey) => boolean
   supportQueueCount?: number
+  pendingLeavesCount?: number
 }): PortalNavLink[] {
   const portal = getPortal(opts.role)
-  const { policyOk, supportQueueCount } = opts
+  const { policyOk, supportQueueCount, pendingLeavesCount } = opts
 
   if (portal === "super_admin") {
     return [
       { label: "Control Center", path: "/dashboard", icon: LayoutDashboard },
       { label: "Branches", path: "/centers", icon: Building2 },
       { label: "Enquiries", path: "/crm", icon: GitPullRequest },
-      { label: "Admissions", path: "/admissions", icon: GraduationCap },
       { label: "Students", path: "/students", icon: Users },
+      { label: "Class Program", path: "/courses", icon: BookOpen },
       {
         label: "Staff Management",
         path: "/staff",
@@ -71,7 +72,6 @@ export function getPortalNavLinks(opts: {
       },
       { label: "Fees & Payments", path: "/fees", icon: CreditCard },
       { label: "Child Documents", path: "/child-documents", icon: FolderOpen },
-      { label: "Child Care", path: "/childcare", icon: HeartPulse },
       { label: "Transfers", path: "/transfers", icon: ArrowLeftRight },
       { label: "Announcements", path: "/campaigns", icon: Megaphone },
       { label: "Settings", path: "/settings", icon: Settings },
@@ -88,11 +88,10 @@ export function getPortalNavLinks(opts: {
     const classroom: PortalNavLink[] = [
       { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
       { label: "Students", path: "/students", icon: Users },
-      { label: "Classes", path: "/courses", icon: BookOpen },
+      { label: "Class Program", path: "/courses", icon: BookOpen },
       { label: "Attendance", path: "/attendance", icon: CalendarCheck },
       { label: "Daily Journal", path: "/journal", icon: Camera },
-      { label: "Child Leave", path: "/absences", icon: CalendarOff },
-      { label: "Assessments", path: "/progress", icon: ClipboardCheck },
+      { label: "Child Leave", path: "/absences", icon: CalendarOff, badgeCount: pendingLeavesCount },
       { label: "Child Care", path: "/childcare", icon: HeartPulse },
       { label: "Calendar", path: "/calendar", icon: CalendarDays },
       { label: "Child Documents", path: "/child-documents", icon: FolderOpen },
@@ -109,7 +108,6 @@ export function getPortalNavLinks(opts: {
         { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
         { label: "Enquiries", path: "/crm", icon: GitPullRequest },
         { label: "Follow-ups", path: "/followups", icon: Phone },
-        { label: "Admissions", path: "/admissions", icon: GraduationCap },
         ...classroom.filter((link) => link.path !== "/dashboard"),
       ]
     }
@@ -124,7 +122,6 @@ export function getPortalNavLinks(opts: {
       { label: "Homework", path: "/homework", icon: ClipboardList },
       { label: "Attendance", path: "/attendance", icon: CalendarCheck },
       { label: "Leave", path: "/absences", icon: CalendarOff },
-      { label: "Progress", path: "/progress", icon: ClipboardCheck },
       { label: "Calendar", path: "/calendar", icon: CalendarDays },
       { label: "Gallery", path: "/gallery", icon: Images },
       { label: "Child Care", path: "/childcare", icon: HeartPulse },
@@ -138,7 +135,6 @@ export function getPortalNavLinks(opts: {
   return [
     { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
     { label: "Enquiries", path: "/crm", icon: GitPullRequest },
-    { label: "Admissions", path: "/admissions", icon: GraduationCap },
     { label: "Students", path: "/students", icon: Users },
     {
       label: "Staff Management",
@@ -149,12 +145,11 @@ export function getPortalNavLinks(opts: {
         { label: "Teachers & Educators", path: "/staff?section=teachers", icon: GraduationCap },
       ],
     },
-    { label: "Classes", path: "/courses", icon: BookOpen },
+    { label: "Class Program", path: "/courses", icon: BookOpen },
     { label: "Attendance", path: "/attendance", icon: CalendarCheck },
     { label: "Daily Journal", path: "/journal", icon: Camera },
     { label: "Homework", path: "/homework", icon: ClipboardList },
-    { label: "Child Leave", path: "/absences", icon: CalendarOff },
-    { label: "Assessments", path: "/progress", icon: ClipboardCheck },
+    { label: "Child Leave", path: "/absences", icon: CalendarOff, badgeCount: pendingLeavesCount },
     { label: "Child Care", path: "/childcare", icon: HeartPulse },
     { label: "Calendar", path: "/calendar", icon: CalendarDays },
     { label: "Child Documents", path: "/child-documents", icon: FolderOpen },

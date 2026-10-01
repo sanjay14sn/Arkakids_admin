@@ -6,6 +6,8 @@ import {
   AlertTriangle,
   Bell,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   CreditCard,
   Download,
@@ -14,6 +16,8 @@ import {
   Printer,
   Send,
   Settings,
+  X,
+  Trash2,
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
@@ -23,6 +27,7 @@ import { Select } from "@/components/ui/Select"
 import { Dialog } from "@/components/ui/Dialog"
 import { KPICard } from "@/components/dashboard/KPICard"
 import { formatCurrency } from "@/lib/utils"
+import { api } from "@/lib/api"
 import { BRANCHES } from "@/lib/preschoolOps"
 import { useStore } from "@/store/useStore"
 import {
@@ -77,11 +82,9 @@ const TABS = [
   { id: "students", label: "Student Fees" },
   { id: "dues", label: "Dues / Invoices" },
   { id: "collect", label: "Collect Payment" },
-  { id: "history", label: "Payment History" },
   { id: "discounts", label: "Discounts" },
   { id: "receipts", label: "Receipts" },
   { id: "reports", label: "Reports" },
-  { id: "settings", label: "Fee Settings" },
 ] as const
 
 type TabId = (typeof TABS)[number]["id"]
@@ -119,6 +122,7 @@ export function FeesModule() {
   const [editingStructure, setEditingStructure] = React.useState<FeeStructure | null>(null)
   const [assignOpen, setAssignOpen] = React.useState(false)
   const [discountOpen, setDiscountOpen] = React.useState(false)
+  const [studentPage, setStudentPage] = React.useState(1)
 
   React.useEffect(() => {
     if (searchFromUrl) setQuery(searchFromUrl)
@@ -143,6 +147,10 @@ export function FeesModule() {
     if (status !== "all" && item.status !== status) return false
     return true
   })
+
+  const STUDENT_PAGE_SIZE = 10
+  const paginatedStudents = filteredStudents.slice((studentPage - 1) * STUDENT_PAGE_SIZE, studentPage * STUDENT_PAGE_SIZE)
+  const totalStudentPages = Math.max(1, Math.ceil(filteredStudents.length / STUDENT_PAGE_SIZE))
 
   const livePayments = state.payments.filter((item) => item.status === "paid")
   const filteredPayments = livePayments.filter((item) => {
@@ -267,20 +275,40 @@ export function FeesModule() {
       </div>
 
       {tab === "overview" && (
-        <div className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <KPICard title="Total fees" value={formatCurrency(stats.total)} icon={IndianRupee} />
-            <KPICard title="Collected" value={formatCurrency(stats.collected)} icon={CheckCircle2} delay={0.04} />
-            <KPICard title="Outstanding" value={formatCurrency(stats.outstanding)} icon={Clock} delay={0.08} />
-            <KPICard title="Overdue" value={formatCurrency(stats.overdue)} icon={AlertTriangle} delay={0.12} />
+        <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
+          {/* Main Financials */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5 flex flex-col justify-between transition-all hover:bg-primary/10">
+              <p className="text-xs font-bold text-primary uppercase tracking-wider flex items-center gap-2"><IndianRupee className="h-4 w-4" /> Total Fees</p>
+              <h2 className="mt-4 text-3xl font-black tracking-tight">{formatCurrency(stats.total)}</h2>
+            </div>
+            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-5 flex flex-col justify-between transition-all hover:bg-emerald-500/10">
+              <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider flex items-center gap-2"><CheckCircle2 className="h-4 w-4" /> Collected</p>
+              <h2 className="mt-4 text-3xl font-black tracking-tight">{formatCurrency(stats.collected)}</h2>
+              <p className="mt-1 text-[10px] text-emerald-600/80 font-bold uppercase tracking-wider">{stats.paidStudents} students fully paid</p>
+            </div>
+            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-5 flex flex-col justify-between transition-all hover:bg-amber-500/10">
+              <p className="text-xs font-bold text-amber-600 uppercase tracking-wider flex items-center gap-2"><Clock className="h-4 w-4" /> Outstanding</p>
+              <h2 className="mt-4 text-3xl font-black tracking-tight">{formatCurrency(stats.outstanding)}</h2>
+              <p className="mt-1 text-[10px] text-amber-600/80 font-bold uppercase tracking-wider">{stats.partialStudents} students partially paid</p>
+            </div>
+            <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-5 flex flex-col justify-between transition-all hover:bg-rose-500/10">
+              <p className="text-xs font-bold text-rose-600 uppercase tracking-wider flex items-center gap-2"><AlertTriangle className="h-4 w-4" /> Overdue</p>
+              <h2 className="mt-4 text-3xl font-black tracking-tight">{formatCurrency(stats.overdue)}</h2>
+              <p className="mt-1 text-[10px] text-rose-600/80 font-bold uppercase tracking-wider">{stats.pendingStudents} students pending</p>
+            </div>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <KPICard title="Today’s collection" value={formatCurrency(stats.todayCollection)} subtext={formatFeeDate(FEE_TODAY)} icon={CreditCard} />
-            <KPICard title="Paid students" value={stats.paidStudents} icon={CheckCircle2} delay={0.04} />
-            <KPICard title="Partially paid" value={stats.partialStudents} icon={Clock} delay={0.08} />
-            <KPICard title="Pending students" value={stats.pendingStudents} icon={AlertTriangle} delay={0.12} />
+          
+          {/* Today Collection Badge */}
+          <div className="inline-flex items-center gap-3 px-5 py-2.5 rounded-full border border-border bg-card shadow-xs">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <CreditCard className="h-3.5 w-3.5" />
+            </span>
+            <p className="text-xs font-semibold">
+              Today's Collection <span className="text-muted-foreground ml-1 font-medium">({formatFeeDate(FEE_TODAY)})</span> <span className="mx-2 text-border">|</span> <strong className="text-foreground text-sm tracking-tight">{formatCurrency(stats.todayCollection)}</strong>
+            </p>
           </div>
-          <div className="grid gap-4 lg:grid-cols-3">
+          <div className="grid gap-6 lg:grid-cols-3">
             <OverviewList
               title="Recent payments"
               rows={livePayments.slice(0, 6).map((item) => {
@@ -307,41 +335,73 @@ export function FeesModule() {
       )}
 
       {tab === "structures" && (
-        <div className="space-y-3">
-          <div className="flex justify-end">
-            <Button size="sm" icon={Plus} onClick={() => { setEditingStructure(null); setStructureOpen(true) }}>
-              Add fee structure
+        <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-bold tracking-tight text-foreground">Fee Structures</h3>
+              <p className="text-xs font-medium text-muted-foreground">Manage templates for class-wise billing</p>
+            </div>
+            <Button size="sm" className="shadow-xs" onClick={() => { setEditingStructure(null); setStructureOpen(true) }}>
+              <Plus className="h-4 w-4 mr-2" /> New structure
             </Button>
           </div>
-          {state.structures.map((structure) => {
-            const lines = structureLines(structure, true)
-            return (
-              <Card key={structure.id}>
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <CardTitle className="text-sm">{structure.className} – {structure.academicYear}</CardTitle>
-                      <CardDescription>{structure.branch}</CardDescription>
+          
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+            {state.structures.map((structure) => {
+              const lines = structureLines(structure, true)
+              return (
+                <div key={structure.id} className="rounded-3xl border border-border bg-card shadow-xs overflow-hidden flex flex-col hover:shadow-md transition-shadow">
+                  <div className="p-6 border-b border-border/50 bg-gradient-to-br from-primary/5 to-transparent relative">
+                    <div className="absolute top-6 right-6">
+                      <Badge variant={structure.status === "active" ? "success" : "secondary"} className="uppercase text-[9px] tracking-wider font-bold shadow-xs">
+                        {structure.status}
+                      </Badge>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={structure.status === "active" ? "success" : "secondary"}>{structure.status}</Badge>
-                      <Button size="sm" variant="outline" onClick={() => { setEditingStructure(structure); setStructureOpen(true) }}>Edit</Button>
+                    <h4 className="text-xl font-black tracking-tight text-foreground pr-16 truncate">{structure.className}</h4>
+                    <p className="text-xs font-bold text-primary/80 mt-1 uppercase tracking-wider">{structure.academicYear} · {structure.branch}</p>
+                    
+                    <div className="mt-6 flex items-baseline gap-1">
+                      <span className="text-3xl font-black tracking-tight">{formatCurrency(structureTotal(structure, true))}</span>
+                      <span className="text-xs text-muted-foreground font-bold">/ yr</span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground font-semibold mt-1">
+                      incl. transport <span className="opacity-70">(without: {formatCurrency(structureTotal(structure, false))})</span>
+                    </p>
+                  </div>
+                  
+                  <div className="flex-1 p-6 space-y-4 bg-card/40">
+                    <div className="space-y-4">
+                      {lines.map((item) => (
+                        <div key={`${structure.id}-${item.id}`} className="flex items-start justify-between gap-3 text-sm">
+                          <div className="flex items-start gap-2.5">
+                            <CheckCircle2 className={`h-4 w-4 mt-0.5 shrink-0 ${item.required ? 'text-primary' : 'text-muted-foreground/40'}`} />
+                            <div>
+                              <p className="font-bold text-foreground leading-tight">{item.name}</p>
+                              <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mt-0.5">
+                                {frequencyLabel(item.frequency)} {item.required ? "" : "· Opt"}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="font-bold text-foreground">{formatCurrency(item.amount)}</p>
+                            {(item.frequency === "monthly" || item.frequency === "term") && (
+                              <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mt-0.5">{formatCurrency(item.yearly)}/yr</p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {lines.map((item) => (
-                    <div key={`${structure.id}-${item.id}`} className="flex items-center justify-between text-xs">
-                      <span>{item.name} · {frequencyLabel(item.frequency)} · {item.required ? "Required" : "Optional"}</span>
-                      <span className="font-semibold">{formatCurrency(item.amount)}{item.frequency === "monthly" || item.frequency === "term" ? ` · ${formatCurrency(item.yearly)} / year` : ""}</span>
-                    </div>
-                  ))}
-                  <p className="text-sm font-bold pt-2">Yearly total (with transport): {formatCurrency(structureTotal(structure, true))}</p>
-                  <p className="text-xs text-muted-foreground">Without transport: {formatCurrency(structureTotal(structure, false))}</p>
-                </CardContent>
-              </Card>
-            )
-          })}
+                  
+                  <div className="p-4 border-t border-border/50 bg-muted/10">
+                    <Button variant="outline" className="w-full text-xs font-bold bg-card" onClick={() => { setEditingStructure(structure); setStructureOpen(true) }}>
+                      Edit Structure
+                    </Button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
 
@@ -366,7 +426,7 @@ export function FeesModule() {
                 </tr>
               </thead>
               <tbody>
-                {filteredStudents.map((item) => (
+                {paginatedStudents.map((item) => (
                   <tr key={`st-${item.student.id}`} className="border-t border-border/60">
                     <td className="p-3 font-semibold">{item.student.name}</td>
                     <td className="p-3">{item.student.studentCode}</td>
@@ -389,6 +449,22 @@ export function FeesModule() {
               </tbody>
             </table>
           </div>
+          {totalStudentPages > 1 && (
+            <div className="flex items-center justify-between px-2 py-1">
+              <p className="text-xs text-muted-foreground">
+                Showing {((studentPage - 1) * STUDENT_PAGE_SIZE) + 1} to {Math.min(studentPage * STUDENT_PAGE_SIZE, filteredStudents.length)} of {filteredStudents.length}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" disabled={studentPage === 1} onClick={() => setStudentPage(p => p - 1)}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-xs font-medium">Page {studentPage} of {totalStudentPages}</span>
+                <Button size="sm" variant="outline" disabled={studentPage === totalStudentPages} onClick={() => setStudentPage(p => p + 1)}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -454,52 +530,6 @@ export function FeesModule() {
         </Card>
       )}
 
-      {tab === "history" && (
-        <div className="space-y-3">
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Student or receipt" className="h-9 text-xs" />
-            <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="h-9 text-xs" />
-            <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="h-9 text-xs" />
-            <Select value={methodFilter} onChange={(e) => setMethodFilter(e.target.value)} className="h-9 text-xs">
-              <option value="all">All methods</option>
-              {PAY_METHODS.map((item) => <option key={`hm-${item.id}`} value={item.id}>{item.label}</option>)}
-            </Select>
-          </div>
-          <div className="overflow-x-auto rounded-xl border border-border">
-            <table className="w-full text-xs">
-              <thead className="bg-muted/50 text-muted-foreground">
-                <tr>
-                  {["Date", "Receipt", "Student", "Amount", "Method", "Txn", "Status", ""].map((h) => (
-                    <th key={`hist-h-${h || "act"}`} className="text-left font-medium p-3">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredPayments.map((item) => {
-                  const student = studentById(state, item.studentId)
-                  return (
-                    <tr key={item.id} className="border-t border-border/60">
-                      <td className="p-3 whitespace-nowrap">{formatFeeDate(item.date)}</td>
-                      <td className="p-3">{item.receiptNo}</td>
-                      <td className="p-3">{student?.name}</td>
-                      <td className="p-3">{formatCurrency(item.amount)}</td>
-                      <td className="p-3">{methodLabel(item.method)}</td>
-                      <td className="p-3">{item.txnId || "—"}</td>
-                      <td className="p-3"><Badge variant="success">Paid</Badge></td>
-                      <td className="p-3">
-                        <div className="flex gap-1">
-                          <Button size="sm" variant="ghost" onClick={() => setReceipt(item)}>Receipt</Button>
-                          <Button size="sm" variant="ghost" onClick={() => setCancelId(item.id)}>Cancel</Button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
 
       {tab === "discounts" && (
         <div className="space-y-3">
@@ -569,58 +599,6 @@ export function FeesModule() {
         />
       )}
 
-      {tab === "settings" && (
-        <Card className="max-w-xl">
-          <CardHeader>
-            <CardTitle className="text-sm flex items-center gap-2"><Settings className="h-4 w-4" /> Fee settings</CardTitle>
-            <CardDescription>Parent notices for dues and successful collections. Not a full accounts module.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            {(
-              [
-                ["notifyUpcoming", "Upcoming payment"],
-                ["notifyDueToday", "Payment due today"],
-                ["notifyOverdue", "Overdue payment"],
-                ["notifySuccess", "Payment successful"],
-                ["notifyReceipt", "Receipt generated"],
-              ] as const
-            ).map(([key, label]) => (
-              <label key={key} className="flex items-center justify-between gap-3">
-                <span>{label}</span>
-                <input
-                  type="checkbox"
-                  checked={state.settings[key]}
-                  onChange={(e) => update({ ...state, settings: { ...state.settings, [key]: e.target.checked } })}
-                />
-              </label>
-            ))}
-            <p className="text-xs font-semibold uppercase text-muted-foreground pt-2">Channels</p>
-            {NOTIFY_CHANNELS.map((channel) => (
-              <label key={`ch-${channel.id}`} className="flex items-center justify-between gap-3">
-                <span>{channel.label}</span>
-                <input
-                  type="checkbox"
-                  checked={state.settings.channels.includes(channel.id)}
-                  onChange={(e) => {
-                    const channels = e.target.checked
-                      ? [...state.settings.channels, channel.id]
-                      : state.settings.channels.filter((id) => id !== channel.id)
-                    update({ ...state, settings: { ...state.settings, channels: channels as NotifyChannelId[] } })
-                  }}
-                />
-              </label>
-            ))}
-            <label className="flex items-center justify-between gap-3">
-              <span>Allow advance payments</span>
-              <input
-                type="checkbox"
-                checked={state.settings.allowAdvance}
-                onChange={(e) => update({ ...state, settings: { ...state.settings, allowAdvance: e.target.checked } })}
-              />
-            </label>
-          </CardContent>
-        </Card>
-      )}
 
       <Dialog isOpen={Boolean(receipt)} onClose={() => setReceipt(null)} title="Payment receipt" description="PAID collection recorded for this child." className="max-w-lg">
         {receipt && (
@@ -743,21 +721,28 @@ function FilterRow({
 
 function OverviewList({ title, rows }: { title: string; rows: Array<{ id: string; title: string; meta: string; amount: number }> }) {
   return (
-    <Card>
-      <CardHeader className="pb-3"><CardTitle className="text-sm">{title}</CardTitle></CardHeader>
-      <CardContent className="space-y-2">
-        {rows.length === 0 && <p className="text-xs text-muted-foreground">None right now.</p>}
+    <div className="rounded-2xl border border-border/50 bg-card shadow-xs overflow-hidden flex flex-col h-[380px]">
+      <div className="px-5 py-4 border-b border-border/40 bg-muted/10">
+        <h3 className="text-sm font-bold tracking-tight text-foreground">{title}</h3>
+      </div>
+      <div className="flex-1 p-2 space-y-1 overflow-y-auto">
+        {rows.length === 0 && <p className="p-4 text-xs text-center text-muted-foreground">None right now.</p>}
         {rows.map((row) => (
-          <div key={row.id} className="flex items-start justify-between gap-2 text-xs">
-            <div>
-              <p className="font-semibold">{row.title}</p>
-              <p className="text-muted-foreground">{row.meta}</p>
+          <div key={row.id} className="group flex items-center justify-between gap-3 p-3 rounded-xl hover:bg-muted/40 transition-colors cursor-default">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="h-9 w-9 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                <span className="text-sm font-black">{row.title.charAt(0).toUpperCase()}</span>
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-foreground truncate">{row.title}</p>
+                <p className="text-[10px] font-medium text-muted-foreground truncate mt-0.5">{row.meta}</p>
+              </div>
             </div>
-            <span className="font-semibold whitespace-nowrap">{formatCurrency(row.amount)}</span>
+            <span className="text-xs font-bold whitespace-nowrap text-foreground">{formatCurrency(row.amount)}</span>
           </div>
         ))}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }
 
@@ -772,8 +757,26 @@ function DuesTable({
   onCollect: (invoice: FeeInvoice) => void
   onRemind: (invoice: FeeInvoice) => void
 }) {
+  const [currentPage, setCurrentPage] = React.useState(1)
+  const pageSize = 10
+
+  React.useEffect(() => {
+    setCurrentPage(1)
+  }, [rows.length])
+
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize))
+  const safePage = Math.min(currentPage, totalPages)
+
+  const paginatedRows = React.useMemo(() => {
+    const start = (safePage - 1) * pageSize
+    return rows.slice(start, start + pageSize)
+  }, [rows, safePage, pageSize])
+
+  const paginationStart = rows.length === 0 ? 0 : (safePage - 1) * pageSize + 1
+  const paginationEnd = Math.min(safePage * pageSize, rows.length)
+
   return (
-    <div className="overflow-x-auto rounded-xl border border-border">
+    <div className="overflow-x-auto rounded-xl border border-border bg-card">
       <table className="w-full text-xs">
         <thead className="bg-muted/50 text-muted-foreground">
           <tr>
@@ -783,29 +786,72 @@ function DuesTable({
           </tr>
         </thead>
         <tbody>
-          {rows.map((item) => {
-            const student = stateStudents.find((row) => row.id === item.studentId)
-            return (
-              <tr key={item.id} className="border-t border-border/60">
-                <td className="p-3 font-semibold">{student?.name}</td>
-                <td className="p-3">{student?.parentName}</td>
-                <td className="p-3">{student?.className}</td>
-                <td className="p-3">{item.label}</td>
-                <td className="p-3">{formatCurrency(invoiceRemaining(item))}</td>
-                <td className="p-3 whitespace-nowrap">{formatFeeDate(item.dueDate)}</td>
-                <td className="p-3">{item.dueDate < FEE_TODAY ? daysOverdue(item.dueDate) : "—"}</td>
-                <td className="p-3"><Badge variant={statusVariant(item.status)}>{statusLabel(item.status)}</Badge></td>
-                <td className="p-3">
-                  <div className="flex gap-1">
-                    <Button size="sm" variant="outline" onClick={() => onCollect(item)}>Collect</Button>
-                    <Button size="sm" variant="ghost" onClick={() => onRemind(item)}>Send reminder</Button>
-                  </div>
-                </td>
-              </tr>
-            )
-          })}
+          {rows.length === 0 ? (
+            <tr>
+              <td colSpan={9} className="p-8 text-center text-muted-foreground">
+                No due invoices found matching filters.
+              </td>
+            </tr>
+          ) : (
+            paginatedRows.map((item) => {
+              const student = stateStudents.find((row) => row.id === item.studentId)
+              return (
+                <tr key={item.id} className="border-t border-border/60 hover:bg-muted/30 transition-colors">
+                  <td className="p-3 font-semibold text-foreground">{student?.name || "—"}</td>
+                  <td className="p-3 text-muted-foreground">{student?.parentName || "—"}</td>
+                  <td className="p-3 text-foreground">{student?.className || "—"}</td>
+                  <td className="p-3 text-foreground font-medium">{item.label}</td>
+                  <td className="p-3 font-semibold text-foreground">{formatCurrency(invoiceRemaining(item))}</td>
+                  <td className="p-3 whitespace-nowrap font-mono text-muted-foreground">{formatFeeDate(item.dueDate)}</td>
+                  <td className="p-3 text-muted-foreground">{item.dueDate < FEE_TODAY ? daysOverdue(item.dueDate) : "—"}</td>
+                  <td className="p-3"><Badge variant={statusVariant(item.status)}>{statusLabel(item.status)}</Badge></td>
+                  <td className="p-3">
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="outline" onClick={() => onCollect(item)}>Collect</Button>
+                      <Button size="sm" variant="ghost" onClick={() => onRemind(item)}>Send reminder</Button>
+                    </div>
+                  </td>
+                </tr>
+              )
+            })
+          )}
         </tbody>
       </table>
+
+      {rows.length > 0 && (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-4 py-3 border-t border-border bg-muted/20">
+          <div className="text-[11px] text-muted-foreground">
+            Showing <span className="font-semibold text-foreground">{paginationStart}</span> to{" "}
+            <span className="font-semibold text-foreground">{paginationEnd}</span> of{" "}
+            <span className="font-semibold text-foreground">{rows.length}</span> dues
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={safePage === 1}
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              className="h-7 text-xs px-2.5 cursor-pointer"
+            >
+              <ChevronLeft className="h-3.5 w-3.5 mr-1" />
+              Previous
+            </Button>
+            <span className="text-xs font-semibold text-foreground px-2">
+              Page {safePage} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={safePage === totalPages}
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              className="h-7 text-xs px-2.5 cursor-pointer"
+            >
+              Next
+              <ChevronRight className="h-3.5 w-3.5 ml-1" />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -928,27 +974,34 @@ function StructureDialog({
   onSave: (structure: FeeStructure) => void
 }) {
   const [className, setClassName] = React.useState("Nursery A")
-  const [branch, setBranch] = React.useState<string>(BRANCHES[0])
   const [year, setYear] = React.useState(ACADEMIC_YEAR)
   const [status, setStatus] = React.useState<"active" | "inactive">("active")
   const [components, setComponents] = React.useState<FeeComponent[]>([])
+  const [courses, setCourses] = React.useState<any[]>([])
+
+  React.useEffect(() => {
+    api.getCourses().then(data => {
+      setCourses(data || [])
+      if (data && data.length > 0 && !className && !initial) {
+        setClassName(data[0].name)
+      }
+    }).catch(console.error)
+  }, [open, initial, className])
 
   React.useEffect(() => {
     if (!open) return
     if (initial) {
       setClassName(initial.className)
-      setBranch(initial.branch)
       setYear(initial.academicYear)
       setStatus(initial.status)
       setComponents(initial.components)
     } else {
-      setClassName("Nursery A")
-      setBranch(BRANCHES[0])
+      setClassName(courses.length > 0 ? courses[0].name : "Nursery A")
       setYear(ACADEMIC_YEAR)
       setStatus("active")
       setComponents([])
     }
-  }, [open, initial])
+  }, [open, initial, courses])
 
   const addComponent = () => {
     setComponents((prev) => [
@@ -967,35 +1020,85 @@ function StructureDialog({
 
   return (
     <Dialog isOpen={open} onClose={onClose} title={initial ? "Edit fee structure" : "New fee structure"} className="max-w-2xl">
-      <div className="space-y-3">
-        <div className="grid sm:grid-cols-2 gap-2">
-          <Input value={year} onChange={(e) => setYear(e.target.value)} placeholder="Academic year" className="h-9 text-xs" />
-          <Input value={className} onChange={(e) => setClassName(e.target.value)} placeholder="Class / program" className="h-9 text-xs" />
-          <Select value={branch} onChange={(e) => setBranch(e.target.value)} className="h-9 text-xs">
-            {BRANCHES.map((item) => <option key={`sb-${item}`} value={item}>{item}</option>)}
-          </Select>
-          <Select value={status} onChange={(e) => setStatus(e.target.value as "active" | "inactive")} className="h-9 text-xs">
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </Select>
-        </div>
-        {components.map((item, index) => (
-          <div key={item.id} className="grid sm:grid-cols-2 gap-2 rounded-lg border border-border/60 p-2">
-            <Input value={item.name} onChange={(e) => setComponents((prev) => prev.map((row, i) => i === index ? { ...row, name: e.target.value } : row))} className="h-8 text-xs" />
-            <Select value={item.type} onChange={(e) => setComponents((prev) => prev.map((row, i) => i === index ? { ...row, type: e.target.value as FeeTypeId } : row))} className="h-8 text-xs">
-              {FEE_TYPES.map((type) => <option key={`${item.id}-${type.id}`} value={type.id}>{type.label}</option>)}
-            </Select>
-            <Input type="number" value={item.amount} onChange={(e) => setComponents((prev) => prev.map((row, i) => i === index ? { ...row, amount: Number(e.target.value) || 0 } : row))} className="h-8 text-xs" />
-            <Select value={item.frequency} onChange={(e) => setComponents((prev) => prev.map((row, i) => i === index ? { ...row, frequency: e.target.value as FrequencyId } : row))} className="h-8 text-xs">
-              {FREQUENCIES.map((freq) => <option key={`${item.id}-${freq.id}`} value={freq.id}>{freq.label}</option>)}
-            </Select>
-            <Input type="date" value={item.dueDate} onChange={(e) => setComponents((prev) => prev.map((row, i) => i === index ? { ...row, dueDate: e.target.value } : row))} className="h-8 text-xs" />
-            <Select value={item.required ? "required" : "optional"} onChange={(e) => setComponents((prev) => prev.map((row, i) => i === index ? { ...row, required: e.target.value === "required" } : row))} className="h-8 text-xs">
-              <option value="required">Required</option>
-              <option value="optional">Optional</option>
+      <div className="space-y-4">
+        {/* Header fields */}
+        <div className="grid sm:grid-cols-4 gap-3">
+          <div className="space-y-1.5">
+            <label className="text-[10px] uppercase text-muted-foreground font-semibold">Academic Year</label>
+            <Input value={year} onChange={(e) => setYear(e.target.value)} placeholder="e.g. 2026-27" className="h-9 text-xs" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[10px] uppercase text-muted-foreground font-semibold">Class / Program</label>
+            <Select value={className} onChange={(e) => setClassName(e.target.value)} className="h-9 text-xs">
+              <option value="">Select program</option>
+              {courses.map((c) => (
+                <option key={c.id || c._id} value={c.name}>{c.name}</option>
+              ))}
+              {className && !courses.find((c) => c.name === className) && (
+                <option value={className}>{className}</option>
+              )}
             </Select>
           </div>
-        ))}
+          <div className="space-y-1.5">
+            <label className="text-[10px] uppercase text-muted-foreground font-semibold">Status</label>
+            <Select value={status} onChange={(e) => setStatus(e.target.value as "active" | "inactive")} className="h-9 text-xs">
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </Select>
+          </div>
+        </div>
+
+        {/* Components */}
+        <div className="space-y-3">
+          {components.map((item, index) => (
+            <div key={item.id} className="relative rounded-lg border border-border/60 bg-muted/20 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-[11px] font-bold text-foreground uppercase tracking-wide">Fee Head {index + 1}</h4>
+                <Button 
+                  size="sm" 
+                  variant="ghost" 
+                  className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive transition-colors" 
+                  onClick={() => setComponents(prev => prev.filter((_, i) => i !== index))}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              <div className="grid sm:grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-muted-foreground font-medium">Fee Name</label>
+                  <Input value={item.name} onChange={(e) => setComponents((prev) => prev.map((row, i) => i === index ? { ...row, name: e.target.value } : row))} className="h-8 text-xs" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-muted-foreground font-medium">Fee Category</label>
+                  <Select value={item.type} onChange={(e) => setComponents((prev) => prev.map((row, i) => i === index ? { ...row, type: e.target.value as FeeTypeId } : row))} className="h-8 text-xs">
+                    {FEE_TYPES.map((type) => <option key={`${item.id}-${type.id}`} value={type.id}>{type.label}</option>)}
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-muted-foreground font-medium">Amount (₹)</label>
+                  <Input type="number" value={item.amount} onChange={(e) => setComponents((prev) => prev.map((row, i) => i === index ? { ...row, amount: Number(e.target.value) || 0 } : row))} className="h-8 text-xs" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-muted-foreground font-medium">Frequency</label>
+                  <Select value={item.frequency} onChange={(e) => setComponents((prev) => prev.map((row, i) => i === index ? { ...row, frequency: e.target.value as FrequencyId } : row))} className="h-8 text-xs">
+                    {FREQUENCIES.map((freq) => <option key={`${item.id}-${freq.id}`} value={freq.id}>{freq.label}</option>)}
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-muted-foreground font-medium">First Due Date</label>
+                  <Input type="date" value={item.dueDate} onChange={(e) => setComponents((prev) => prev.map((row, i) => i === index ? { ...row, dueDate: e.target.value } : row))} className="h-8 text-xs" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-muted-foreground font-medium">Requirement</label>
+                  <Select value={item.required ? "required" : "optional"} onChange={(e) => setComponents((prev) => prev.map((row, i) => i === index ? { ...row, required: e.target.value === "required" } : row))} className="h-8 text-xs">
+                    <option value="required">Required</option>
+                    <option value="optional">Optional</option>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
         <Button size="sm" variant="outline" icon={Plus} onClick={addComponent}>Add fee head</Button>
         <div className="flex justify-end gap-2">
           <Button size="sm" variant="outline" onClick={onClose}>Close</Button>
@@ -1004,7 +1107,7 @@ function StructureDialog({
             onClick={() => onSave({
               id: initial?.id || `str-${Date.now()}`,
               academicYear: year.trim() || ACADEMIC_YEAR,
-              branch,
+              branch: BRANCHES[0],
               className: className.trim() || "Class",
               status,
               components,

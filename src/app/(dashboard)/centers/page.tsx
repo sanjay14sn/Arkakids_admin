@@ -231,16 +231,7 @@ export default function CentersPage() {
                 <p className="flex items-center gap-2"><Mail className="h-4 w-4 shrink-0" /><span className="truncate">{center.email}</span></p>
               </div>
 
-              {/* Module badges */}
-              <div className="flex flex-wrap gap-1 pt-1">
-                {(center.enabledModules || []).map(mod => (
-                  <span key={mod} className="inline-flex items-center rounded bg-primary/10 text-primary px-1.5 py-0.5 text-[9px] font-semibold border border-primary/20 uppercase tracking-wide">
-                    {mod === "crm" ? "CRM" : mod === "fees" ? "Fees" : mod === "jobs" ? "Jobs" : mod.charAt(0).toUpperCase() + mod.slice(1)}
-                  </span>
-                ))}
-              </div>
-
-              <div className="pt-1 border-t border-border/40" />
+              <div className="pt-2 border-t border-border/40" />
 
               {/* Actions */}
               <div className="flex flex-wrap justify-end gap-2 pt-1">
@@ -253,14 +244,6 @@ export default function CentersPage() {
                   <Trash2 className="h-3.5 w-3.5" />
                   {deletingId === center.id ? "Deleting..." : "Delete"}
                 </button>
-                <Button variant="outline" size="sm" icon={Layers}
-                  onClick={() => {
-                    setOwnerEnabledModules(center.enabledModules)
-                    addNotification({ title: "Permissions Applied", description: `Owner portal now shows modules for "${center.name}".`, type: "system" })
-                  }}
-                  className="text-xs py-1 px-2 border-primary/30 text-primary hover:bg-primary/10">
-                  Apply to Owner
-                </Button>
               </div>
             </CardContent>
           </Card>

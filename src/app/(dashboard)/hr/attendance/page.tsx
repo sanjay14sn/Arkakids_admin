@@ -207,17 +207,18 @@ export default function HRAttendancePage() {
   const save = async () => {
     try {
       setSaving(true)
-      await api.saveAttendance(
-        selectedDate,
-        staffType,
-        rows.map((r) => ({
+      await api.saveAttendance({
+        date: selectedDate,
+        className: staffType,
+        submitted: true,
+        submittedBy: "Admin",
+        records: rows.map((r) => ({
           entityId: r.entityId,
           name: r.name,
-          type: staffType,
           status: r.status,
-          date: selectedDate,
-        }))
-      )
+          note: "",
+        })),
+      })
       // Refresh month cache for this day
       setMonthRecords((prev) => {
         const others = prev.filter((r) => String(r.date || "").slice(0, 10) !== selectedDate)

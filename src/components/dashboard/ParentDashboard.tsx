@@ -15,6 +15,7 @@ import {
 } from "@/lib/preschoolOps"
 import { PARENT_ALERTS, useParentPortal } from "@/lib/parentPortal"
 import { studentSummary, usePreschoolFees } from "@/lib/preschoolFees"
+import { DailyJournalDashboardWidget } from "./DailyJournalDashboardWidget"
 
 export function ParentDashboard() {
   const child = childById(PARENT_CHILD_ID)
@@ -50,6 +51,8 @@ export function ParentDashboard() {
         <KPICard title="Next event" value={nextEvent ? nextEvent.date.slice(5) : "—"} subtext={nextEvent?.title || "Calendar is clear"} icon={CalendarDays} delay={0.15} />
         <KPICard title="School messages" value={portal.messages.length} subtext={unread[0]?.body.slice(0, 36) || "Inbox"} icon={MessageSquare} delay={0.2} />
       </div>
+
+      <DailyJournalDashboardWidget />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">

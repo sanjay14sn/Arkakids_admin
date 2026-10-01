@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { 
   Users, Search, Plus, Filter, Download, ArrowLeft, MoreHorizontal, Mail, Phone,
   FileCheck, ShieldAlert, BadgeDollarSign, CalendarRange, GraduationCap, Clock, FileDown, CheckSquare, Trash2, Calendar,
-  ChevronLeft, ChevronRight, Pencil, AlertTriangle
+  ChevronLeft, ChevronRight, Pencil, AlertTriangle, Syringe, X, Check, Eye
 } from "lucide-react"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
@@ -39,196 +39,47 @@ export interface Student {
   feesTotal: number
   guardian: { name: string; phone: string }
   enrollmentDate: string
+  dateOfBirth?: string
+  gender?: string
+  parentName?: string
+  parentPhone?: string
+  parentRelation?: string
+  academicYear?: string
+  address?: string
+  admissionDate?: string
+  emergencyContact?: string
+  pickupPerson?: string
+  bloodGroup?: string
+  allergies?: string
+  prevSchool?: string
+  transport?: string
   nextDueDate?: string
   installmentsCount?: number
   installmentSchedule?: Array<{ amount: number; dueDate: string; label?: string }>
   password?: string
+  vaccinations?: Array<{ name: string; date: string; due?: string; status?: "Done" | "Pending" }>
 }
 
 const STUDENTS_PAGE_SIZE = 10
 
-const DUMMY_STUDENTS: Student[] = [
-  {
-    id: "STD-2026-001",
-    name: "Aarav Sharma",
-    email: "sharma.family@example.com",
-    phone: "+91 98765 11111",
-    course: "Playgroup & Toddlers",
-    status: "active",
-    attendanceRate: 94,
-    feesPaid: 15000,
-    feesTotal: 15000,
-    guardian: { name: "Rajesh Sharma", phone: "+91 98765 11111" },
-    enrollmentDate: "2026-01-10",
-    password: "Password123!",
-  },
-  {
-    id: "STD-2026-002",
-    name: "Ananya Iyer",
-    email: "iyer.parents@example.com",
-    phone: "+91 98765 22222",
-    course: "Nursery A",
-    status: "active",
-    attendanceRate: 98,
-    feesPaid: 10000,
-    feesTotal: 20000,
-    guardian: { name: "Venkatesh Iyer", phone: "+91 98765 22222" },
-    enrollmentDate: "2026-01-15",
-    nextDueDate: "2026-09-15",
-    installmentsCount: 2,
-    password: "Password123!",
-  },
-  {
-    id: "STD-2026-003",
-    name: "Vivaan Deshmukh",
-    email: "deshmukh.v@example.com",
-    phone: "+91 98765 33333",
-    course: "LKG - Section 1",
-    status: "active",
-    attendanceRate: 89,
-    feesPaid: 22000,
-    feesTotal: 22000,
-    guardian: { name: "Sunil Deshmukh", phone: "+91 98765 33333" },
-    enrollmentDate: "2026-02-01",
-    password: "Password123!",
-  },
-  {
-    id: "STD-2026-004",
-    name: "Diya Patel",
-    email: "patel.family@example.com",
-    phone: "+91 98765 44444",
-    course: "UKG - Section A",
-    status: "active",
-    attendanceRate: 92,
-    feesPaid: 12000,
-    feesTotal: 24000,
-    guardian: { name: "Karan Patel", phone: "+91 98765 44444" },
-    enrollmentDate: "2026-02-10",
-    nextDueDate: "2026-09-30",
-    installmentsCount: 2,
-    password: "Password123!",
-  },
-  {
-    id: "STD-2026-005",
-    name: "Reyansh Gupta",
-    email: "gupta.r@example.com",
-    phone: "+91 98765 55555",
-    course: "Playgroup & Toddlers",
-    status: "on_hold",
-    attendanceRate: 75,
-    feesPaid: 8000,
-    feesTotal: 16000,
-    guardian: { name: "Amit Gupta", phone: "+91 98765 55555" },
-    enrollmentDate: "2026-03-01",
-    nextDueDate: "2026-08-30",
-    installmentsCount: 2,
-    password: "Password123!",
-  },
-  {
-    id: "STD-2026-006",
-    name: "Myra Kapoor",
-    email: "kapoor.myra@example.com",
-    phone: "+91 98765 66666",
-    course: "Nursery B",
-    status: "active",
-    attendanceRate: 96,
-    feesPaid: 18000,
-    feesTotal: 18000,
-    guardian: { name: "Rohan Kapoor", phone: "+91 98765 66666" },
-    enrollmentDate: "2026-03-12",
-    password: "Password123!",
-  },
-  {
-    id: "STD-2026-007",
-    name: "Kabir Verma",
-    email: "verma.k@example.com",
-    phone: "+91 98765 77777",
-    course: "LKG - Section 2",
-    status: "active",
-    attendanceRate: 91,
-    feesPaid: 10000,
-    feesTotal: 20000,
-    guardian: { name: "Siddharth Verma", phone: "+91 98765 77777" },
-    enrollmentDate: "2026-04-05",
-    nextDueDate: "2026-10-05",
-    installmentsCount: 2,
-    password: "Password123!",
-  },
-  {
-    id: "STD-2026-008",
-    name: "Aditi Joshi",
-    email: "joshi.aditi@example.com",
-    phone: "+91 98765 88888",
-    course: "UKG - Section B",
-    status: "completed",
-    attendanceRate: 99,
-    feesPaid: 25000,
-    feesTotal: 25000,
-    guardian: { name: "Mahesh Joshi", phone: "+91 98765 88888" },
-    enrollmentDate: "2025-06-01",
-    password: "Password123!",
-  },
-  {
-    id: "STD-2026-009",
-    name: "Ishaan Reddy",
-    email: "reddy.i@example.com",
-    phone: "+91 98765 99999",
-    course: "Nursery A",
-    status: "active",
-    attendanceRate: 95,
-    feesPaid: 14000,
-    feesTotal: 20000,
-    guardian: { name: "Vikram Reddy", phone: "+91 98765 99999" },
-    enrollmentDate: "2026-04-20",
-    nextDueDate: "2026-09-20",
-    installmentsCount: 2,
-    password: "Password123!",
-  },
-  {
-    id: "STD-2026-010",
-    name: "Saanvi Kulkarni",
-    email: "kulkarni.s@example.com",
-    phone: "+91 98765 00000",
-    course: "Playgroup & Toddlers",
-    status: "active",
-    attendanceRate: 97,
-    feesPaid: 15000,
-    feesTotal: 15000,
-    guardian: { name: "Anand Kulkarni", phone: "+91 98765 00000" },
-    enrollmentDate: "2026-05-01",
-    password: "Password123!",
-  },
-  {
-    id: "STD-2026-011",
-    name: "Avyan Choudhury",
-    email: "choudhury.a@example.com",
-    phone: "+91 98765 12345",
-    course: "LKG - Section 1",
-    status: "active",
-    attendanceRate: 93,
-    feesPaid: 11000,
-    feesTotal: 22000,
-    guardian: { name: "Debashish Choudhury", phone: "+91 98765 12345" },
-    enrollmentDate: "2026-05-15",
-    nextDueDate: "2026-10-15",
-    installmentsCount: 2,
-    password: "Password123!",
-  },
-  {
-    id: "STD-2026-012",
-    name: "Zara Khan",
-    email: "khan.zara@example.com",
-    phone: "+91 98765 67890",
-    course: "UKG - Section A",
-    status: "active",
-    attendanceRate: 90,
-    feesPaid: 24000,
-    feesTotal: 24000,
-    guardian: { name: "Tariq Khan", phone: "+91 98765 67890" },
-    enrollmentDate: "2026-06-01",
-    password: "Password123!",
+/** Map a raw DB student document to the Student interface */
+function mapStudentFromDB(d: any): Student {
+  return {
+    ...d,
+    id: d._id || d.id,
+    course: d.course || d.className || d.classId || "",
+    feesPaid: d.feesPaid ?? d.fees?.feesPaid ?? 0,
+    feesTotal: d.feesTotal ?? d.fees?.feesTotal ?? 0,
+    nextDueDate: d.nextDueDate || d.fees?.nextDueDate || undefined,
+    installmentsCount: d.installmentsCount ?? d.fees?.installmentsCount ?? 1,
+    installmentSchedule: d.installmentSchedule || d.fees?.installmentSchedule || [],
+    enrollmentDate: d.enrollmentDate || d.admissionDate || d.createdAt?.slice(0, 10) || "",
+    guardian: d.guardian || { name: d.parentName || "—", phone: d.parentPhone || d.phone || "—" },
+    attendanceRate: d.attendanceRate ?? 0,
+    phone: d.phone || d.parentPhone || "",
+    email: d.email || d.parentEmail || "",
   }
-]
+}
 
 export default function StudentsPage() {
   const { addNotification, user, fetchCenterPolicy } = useStore()
@@ -257,13 +108,45 @@ export default function StudentsPage() {
   const [statusUpdatingId, setStatusUpdatingId] = React.useState<string | null>(null)
   const [isAddOpen, setIsAddOpen] = React.useState(false)
 
+  // Wizard States
+  const [addStep, setAddStep] = React.useState(1)
+  const [dob, setDob] = React.useState("")
+  const [gender, setGender] = React.useState("Female")
+  const [parentName, setParentName] = React.useState("")
+  const [parentRelation, setParentRelation] = React.useState("Mother")
+  const [address, setAddress] = React.useState("")
+  const [academicYear, setAcademicYear] = React.useState("2026-27")
+  const [admissionDate, setAdmissionDate] = React.useState(new Date().toISOString().split("T")[0])
+  const [emergencyContact, setEmergencyContact] = React.useState("")
+  const [pickupPerson, setPickupPerson] = React.useState("")
+  const [bloodGroup, setBloodGroup] = React.useState("")
+  const [allergies, setAllergies] = React.useState("")
+  const [prevSchool, setPrevSchool] = React.useState("")
+  const [transport, setTransport] = React.useState("")
+
   // Edit & Delete Student States
+  const [editStep, setEditStep] = React.useState(1)
   const [editingStudent, setEditingStudent] = React.useState<Student | null>(null)
   const [deletingStudentId, setDeletingStudentId] = React.useState<string | null>(null)
   const [editName, setEditName] = React.useState("")
   const [editEmail, setEditEmail] = React.useState("")
   const [editPhone, setEditPhone] = React.useState("")
   const [editCourse, setEditCourse] = React.useState("")
+  const [editDob, setEditDob] = React.useState("")
+  const [editGender, setEditGender] = React.useState("Female")
+  const [editParentName, setEditParentName] = React.useState("")
+  const [editParentRelation, setEditParentRelation] = React.useState("Mother")
+  const [editAcademicYear, setEditAcademicYear] = React.useState("2026-27")
+  const [editAddress, setEditAddress] = React.useState("")
+  const [editAdmissionDate, setEditAdmissionDate] = React.useState("")
+  const [editEmergencyContact, setEditEmergencyContact] = React.useState("")
+  const [editPickupPerson, setEditPickupPerson] = React.useState("")
+  const [editBloodGroup, setEditBloodGroup] = React.useState("")
+  const [editAllergies, setEditAllergies] = React.useState("")
+  const [editPrevSchool, setEditPrevSchool] = React.useState("")
+  const [editTransport, setEditTransport] = React.useState("")
+  const [editNextDueDate, setEditNextDueDate] = React.useState("")
+  const [editInstallmentsCount, setEditInstallmentsCount] = React.useState("1")
 
   React.useEffect(() => {
     const loadData = async () => {
@@ -278,7 +161,9 @@ export default function StudentsPage() {
           api.getCourses().catch(() => []),
           api.getBatches().catch(() => [])
         ])
-        setStudents(studentsData && studentsData.length > 0 ? studentsData : DUMMY_STUDENTS)
+        // Remap DB fields (IStudent schema) → Student interface
+        const mapped = (studentsData || []).map(mapStudentFromDB)
+        setStudents(mapped)
         setCourses(coursesData || [])
         setBatches(batchesData || [])
         if (coursesData?.length > 0) {
@@ -286,7 +171,7 @@ export default function StudentsPage() {
         }
       } catch (err) {
         console.error("Failed to load students, courses, or batches:", err)
-        setStudents(DUMMY_STUDENTS)
+        setStudents([])
       } finally {
         setPageLoading(false)
       }
@@ -342,6 +227,60 @@ export default function StudentsPage() {
 
   const [selectedStudentLogs, setSelectedStudentLogs] = React.useState<any[]>([])
   const [loadingLogs, setLoadingLogs] = React.useState(false)
+
+  // Student Vaccination Form State
+  const [showStudentVaxForm, setShowStudentVaxForm] = React.useState(false)
+  const [newStudentVaxName, setNewStudentVaxName] = React.useState("")
+  const [newStudentVaxDate, setNewStudentVaxDate] = React.useState("")
+  const [newStudentVaxDue, setNewStudentVaxDue] = React.useState("")
+
+  const handleAddStudentVaccine = (studentId: string) => {
+    if (!newStudentVaxName.trim()) return
+    const newVax = {
+      name: newStudentVaxName.trim(),
+      date: newStudentVaxDate,
+      due: newStudentVaxDue || undefined,
+    }
+    setStudents((prev) =>
+      prev.map((s) => {
+        if (s.id === studentId) {
+          const vaccinations = s.vaccinations || []
+          return { ...s, vaccinations: [...vaccinations, newVax] }
+        }
+        return s
+      })
+    )
+    setSelectedStudent((prev) => {
+      if (!prev || prev.id !== studentId) return prev
+      return { ...prev, vaccinations: [...(prev.vaccinations || []), newVax] }
+    })
+    setNewStudentVaxName("")
+    setNewStudentVaxDate("")
+    setNewStudentVaxDue("")
+    setShowStudentVaxForm(false)
+    addNotification({
+      title: "Vaccine Record Added",
+      description: `Added ${newVax.name} for ${selectedStudent?.name}.`,
+      type: "admissions",
+    })
+  }
+
+  const handleRemoveStudentVaccine = (studentId: string, index: number) => {
+    setStudents((prev) =>
+      prev.map((s) => {
+        if (s.id === studentId) {
+          const vaccinations = (s.vaccinations || []).filter((_, i) => i !== index)
+          return { ...s, vaccinations }
+        }
+        return s
+      })
+    )
+    setSelectedStudent((prev) => {
+      if (!prev || prev.id !== studentId) return prev
+      const vaccinations = (prev.vaccinations || []).filter((_, i) => i !== index)
+      return { ...prev, vaccinations }
+    })
+  }
 
   React.useEffect(() => {
     if (selectedStudent) {
@@ -477,7 +416,7 @@ export default function StudentsPage() {
 
   const handleAddStudent = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!name || !email || !phone) return
+    if (!name || !phone) return
 
     try {
       const hasDues = Number(feesTotal) - Number(feesPaid) > 0
@@ -485,18 +424,31 @@ export default function StudentsPage() {
         name,
         email,
         phone,
+        className: course,
         course,
         status: "active",
-        attendanceRate: 0,
-        feesPaid: Number(feesPaid),
-        feesTotal: Number(feesTotal),
-        guardian: { name: "N/A", phone: "N/A" },
-        enrollmentDate: new Date().toISOString().split("T")[0],
-        nextDueDate: hasDues ? addNextDueDate : undefined,
-        installmentsCount: Number(addInstallmentCount)
+        admissionDate,
+        dateOfBirth: dob,
+        gender: gender.toLowerCase(),
+        parentName,
+        parentPhone: phone,
+        parentRelation,
+        academicYear,
+        address,
+        emergencyContact,
+        pickupPerson,
+        bloodGroup,
+        allergies,
+        prevSchool,
+        transport,
+        fees: {
+          feesPaid: Number(feesPaid),
+          feesTotal: Number(feesTotal),
+          nextDueDate: (Number(feesTotal) - Number(feesPaid)) > 0 ? addNextDueDate : null,
+          installmentsCount: Number(addInstallmentCount),
+        },
       })
-
-      setStudents([newStudent, ...students])
+      setStudents([mapStudentFromDB(newStudent), ...students])
       setIsAddOpen(false)
       addNotification({
         title: "Student Enrolled",
@@ -506,11 +458,12 @@ export default function StudentsPage() {
       alert(`Student enrolled successfully!\nEmail: ${email}\nPassword: ${newStudent.password}`);
 
       // Reset fields
+      setAddStep(1)
       setName("")
       setEmail("")
       setPhone("")
       setPaymentScheme("full")
-      setCourse("Fullstack Web Dev")
+      setCourse(courses.length > 0 ? courses[0].name : "")
       setFeesTotal("1800")
       setFeesPaid("1800")
       setAddInstallmentCount("3")
@@ -530,35 +483,86 @@ export default function StudentsPage() {
   }
 
   const openEditModal = (student: Student) => {
+    setEditStep(1)
     setEditingStudent(student)
-    setEditName(student.name)
-    setEditEmail(student.email)
-    setEditPhone(student.phone)
-    setEditCourse(student.course || "Playgroup & Toddlers")
+    setEditName(student.name || "")
+    setEditEmail(student.email || "")
+    setEditPhone(student.phone || student.parentPhone || student.guardian?.phone || "")
+    setEditCourse(student.course || (courses.length > 0 ? courses[0].name : "Playgroup & Toddlers"))
+    setEditDob(student.dateOfBirth ? String(student.dateOfBirth).slice(0, 10) : "")
+    setEditGender(student.gender ? (student.gender.charAt(0).toUpperCase() + student.gender.slice(1)) : "Female")
+    setEditParentName(student.parentName || student.guardian?.name || "")
+    setEditParentRelation(student.parentRelation || "Mother")
+    setEditAcademicYear(student.academicYear || "2026-27")
+    setEditAddress(student.address || "")
+    setEditAdmissionDate(student.admissionDate || student.enrollmentDate ? String(student.admissionDate || student.enrollmentDate).slice(0, 10) : "")
+    setEditEmergencyContact(student.emergencyContact || "")
+    setEditPickupPerson(student.pickupPerson || "")
+    setEditBloodGroup(student.bloodGroup || "")
+    setEditAllergies(student.allergies || "")
+    setEditPrevSchool(student.prevSchool || "")
+    setEditTransport(student.transport || "")
+    setEditFeesTotal(String(student.feesTotal ?? 0))
+    setEditFeesPaid(String(student.feesPaid ?? 0))
+    setEditNextDueDate(student.nextDueDate ? String(student.nextDueDate).slice(0, 10) : "")
+    setEditInstallmentsCount(String(student.installmentsCount ?? 1))
   }
 
-  const handleSaveEditedStudent = (e: React.FormEvent) => {
+  const handleSaveEditedStudent = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!editingStudent || !editName.trim()) return
 
-    const updated: Student = {
-      ...editingStudent,
-      name: editName.trim(),
-      email: editEmail.trim(),
-      phone: editPhone.trim(),
-      course: editCourse,
-    }
+    try {
+      const payload: any = {
+        name: editName.trim(),
+        email: editEmail.trim(),
+        phone: editPhone.trim(),
+        parentPhone: editPhone.trim(),
+        className: editCourse,
+        course: editCourse,
+        dateOfBirth: editDob,
+        gender: editGender.toLowerCase(),
+        parentName: editParentName,
+        parentRelation: editParentRelation,
+        academicYear: editAcademicYear,
+        address: editAddress,
+        admissionDate: editAdmissionDate,
+        emergencyContact: editEmergencyContact,
+        pickupPerson: editPickupPerson,
+        bloodGroup: editBloodGroup,
+        allergies: editAllergies,
+        prevSchool: editPrevSchool,
+        transport: editTransport,
+        fees: {
+          feesTotal: Number(editFeesTotal) || 0,
+          feesPaid: Number(editFeesPaid) || 0,
+          nextDueDate: editNextDueDate || null,
+          installmentsCount: Number(editInstallmentsCount) || 1,
+        },
+      }
 
-    setStudents((prev) => prev.map((s) => (s.id === editingStudent.id ? updated : s)))
-    if (selectedStudent?.id === editingStudent.id) {
-      setSelectedStudent(updated)
+      const updatedDB = await api.updateStudent(editingStudent.id, payload)
+      const updated = mapStudentFromDB(updatedDB)
+
+      setStudents((prev) => prev.map((s) => (s.id === editingStudent.id ? updated : s)))
+      if (selectedStudent?.id === editingStudent.id) {
+        setSelectedStudent(updated)
+      }
+      setEditingStudent(null)
+      setEditStep(1)
+      addNotification({
+        title: "Student Profile Updated",
+        description: `All profile & fee details for ${updated.name} updated successfully.`,
+        type: "admissions",
+      })
+    } catch (err: any) {
+      console.error("Failed to update student profile:", err)
+      addNotification({
+        title: "Update Failed",
+        description: err.message || "Failed to update student profile.",
+        type: "system",
+      })
     }
-    setEditingStudent(null)
-    addNotification({
-      title: "Student Updated",
-      description: `Profile for ${updated.name} updated.`,
-      type: "admissions",
-    })
   }
 
   const handleDeleteStudent = (id: string) => {
@@ -967,8 +971,8 @@ export default function StudentsPage() {
               className="h-9 text-xs"
             >
               <option value="all">All Courses</option>
-              {courseFilterOptions.map((courseName) => (
-                <option key={courseName} value={courseName}>
+              {courseFilterOptions.map((courseName, index) => (
+                <option key={courseName || `course-${index}`} value={courseName}>
                   {courseName}
                 </option>
               ))}
@@ -979,8 +983,8 @@ export default function StudentsPage() {
               className="h-9 text-xs"
             >
               <option value="all">All Batches</option>
-              {batchFilterOptions.map((batch) => (
-                <option key={batch.id} value={String(batch.id)}>
+              {batchFilterOptions.map((batch, index) => (
+                <option key={batch.id || batch._id || `batch-${index}`} value={String(batch.id)}>
                   {batch.courseName} ({batch.code})
                 </option>
               ))}
@@ -1009,7 +1013,7 @@ export default function StudentsPage() {
                   <th className="p-4">Student</th>
                   {!isTrainer && <th className="p-4">Next Due Date</th>}
                   <th className="p-4">Course</th>
-                  {isTrainer && <th className="p-4">Batch</th>}
+                  <th className="p-4">Batch</th>
                   <th className="p-4">Attendance</th>
                   {!isTrainer && <th className="p-4">Paid / Total Dues</th>}
                   <th className="p-4 font-semibold text-center">Actions</th>
@@ -1026,18 +1030,21 @@ export default function StudentsPage() {
                 ) : (
                   paginatedStudents.map((student) => {
                     const isSelected = selectedIds.includes(student.id)
-                    const studentBatches = isTrainer ? getStudentBatches(student) : []
+                    const studentBatches = getStudentBatches(student)
+                    
+                    // If course is accidentally set to a batch name (e.g. "Toddler Program - A"), fallback correctly
                     const displayCourse =
-                      student.course ||
-                      studentBatches[0]?.courseName ||
-                      "—"
+                      student.course && !student.course.includes(" - ")
+                        ? student.course
+                        : studentBatches[0]?.courseName || student.course || "—"
+                        
                     const displayBatch =
                       studentBatches.length > 0
                         ? studentBatches.map((batch) => batch.code).join(", ")
                         : "—"
                     return (
                       <tr 
-                        key={student.id}
+                        key={student.id || (student as any)._id}
                         onClick={() => setSelectedStudent(student)}
                         className={`hover:bg-muted/40 cursor-pointer transition-colors ${
                           isSelected ? "bg-primary/5" : ""
@@ -1059,9 +1066,6 @@ export default function StudentsPage() {
                             <div className="text-[10px] text-muted-foreground font-normal space-y-0.5">
                               <p>{student.email}</p>
                               <p>{student.phone}</p>
-                              {!isTrainer && student.password && (
-                                <p className="text-amber-500 font-mono font-semibold">Password: {student.password}</p>
-                              )}
                             </div>
                           </div>
                         </td>
@@ -1077,9 +1081,7 @@ export default function StudentsPage() {
                           </td>
                         )}
                         <td className="p-4 text-foreground">{displayCourse}</td>
-                        {isTrainer && (
-                          <td className="p-4 text-foreground">{displayBatch}</td>
-                        )}
+                        <td className="p-4 text-foreground">{displayBatch}</td>
                         <td className="p-4">
                           <div className="flex items-center gap-2">
                             <span className={`font-semibold ${student.attendanceRate < 75 ? "text-red-500" : "text-foreground"}`}>
@@ -1100,6 +1102,14 @@ export default function StudentsPage() {
                         )}
                         <td className="p-4 text-center" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedStudent(student)}
+                              className="h-7 w-7 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors"
+                              title="View Student Profile"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                            </button>
                             <button
                               type="button"
                               onClick={() => openEditModal(student)}
@@ -1221,73 +1231,285 @@ export default function StudentsPage() {
 
                 {/* Info Tab */}
                 <TabsContent value="overview" className="space-y-4 pt-2">
-                  <div className="grid grid-cols-2 gap-4 text-xs">
-                    <Card className="p-4 bg-muted/10">
-                      <h4 className="font-semibold text-foreground uppercase text-[10px] text-muted-foreground mb-2">Student Info</h4>
-                      <p className="flex items-center gap-1.5 py-1 text-muted-foreground">
-                        <Mail className="h-3.5 w-3.5" /> {selectedStudent.email}
-                      </p>
-                      <p className="flex items-center gap-1.5 py-1 text-muted-foreground">
-                        <Phone className="h-3.5 w-3.5" /> {selectedStudent.phone}
-                      </p>
-                      <p className="flex items-center gap-1.5 py-1 text-muted-foreground">
-                        <Clock className="h-3.5 w-3.5" /> Joined {formatDate(selectedStudent.enrollmentDate)}
-                      </p>
-                      {selectedStudent.password && (
-                        <p className="flex items-center gap-1.5 py-1.5 text-amber-500 font-semibold bg-amber-500/5 px-2 rounded-md border border-amber-500/10 mt-2">
-                          <span className="text-[10px] text-muted-foreground font-normal uppercase tracking-wider shrink-0">Password:</span>
-                          <span className="font-mono text-xs">{selectedStudent.password}</span>
-                        </p>
-                      )}
+                  
+                  {/* Health Alerts - Show ONLY if there are allergies or medical notes */}
+                  {selectedStudent.allergies && selectedStudent.allergies.toLowerCase() !== "none" && (
+                    <div className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-600 dark:text-red-400">
+                      <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wider">Health Alert: Allergies</p>
+                        <p className="text-sm font-medium mt-0.5">{selectedStudent.allergies}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Primary Details Card */}
+                    <Card className="p-4 bg-card border border-border shadow-xs col-span-2 sm:col-span-1">
+                      <h4 className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-3 pb-2 border-b border-border/40">
+                        <Users className="h-3.5 w-3.5" /> Personal Details
+                      </h4>
+                      <div className="space-y-3 text-xs">
+                        <div>
+                          <p className="text-[10px] text-muted-foreground">Date of Birth</p>
+                          <p className="font-semibold text-foreground">
+                            {selectedStudent.dateOfBirth ? formatDate(selectedStudent.dateOfBirth) : "Not specified"}
+                          </p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <p className="text-[10px] text-muted-foreground">Gender</p>
+                            <p className="font-semibold text-foreground capitalize">{selectedStudent.gender || "—"}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-muted-foreground">Blood Group</p>
+                            <p className="font-semibold text-foreground">
+                              {selectedStudent.bloodGroup ? (
+                                <span className="inline-flex items-center justify-center bg-red-500/10 text-red-500 border border-red-500/20 rounded px-1.5 py-0.5 text-[10px] font-bold">
+                                  {selectedStudent.bloodGroup}
+                                </span>
+                              ) : "—"}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="pt-2 border-t border-border/40">
+                          <p className="text-[10px] text-muted-foreground">Admission Date</p>
+                          <p className="font-semibold text-foreground">
+                            {selectedStudent.admissionDate ? formatDate(selectedStudent.admissionDate) : (selectedStudent.enrollmentDate ? formatDate(selectedStudent.enrollmentDate) : "—")}
+                          </p>
+                        </div>
+                      </div>
                     </Card>
 
-                    <Card className="p-4 bg-muted/10">
-                      <h4 className="font-semibold text-foreground uppercase text-[10px] text-muted-foreground mb-2">Payment Details</h4>
-                      <p className="font-semibold text-foreground">
-                        {selectedStudent.feesPaid >= selectedStudent.feesTotal ? (
-                          <span className="text-emerald-500 font-bold uppercase text-[10px]">Fully Paid</span>
-                        ) : (
-                          <span>Outstanding Dues</span>
-                        )}
-                      </p>
-                      {selectedStudent.feesPaid < selectedStudent.feesTotal && resolveNextDueDate(selectedStudent) && (
-                        <p className="flex items-center gap-1.5 py-1 text-muted-foreground mt-1 font-mono">
-                          <CalendarRange className="h-3.5 w-3.5 text-muted-foreground" />
-                          <span>Due: {formatDate(resolveNextDueDate(selectedStudent)!)}</span>
-                        </p>
-                      )}
+                    {/* Parents & Guardians Card */}
+                    <Card className="p-4 bg-card border border-border shadow-xs col-span-2 sm:col-span-1">
+                      <h4 className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-3 pb-2 border-b border-border/40">
+                        <Phone className="h-3.5 w-3.5" /> Guardian & Contacts
+                      </h4>
+                      <div className="space-y-3 text-xs">
+                        <div>
+                          <p className="text-[10px] text-muted-foreground">
+                            Primary Parent / {selectedStudent.parentRelation || "Guardian"}
+                          </p>
+                          <p className="font-semibold text-foreground">{selectedStudent.parentName || "—"}</p>
+                          <p className="text-muted-foreground">{selectedStudent.parentPhone || selectedStudent.phone || "—"}</p>
+                        </div>
+                        <div className="pt-2 border-t border-border/40">
+                          <p className="text-[10px] text-muted-foreground">Emergency Contact</p>
+                          <p className="font-semibold text-amber-600 dark:text-amber-500 flex items-center gap-1.5">
+                            <ShieldAlert className="h-3 w-3" />
+                            {selectedStudent.emergencyContact || "—"}
+                          </p>
+                        </div>
+                        <div className="pt-2 border-t border-border/40">
+                          <p className="text-[10px] text-muted-foreground">Authorized Pickup Person</p>
+                          <p className="font-semibold text-foreground">{selectedStudent.pickupPerson || selectedStudent.parentName || "—"}</p>
+                        </div>
+                      </div>
                     </Card>
                   </div>
 
-                  <Card className="p-4 bg-muted/10 text-xs">
-                    <h4 className="font-semibold text-foreground uppercase text-[10px] text-muted-foreground mb-2">Batch Allocation</h4>
-                    {selectedStudentBatch ? (
-                      <div className="space-y-1">
-                        <p className="font-semibold text-foreground">{selectedStudentBatch.code}</p>
-                        <p className="text-muted-foreground">{selectedStudentBatch.courseName}</p>
-                        <p className="text-[10px] text-muted-foreground">{selectedStudentBatch.schedule}</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Batch Allocation */}
+                    <Card className="p-4 bg-card border border-border shadow-xs col-span-2 sm:col-span-1">
+                      <h4 className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-3 pb-2 border-b border-border/40">
+                        <GraduationCap className="h-3.5 w-3.5" /> Batch & Transport
+                      </h4>
+                      <div className="space-y-3 text-xs">
+                        <div>
+                          <p className="text-[10px] text-muted-foreground">Assigned Batch</p>
+                          {selectedStudentBatch ? (
+                            <div className="mt-0.5">
+                              <p className="font-semibold text-foreground text-sm">{selectedStudentBatch.code}</p>
+                              <p className="text-muted-foreground">{selectedStudentBatch.courseName}</p>
+                            </div>
+                          ) : (
+                            <div className="space-y-2 mt-1">
+                              <p className="text-amber-600 dark:text-amber-400 font-medium text-[10px]">
+                                Needs assignment
+                              </p>
+                              <Select
+                                defaultValue=""
+                                onChange={(e) => {
+                                  if (e.target.value) handleAssignBatch(e.target.value)
+                                }}
+                                className="h-7 text-[10px] bg-secondary/30"
+                              >
+                                <option value="">Assign batch...</option>
+                                {batches.map((batch: any, index: number) => (
+                                  <option key={batch.id || batch._id || `assign-${index}`} value={batch.id || batch._id}>
+                                    {batch.code}
+                                  </option>
+                                ))}
+                              </Select>
+                            </div>
+                          )}
+                        </div>
+                        <div className="pt-2 border-t border-border/40">
+                          <p className="text-[10px] text-muted-foreground">Transport Route</p>
+                          <p className="font-semibold text-foreground">{selectedStudent.transport || "Self Drop/Pickup"}</p>
+                        </div>
                       </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <p className="text-amber-600 dark:text-amber-400 font-medium">
-                          Not assigned to any batch yet. Assign a batch before marking attendance.
-                        </p>
-                        <Select
-                          defaultValue=""
-                          onChange={(e) => {
-                            if (e.target.value) handleAssignBatch(e.target.value)
-                          }}
-                          className="h-8.5 text-xs bg-card max-w-sm"
-                        >
-                          <option value="">Assign to batch...</option>
-                          {batches.map((batch: any) => (
-                            <option key={batch.id || batch._id} value={batch.id || batch._id}>
-                              {batch.code} • {batch.courseName}
-                            </option>
-                          ))}
-                        </Select>
+                    </Card>
+
+                    {/* Quick Fees Snapshot */}
+                    <Card className="p-4 bg-card border border-border shadow-xs col-span-2 sm:col-span-1">
+                      <h4 className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-3 pb-2 border-b border-border/40">
+                        <BadgeDollarSign className="h-3.5 w-3.5" /> Quick Fee Status
+                      </h4>
+                      <div className="space-y-3 text-xs">
+                        <div>
+                          <p className="text-[10px] text-muted-foreground">Overall Status</p>
+                          <p className="font-semibold text-foreground mt-0.5">
+                            {selectedStudent.feesPaid >= selectedStudent.feesTotal && selectedStudent.feesTotal > 0 ? (
+                              <span className="text-emerald-500 font-bold uppercase text-[10px] flex items-center gap-1"><Check className="h-3 w-3" /> Fully Paid</span>
+                            ) : selectedStudent.feesTotal > 0 ? (
+                              <span className="text-amber-500 font-bold uppercase text-[10px] flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> Outstanding Dues</span>
+                            ) : (
+                              <span className="text-muted-foreground">Not Setup</span>
+                            )}
+                          </p>
+                        </div>
+                        {selectedStudent.feesPaid < selectedStudent.feesTotal && resolveNextDueDate(selectedStudent) && (
+                          <div className="pt-2 border-t border-border/40">
+                            <p className="text-[10px] text-muted-foreground">Next Installment Due</p>
+                            <p className="font-semibold text-foreground flex items-center gap-1.5 mt-0.5 font-mono">
+                              <CalendarRange className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span className={new Date(resolveNextDueDate(selectedStudent)!) < new Date() ? "text-red-500" : ""}>
+                                {formatDate(resolveNextDueDate(selectedStudent)!)}
+                              </span>
+                            </p>
+                          </div>
+                        )}
+                        <div className="pt-2 border-t border-border/40">
+                          <p className="text-[10px] text-muted-foreground">Progress</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <div className="h-1.5 flex-1 bg-secondary rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-primary" 
+                                style={{ width: `${selectedStudent.feesTotal > 0 ? (selectedStudent.feesPaid / selectedStudent.feesTotal) * 100 : 0}%` }}
+                              />
+                            </div>
+                            <span className="text-[9px] font-bold">{selectedStudent.feesTotal > 0 ? Math.round((selectedStudent.feesPaid / selectedStudent.feesTotal) * 100) : 0}%</span>
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  </div>
+
+                  {/* Vaccine & Health Record Card */}
+                  <Card className="p-4 bg-muted/10 text-xs">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <Syringe className="h-4 w-4 text-primary" />
+                        <h4 className="font-semibold text-foreground uppercase text-[10px] text-muted-foreground">Vaccine & Health Record</h4>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowStudentVaxForm((prev) => !prev)}
+                        className="h-7 px-2.5 rounded-lg bg-primary text-white text-[11px] font-semibold flex items-center gap-1 hover:bg-primary/90 transition-colors"
+                      >
+                        <Plus className="h-3 w-3" /> Add Vaccine Record
+                      </button>
+                    </div>
+
+                    {showStudentVaxForm && (
+                      <div className="p-3 bg-card rounded-xl border border-border/60 mb-3 space-y-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          <div>
+                            <label className="text-[10px] font-bold text-muted-foreground uppercase">Vaccine Name *</label>
+                            <input
+                              type="text"
+                              placeholder="e.g. MMR, DTP"
+                              value={newStudentVaxName}
+                              onChange={(e) => setNewStudentVaxName(e.target.value)}
+                              className="w-full h-8 rounded-lg border border-border bg-card px-2 text-xs focus:outline-none focus:border-primary"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-muted-foreground uppercase">Date Given</label>
+                            <input
+                              type="date"
+                              value={newStudentVaxDate}
+                              onChange={(e) => setNewStudentVaxDate(e.target.value)}
+                              className="w-full h-8 rounded-lg border border-border bg-card px-2 text-xs focus:outline-none focus:border-primary"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-muted-foreground uppercase">Next Due (Optional)</label>
+                            <input
+                              type="date"
+                              value={newStudentVaxDue}
+                              onChange={(e) => setNewStudentVaxDue(e.target.value)}
+                              className="w-full h-8 rounded-lg border border-border bg-card px-2 text-xs focus:outline-none focus:border-primary"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between pt-1">
+                          <div className="flex flex-wrap gap-1">
+                            {["BCG", "Hepatitis B", "DTP", "Polio", "MMR", "Chickenpox", "Rotavirus"].map((vName) => (
+                              <button
+                                key={vName}
+                                type="button"
+                                onClick={() => setNewStudentVaxName(vName)}
+                                className="px-2 py-0.5 rounded-full text-[9px] font-semibold bg-muted border border-border hover:border-primary text-muted-foreground transition-all"
+                              >
+                                + {vName}
+                              </button>
+                            ))}
+                          </div>
+                          <div className="flex gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => setShowStudentVaxForm(false)}
+                              className="h-7 px-2.5 rounded-lg border border-border text-[11px] text-muted-foreground"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleAddStudentVaccine(selectedStudent.id)}
+                              disabled={!newStudentVaxName.trim()}
+                              className="h-7 px-2.5 rounded-lg bg-primary text-white text-[11px] font-semibold disabled:opacity-50"
+                            >
+                              Save Record
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     )}
+
+                    <div className="divide-y divide-border/40">
+                      {(!selectedStudent.vaccinations || selectedStudent.vaccinations.length === 0) ? (
+                        <p className="text-muted-foreground text-[11px] py-2 italic">No vaccine records logged yet for this student.</p>
+                      ) : (
+                        selectedStudent.vaccinations.map((v, i) => (
+                          <div key={i} className="py-2 flex items-center justify-between">
+                            <div>
+                              <p className="font-semibold text-foreground text-xs">{v.name}</p>
+                              <p className="text-[10px] text-muted-foreground">
+                                {v.date ? `Given: ${formatDate(v.date)}` : "Date not recorded"}
+                                {v.due ? ` • Next Due: ${formatDate(v.due)}` : ""}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-[9px] font-bold rounded-full px-2 py-0.5 border ${
+                                v.date ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-700 border-amber-200"
+                              }`}>
+                                {v.date ? "Completed" : "Pending / Due"}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveStudentVaccine(selectedStudent.id, i)}
+                                className="text-muted-foreground hover:text-destructive transition-colors"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
                   </Card>
                 </TabsContent>
 
@@ -1606,204 +1828,529 @@ export default function StudentsPage() {
       {/* Add Student Dialog */}
       <Dialog
         isOpen={isAddOpen}
-        onClose={() => setIsAddOpen(false)}
+        onClose={() => { setIsAddOpen(false); setAddStep(1); }}
         title="Enroll New Student"
-        description="Fills initial database records. Default status is 'Active'."
+        description={`Step ${addStep} of 4: ${addStep === 1 ? 'Required Details' : addStep === 2 ? 'Optional Details' : addStep === 3 ? 'Documents' : 'Fees & Payment'}`}
+        className="max-w-2xl"
       >
-        <form onSubmit={handleAddStudent} className="space-y-4">
+        <form onSubmit={addStep === 4 ? handleAddStudent : (e) => { e.preventDefault(); setAddStep(p => p + 1); }} className="space-y-4">
           {studentsAtCapacity && policy && (
             <CapacityLimitNotice resource="students" policy={policy} variant="inline" />
           )}
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-muted-foreground">Full Name</label>
-            <Input
-              placeholder="Student name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="bg-card text-xs h-9.5"
-            />
-          </div>
-          
-          <div className="grid grid-cols-2 gap-3.5">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted-foreground">Email</label>
-              <Input
-                type="email"
-                placeholder="name@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="bg-card text-xs h-9.5"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted-foreground">Phone</label>
-              <Input
-                placeholder="+1 555-0123"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="bg-card text-xs h-9.5"
-              />
-            </div>
+
+          {/* Stepper Header */}
+          <div className="flex items-center gap-2 mb-6">
+            {[1, 2, 3, 4].map(step => (
+              <React.Fragment key={step}>
+                <div className={`flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold border-2 ${addStep === step ? 'border-primary bg-primary text-white' : addStep > step ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-border bg-card text-muted-foreground'}`}>
+                  {addStep > step ? <Check className="h-4 w-4" /> : step}
+                </div>
+                {step < 4 && <div className={`h-1 flex-1 rounded-full ${addStep > step ? 'bg-emerald-500' : 'bg-border'}`} />}
+              </React.Fragment>
+            ))}
           </div>
 
-          <div className="grid grid-cols-2 gap-3.5 border-t border-border/40 pt-3">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted-foreground">Course Program</label>
-              <Select
-                value={course}
-                onChange={(e) => setCourse(e.target.value)}
-                className="bg-card text-xs h-9.5"
-              >
-                {courses.map((c) => (
-                  <option key={c.id || c._id} value={c.name}>
-                    {c.name}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted-foreground">Course Pricing ($)</label>
-              <Input
-                type="number"
-                value={feesTotal}
-                onChange={(e) => setFeesTotal(e.target.value)}
-                className="bg-card text-xs h-9.5"
-              />
-            </div>
-          </div>
+          {addStep === 1 && (
+            <div className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
+              <div className="grid grid-cols-2 gap-3.5">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Student Name <span className="text-red-500">*</span></label>
+                  <Input placeholder="Full name" value={name} onChange={(e) => setName(e.target.value)} className="bg-card text-xs h-9.5" required />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Date of Birth <span className="text-red-500">*</span></label>
+                  <Input type="date" value={dob} onChange={(e) => setDob(e.target.value)} className="bg-card text-xs h-9.5" required />
+                </div>
+              </div>
 
-          <div className="grid grid-cols-2 gap-3.5 border-t border-border/40 pt-3">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted-foreground">Billing Scheme / Plan</label>
-              <Select
-                value={paymentScheme}
-                onChange={(e) => setPaymentScheme(e.target.value as any)}
-                className="bg-card text-xs h-9.5"
-              >
-                <option value="full">Full Payment Upfront</option>
-                <option value="part1">Installment: Part 1 Only (33%)</option>
-                <option value="part2">Installment: Part 1 & 2 (66%)</option>
-                <option value="custom">Custom Initial Deposit</option>
-              </Select>
-            </div>
-            
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted-foreground">Initial Paid Amount ($)</label>
-              <Input
-                type="number"
-                disabled={paymentScheme !== "custom"}
-                value={feesPaid}
-                onChange={(e) => setFeesPaid(e.target.value)}
-                className={`bg-card text-xs h-9.5 ${paymentScheme !== "custom" ? "opacity-75 cursor-not-allowed bg-zinc-950/20" : ""}`}
-              />
-            </div>
-          </div>
+              <div className="grid grid-cols-2 gap-3.5">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Gender <span className="text-red-500">*</span></label>
+                  <Select value={gender} onChange={(e) => setGender(e.target.value)} className="bg-card text-xs h-9.5" required>
+                    <option value="Female">Female</option>
+                    <option value="Male">Male</option>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Class/Grade <span className="text-red-500">*</span></label>
+                  <Select value={course} onChange={(e) => setCourse(e.target.value)} className="bg-card text-xs h-9.5" required>
+                    {courses.map((c, index) => <option key={c.id || c._id || `course-opt-${index}`} value={c.name}>{c.name}</option>)}
+                  </Select>
+                </div>
+              </div>
 
-          {Number(feesTotal) - Number(feesPaid) > 0 && (
-            <div className="p-2.5 rounded-lg border border-amber-500/25 bg-amber-500/5 text-[10px] text-amber-500 flex items-center justify-between font-medium">
-              <span>Outstanding Dues Pending:</span>
-              <span className="font-mono font-bold">${(Number(feesTotal) - Number(feesPaid)).toFixed(2)}</span>
-            </div>
-          )}
+              <div className="grid grid-cols-2 gap-3.5">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Parent/Guardian Name <span className="text-red-500">*</span></label>
+                  <Input placeholder="Parent name" value={parentName} onChange={(e) => setParentName(e.target.value)} className="bg-card text-xs h-9.5" required />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Parent Mobile Number <span className="text-red-500">*</span></label>
+                  <Input placeholder="+1 555-0123" value={phone} onChange={(e) => setPhone(e.target.value)} className="bg-card text-xs h-9.5" required />
+                </div>
+              </div>
 
-          {Number(feesTotal) - Number(feesPaid) > 0 && (
-            <div className="grid grid-cols-2 gap-3.5 border-t border-border/40 pt-3">
+              <div className="grid grid-cols-2 gap-3.5">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Relationship <span className="text-red-500">*</span></label>
+                  <Select value={parentRelation} onChange={(e) => setParentRelation(e.target.value)} className="bg-card text-xs h-9.5" required>
+                    <option value="Mother">Mother</option>
+                    <option value="Father">Father</option>
+                    <option value="Guardian">Guardian</option>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Academic Year <span className="text-red-500">*</span></label>
+                  <Input value={academicYear} onChange={(e) => setAcademicYear(e.target.value)} className="bg-card text-xs h-9.5" required />
+                </div>
+              </div>
+
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground">Next Payment Due Date</label>
-                <Input
-                  type="date"
-                  value={addNextDueDate}
-                  onChange={(e) => setAddNextDueDate(e.target.value)}
-                  className="bg-card text-xs h-9.5"
-                  required
+                <label className="text-xs font-semibold text-muted-foreground">Address <span className="text-red-500">*</span></label>
+                <textarea
+                  value={address} onChange={(e) => setAddress(e.target.value)}
+                  className="w-full bg-card border border-border rounded-lg text-xs p-2.5 min-h-[60px]" required
+                  placeholder="Full residential address"
                 />
               </div>
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground">Number of Dues / Installments</label>
-                <Select
-                  value={addInstallmentCount}
-                  onChange={(e) => setAddInstallmentCount(e.target.value)}
-                  className="bg-card text-xs h-9.5"
-                >
-                  <option value="1">1 (Single Payment)</option>
-                  <option value="2">2 Dues</option>
-                  <option value="3">3 Dues</option>
-                  <option value="4">4 Dues</option>
-                  <option value="5">5 Dues</option>
-                  <option value="6">6 Dues</option>
-                  <option value="8">8 Dues</option>
-                  <option value="10">10 Dues</option>
-                  <option value="12">12 Dues</option>
-                </Select>
+
+              <div className="grid grid-cols-3 gap-3.5">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Admission Date <span className="text-red-500">*</span></label>
+                  <Input type="date" value={admissionDate} onChange={(e) => setAdmissionDate(e.target.value)} className="bg-card text-xs h-9.5" required />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Emergency Contact <span className="text-red-500">*</span></label>
+                  <Input value={emergencyContact} onChange={(e) => setEmergencyContact(e.target.value)} className="bg-card text-xs h-9.5" required />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Pickup Person <span className="text-red-500">*</span></label>
+                  <Input value={pickupPerson} onChange={(e) => setPickupPerson(e.target.value)} className="bg-card text-xs h-9.5" required />
+                </div>
               </div>
             </div>
           )}
 
-          <div className="pt-3 border-t border-border/50 flex justify-end gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => setIsAddOpen(false)}>
+          {addStep === 2 && (
+            <div className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
+              <div className="grid grid-cols-2 gap-3.5">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Profile Photo</label>
+                  <input type="file" className="block w-full text-xs file:mr-3 file:rounded-md file:border file:border-border file:bg-muted file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-foreground hover:file:bg-muted/40 cursor-pointer h-9.5 border border-border rounded-md bg-card pt-0.5 pl-0.5" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Email</label>
+                  <Input type="email" placeholder="name@email.com" value={email} onChange={(e) => setEmail(e.target.value)} className="bg-card text-xs h-9.5" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3.5">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Blood Group</label>
+                  <Input placeholder="e.g. O+" value={bloodGroup} onChange={(e) => setBloodGroup(e.target.value)} className="bg-card text-xs h-9.5" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Allergies / Medical Details</label>
+                  <Input placeholder="Any medical conditions..." value={allergies} onChange={(e) => setAllergies(e.target.value)} className="bg-card text-xs h-9.5" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3.5">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Previous School</label>
+                  <Input placeholder="Name of previous school (if any)" value={prevSchool} onChange={(e) => setPrevSchool(e.target.value)} className="bg-card text-xs h-9.5" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Transport Details</label>
+                  <Input placeholder="Route or pickup location" value={transport} onChange={(e) => setTransport(e.target.value)} className="bg-card text-xs h-9.5" />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {addStep === 3 && (
+            <div className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
+              <div className="rounded-xl border border-border bg-muted/10 p-4 space-y-4">
+                <div className="flex items-center justify-between border-b border-border/50 pb-3">
+                  <div>
+                    <p className="font-bold text-foreground text-sm flex items-center gap-1.5"><FileCheck className="h-4 w-4 text-primary" /> Birth Certificate</p>
+                    <p className="text-[10px] text-muted-foreground">Recommended for age verification</p>
+                  </div>
+                  <input type="file" className="block max-w-[200px] text-[10px] file:mr-2 file:rounded file:border file:border-border file:bg-card file:px-2 file:py-1 file:text-[10px] file:font-semibold file:text-foreground cursor-pointer" />
+                </div>
+
+                <div className="flex items-center justify-between border-b border-border/50 pb-3">
+                  <div>
+                    <p className="font-bold text-foreground text-sm flex items-center gap-1.5"><FileCheck className="h-4 w-4 text-muted-foreground" /> Student ID Document</p>
+                    <p className="text-[10px] text-muted-foreground">Optional</p>
+                  </div>
+                  <input type="file" className="block max-w-[200px] text-[10px] file:mr-2 file:rounded file:border file:border-border file:bg-card file:px-2 file:py-1 file:text-[10px] file:font-semibold file:text-foreground cursor-pointer" />
+                </div>
+
+                <div className="flex items-center justify-between border-b border-border/50 pb-3">
+                  <div>
+                    <p className="font-bold text-foreground text-sm flex items-center gap-1.5"><FileCheck className="h-4 w-4 text-muted-foreground" /> Address Proof</p>
+                    <p className="text-[10px] text-muted-foreground">Optional</p>
+                  </div>
+                  <input type="file" className="block max-w-[200px] text-[10px] file:mr-2 file:rounded file:border file:border-border file:bg-card file:px-2 file:py-1 file:text-[10px] file:font-semibold file:text-foreground cursor-pointer" />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-bold text-foreground text-sm flex items-center gap-1.5"><FileCheck className="h-4 w-4 text-muted-foreground" /> Previous School Record</p>
+                    <p className="text-[10px] text-muted-foreground">Optional</p>
+                  </div>
+                  <input type="file" className="block max-w-[200px] text-[10px] file:mr-2 file:rounded file:border file:border-border file:bg-card file:px-2 file:py-1 file:text-[10px] file:font-semibold file:text-foreground cursor-pointer" />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {addStep === 4 && (
+            <div className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
+              <div className="rounded-xl border border-border bg-card p-4 space-y-4">
+                <div className="flex items-center justify-between border-b border-border/50 pb-2">
+                  <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <BadgeDollarSign className="h-4 w-4 text-primary" /> Fee Structure & Payment Details
+                  </h4>
+                  <span className="text-[10px] text-muted-foreground">Setup fee details</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3.5">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground">Total Fees (₹) <span className="text-red-500">*</span></label>
+                    <Input
+                      type="number"
+                      placeholder="Total course fees"
+                      value={feesTotal}
+                      onChange={(e) => setFeesTotal(e.target.value)}
+                      className="bg-card text-xs h-9.5"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground">Fees Paid (₹) <span className="text-red-500">*</span></label>
+                    <Input
+                      type="number"
+                      placeholder="Amount paid"
+                      value={feesPaid}
+                      onChange={(e) => setFeesPaid(e.target.value)}
+                      className="bg-card text-xs h-9.5"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3.5">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground">Next Due Date</label>
+                    <Input
+                      type="date"
+                      value={addNextDueDate}
+                      onChange={(e) => setAddNextDueDate(e.target.value)}
+                      className="bg-card text-xs h-9.5"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground">Installments Count</label>
+                    <Select
+                      value={addInstallmentCount}
+                      onChange={(e) => setAddInstallmentCount(e.target.value)}
+                      className="bg-card text-xs h-9.5"
+                    >
+                      <option value="1">1 (Single Payment)</option>
+                      <option value="2">2 Installments</option>
+                      <option value="3">3 Installments</option>
+                      <option value="4">4 Installments</option>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-muted/20 rounded-lg border border-border/50 text-xs flex items-center justify-between">
+                  <div>
+                    <span className="text-muted-foreground">Remaining Dues: </span>
+                    <span className={`font-bold ${Number(feesTotal) - Number(feesPaid) > 0 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                      ₹{Math.max(0, Number(feesTotal) - Number(feesPaid))}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    Status: {Number(feesPaid) >= Number(feesTotal) && Number(feesTotal) > 0 ? "Paid in Full" : Number(feesPaid) > 0 ? "Partial Payment" : "Pending"}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="pt-3 border-t border-border/50 flex justify-between items-center mt-6">
+            <Button type="button" variant="ghost" size="sm" onClick={() => { setIsAddOpen(false); setAddStep(1); }}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary" size="sm" disabled={studentsAtCapacity}>
-              Enroll Student
-            </Button>
+            <div className="flex gap-2">
+              {addStep > 1 && (
+                <Button type="button" variant="outline" size="sm" onClick={() => setAddStep(p => p - 1)}>
+                  Back
+                </Button>
+              )}
+              <Button type="submit" variant="primary" size="sm" disabled={addStep === 4 && studentsAtCapacity}>
+                {addStep < 4 ? "Next Step" : "Enroll Student"}
+              </Button>
+            </div>
           </div>
         </form>
       </Dialog>
 
       {/* Edit Student Dialog */}
-      <Dialog isOpen={Boolean(editingStudent)} onClose={() => setEditingStudent(null)} title={`Edit Profile — ${editingStudent?.name || ""}`}>
-        <form onSubmit={handleSaveEditedStudent} className="space-y-4 pt-1">
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-foreground">Student Full Name *</label>
-            <Input
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              className="bg-card text-xs"
-              required
-            />
+      <Dialog
+        isOpen={Boolean(editingStudent)}
+        onClose={() => { setEditingStudent(null); setEditStep(1); }}
+        title={`Edit Profile — ${editingStudent?.name || ""}`}
+        description={`Step ${editStep} of 4: ${editStep === 1 ? 'Required Details' : editStep === 2 ? 'Optional Details' : editStep === 3 ? 'Documents' : 'Fees & Payment Setup'}`}
+        className="max-w-2xl"
+      >
+        <form onSubmit={editStep === 4 ? handleSaveEditedStudent : (e) => { e.preventDefault(); setEditStep(p => p + 1); }} className="space-y-4 pt-1 pr-1">
+          
+          {/* Stepper Header */}
+          <div className="flex items-center gap-2 mb-6">
+            {[1, 2, 3, 4].map(step => (
+              <React.Fragment key={step}>
+                <div className={`flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold border-2 ${editStep === step ? 'border-primary bg-primary text-white' : editStep > step ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-border bg-card text-muted-foreground'}`}>
+                  {editStep > step ? <Check className="h-4 w-4" /> : step}
+                </div>
+                {step < 4 && <div className={`h-1 flex-1 rounded-full ${editStep > step ? 'bg-emerald-500' : 'bg-border'}`} />}
+              </React.Fragment>
+            ))}
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-foreground">Email</label>
-              <Input
-                type="email"
-                value={editEmail}
-                onChange={(e) => setEditEmail(e.target.value)}
-                className="bg-card text-xs"
-              />
+
+          {/* Section 1: Required Details */}
+          {editStep === 1 && (
+            <div className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
+              <div className="grid grid-cols-2 gap-3.5">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Student Name <span className="text-red-500">*</span></label>
+                  <Input placeholder="Full name" value={editName} onChange={(e) => setEditName(e.target.value)} className="bg-card text-xs h-9.5" required />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Date of Birth <span className="text-red-500">*</span></label>
+                  <Input type="date" value={editDob} onChange={(e) => setEditDob(e.target.value)} className="bg-card text-xs h-9.5" required />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3.5">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Gender <span className="text-red-500">*</span></label>
+                  <Select value={editGender} onChange={(e) => setEditGender(e.target.value)} className="bg-card text-xs h-9.5" required>
+                    <option value="Female">Female</option>
+                    <option value="Male">Male</option>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Class/Grade <span className="text-red-500">*</span></label>
+                  <Select value={editCourse} onChange={(e) => setEditCourse(e.target.value)} className="bg-card text-xs h-9.5" required>
+                    {courses.length > 0 ? (
+                      courses.map((c, index) => <option key={c.id || c._id || `edit-c-${index}`} value={c.name}>{c.name}</option>)
+                    ) : (
+                      <option value="Playgroup & Toddlers">Playgroup & Toddlers</option>
+                    )}
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3.5">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Parent/Guardian Name <span className="text-red-500">*</span></label>
+                  <Input placeholder="Parent name" value={editParentName} onChange={(e) => setEditParentName(e.target.value)} className="bg-card text-xs h-9.5" required />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Parent Mobile Number <span className="text-red-500">*</span></label>
+                  <Input placeholder="+1 555-0123" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} className="bg-card text-xs h-9.5" required />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3.5">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Relationship <span className="text-red-500">*</span></label>
+                  <Select value={editParentRelation} onChange={(e) => setEditParentRelation(e.target.value)} className="bg-card text-xs h-9.5" required>
+                    <option value="Mother">Mother</option>
+                    <option value="Father">Father</option>
+                    <option value="Guardian">Guardian</option>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Academic Year <span className="text-red-500">*</span></label>
+                  <Input value={editAcademicYear} onChange={(e) => setEditAcademicYear(e.target.value)} className="bg-card text-xs h-9.5" required />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground">Address <span className="text-red-500">*</span></label>
+                <textarea
+                  value={editAddress} onChange={(e) => setEditAddress(e.target.value)}
+                  className="w-full bg-card border border-border rounded-lg text-xs p-2.5 min-h-[60px]" required
+                  placeholder="Full residential address"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3.5">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Admission Date <span className="text-red-500">*</span></label>
+                  <Input type="date" value={editAdmissionDate} onChange={(e) => setEditAdmissionDate(e.target.value)} className="bg-card text-xs h-9.5" required />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Emergency Contact <span className="text-red-500">*</span></label>
+                  <Input value={editEmergencyContact} onChange={(e) => setEditEmergencyContact(e.target.value)} className="bg-card text-xs h-9.5" required />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Pickup Person <span className="text-red-500">*</span></label>
+                  <Input value={editPickupPerson} onChange={(e) => setEditPickupPerson(e.target.value)} className="bg-card text-xs h-9.5" required />
+                </div>
+              </div>
             </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-foreground">Phone Number</label>
-              <Input
-                value={editPhone}
-                onChange={(e) => setEditPhone(e.target.value)}
-                className="bg-card text-xs"
-              />
+          )}
+
+          {/* Section 2: Optional Details */}
+          {editStep === 2 && (
+            <div className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
+              <div className="grid grid-cols-2 gap-3.5">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Email</label>
+                  <Input type="email" placeholder="name@email.com" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} className="bg-card text-xs h-9.5" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Blood Group</label>
+                  <Input placeholder="e.g. O+" value={editBloodGroup} onChange={(e) => setEditBloodGroup(e.target.value)} className="bg-card text-xs h-9.5" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3.5">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Allergies / Medical Details</label>
+                  <Input placeholder="Any medical conditions..." value={editAllergies} onChange={(e) => setEditAllergies(e.target.value)} className="bg-card text-xs h-9.5" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Previous School</label>
+                  <Input placeholder="Name of previous school (if any)" value={editPrevSchool} onChange={(e) => setEditPrevSchool(e.target.value)} className="bg-card text-xs h-9.5" />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground">Transport Details</label>
+                <Input placeholder="Route or pickup location" value={editTransport} onChange={(e) => setEditTransport(e.target.value)} className="bg-card text-xs h-9.5" />
+              </div>
             </div>
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-foreground">Assigned Class / Course</label>
-            <Select
-              value={editCourse}
-              onChange={(e) => setEditCourse(e.target.value)}
-              className="bg-card text-xs"
-            >
-              <option value="Playgroup & Toddlers">Playgroup & Toddlers</option>
-              <option value="Nursery A">Nursery A</option>
-              <option value="Nursery B">Nursery B</option>
-              <option value="LKG - Section 1">LKG - Section 1</option>
-              <option value="LKG - Section 2">LKG - Section 2</option>
-              <option value="UKG - Section A">UKG - Section A</option>
-              <option value="UKG - Section B">UKG - Section B</option>
-            </Select>
-          </div>
-          <div className="pt-3 border-t border-border/50 flex justify-end gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => setEditingStudent(null)}>
+          )}
+
+          {/* Section 3: Documents */}
+          {editStep === 3 && (
+            <div className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
+              <div className="rounded-xl border border-border bg-muted/10 p-4 space-y-4">
+                <div className="flex items-center justify-between border-b border-border/50 pb-3">
+                  <div>
+                    <p className="font-bold text-foreground text-sm flex items-center gap-1.5"><FileCheck className="h-4 w-4 text-primary" /> Birth Certificate</p>
+                    <p className="text-[10px] text-muted-foreground">Recommended for age verification</p>
+                  </div>
+                  <input type="file" className="block max-w-[200px] text-[10px] file:mr-2 file:rounded file:border file:border-border file:bg-card file:px-2 file:py-1 file:text-[10px] file:font-semibold file:text-foreground cursor-pointer" />
+                </div>
+
+                <div className="flex items-center justify-between border-b border-border/50 pb-3">
+                  <div>
+                    <p className="font-bold text-foreground text-sm flex items-center gap-1.5"><FileCheck className="h-4 w-4 text-muted-foreground" /> Student ID Document</p>
+                    <p className="text-[10px] text-muted-foreground">Optional</p>
+                  </div>
+                  <input type="file" className="block max-w-[200px] text-[10px] file:mr-2 file:rounded file:border file:border-border file:bg-card file:px-2 file:py-1 file:text-[10px] file:font-semibold file:text-foreground cursor-pointer" />
+                </div>
+
+                <div className="flex items-center justify-between border-b border-border/50 pb-3">
+                  <div>
+                    <p className="font-bold text-foreground text-sm flex items-center gap-1.5"><FileCheck className="h-4 w-4 text-muted-foreground" /> Address Proof</p>
+                    <p className="text-[10px] text-muted-foreground">Optional</p>
+                  </div>
+                  <input type="file" className="block max-w-[200px] text-[10px] file:mr-2 file:rounded file:border file:border-border file:bg-card file:px-2 file:py-1 file:text-[10px] file:font-semibold file:text-foreground cursor-pointer" />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-bold text-foreground text-sm flex items-center gap-1.5"><FileCheck className="h-4 w-4 text-muted-foreground" /> Previous School Record</p>
+                    <p className="text-[10px] text-muted-foreground">Optional</p>
+                  </div>
+                  <input type="file" className="block max-w-[200px] text-[10px] file:mr-2 file:rounded file:border file:border-border file:bg-card file:px-2 file:py-1 file:text-[10px] file:font-semibold file:text-foreground cursor-pointer" />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Section 4: Fees & Payment Setup */}
+          {editStep === 4 && (
+            <div className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
+              <div className="rounded-xl border border-border bg-card p-4 space-y-4">
+                <div className="flex items-center justify-between border-b border-border/50 pb-2">
+                  <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <BadgeDollarSign className="h-4 w-4 text-primary" /> Fee Structure & Payment Details
+                  </h4>
+                  <span className="text-[10px] text-muted-foreground">Update fee details</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3.5">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground">Total Fees (₹)</label>
+                    <Input
+                      type="number"
+                      value={editFeesTotal}
+                      onChange={(e) => setEditFeesTotal(e.target.value)}
+                      className="bg-card text-xs h-9.5"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground">Fees Paid (₹)</label>
+                    <Input
+                      type="number"
+                      value={editFeesPaid}
+                      onChange={(e) => setEditFeesPaid(e.target.value)}
+                      className="bg-card text-xs h-9.5"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3.5">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground">Next Due Date</label>
+                    <Input
+                      type="date"
+                      value={editNextDueDate}
+                      onChange={(e) => setEditNextDueDate(e.target.value)}
+                      className="bg-card text-xs h-9.5"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground">Installments Count</label>
+                    <Select
+                      value={editInstallmentsCount}
+                      onChange={(e) => setEditInstallmentsCount(e.target.value)}
+                      className="bg-card text-xs h-9.5"
+                    >
+                      <option value="1">1 (Single Payment)</option>
+                      <option value="2">2 Installments</option>
+                      <option value="3">3 Installments</option>
+                      <option value="4">4 Installments</option>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="pt-3 border-t border-border/50 flex justify-between items-center mt-6">
+            <Button type="button" variant="ghost" size="sm" onClick={() => { setEditingStudent(null); setEditStep(1); }}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary" size="sm" icon={Pencil}>
-              Save Profile
-            </Button>
+            <div className="flex gap-2">
+              {editStep > 1 && (
+                <Button type="button" variant="outline" size="sm" onClick={() => setEditStep(p => p - 1)}>
+                  Back
+                </Button>
+              )}
+              <Button type="submit" variant="primary" size="sm" icon={editStep === 4 ? Pencil : undefined}>
+                {editStep < 4 ? "Next Step" : "Save Profile"}
+              </Button>
+            </div>
           </div>
         </form>
       </Dialog>

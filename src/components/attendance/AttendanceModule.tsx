@@ -3,7 +3,7 @@
 import * as React from "react"
 import {
   CalendarCheck, Users, UserX, CalendarOff, Percent, History, ClipboardList,
-  BarChart3, Settings, Lock, Download, Bell,
+  BarChart3, Settings, Lock, Download, Bell, Check, Unlock, X, Clock,
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
@@ -13,36 +13,89 @@ import { Select } from "@/components/ui/Select"
 import { KPICard } from "@/components/dashboard/KPICard"
 import { useStore } from "@/store/useStore"
 import { cn } from "@/lib/utils"
-import { PARENT_CHILD_ID, usePreschoolOps } from "@/lib/preschoolOps"
+import { api } from "@/lib/api"
 import {
-  ATTENDANCE_CHILDREN,
-  CLASS_GROUPS,
-  childAttendanceById,
-  childrenInClass,
-  classMonthStats,
-  countMarks,
+  ABSENCE_REASONS,
   downloadCsv,
-  downloadReportHtml,
-  findSession,
-  studentMonthStats,
-  todayIso,
-  usePreschoolAttendance,
+  formatLongDate,
+  nowTime,
+  type AbsenceReason,
   type AttendanceStatus,
 } from "@/lib/preschoolAttendance"
-import { TakeAttendancePanel } from "./TakeAttendancePanel"
 
-type Tab = "today" | "take" | "history" | "student" | "class" | "leave" | "reports" | "settings"
+// ─── Types ────────────────────────────────────────────────────────────────────
+type Tab = "today" | "take" | "history" | "student" | "reports" | "settings"
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "today", label: "Today" },
   { id: "take", label: "Take Attendance" },
   { id: "history", label: "History" },
   { id: "student", label: "Student" },
-  { id: "class", label: "Class" },
-  { id: "leave", label: "Leave" },
   { id: "reports", label: "Reports" },
   { id: "settings", label: "Settings" },
 ]
+
+interface StudentRecord {
+  id: string
+  name: string
+  parentName?: string
+  batch?: string    // batchId
+  batchName?: string
+  courseName?: string
+}
+
+interface ChildMark {
+  entityId: string
+  name: string
+  status: AttendanceStatus
+  note?: string
+  absenceReason?: string
+  parentInformed?: boolean
+  arrivalTime?: string
+}
+
+interface AttendanceSession {
+  _id?: string
+  date: string
+  className: string
+  batchId?: string
+  submitted: boolean
+  submittedBy?: string
+  submittedAt?: string
+  records: ChildMark[]
+}
+
+interface BatchGroup {
+  id: string
+  name: string        // display: "Toddler Program - A"
+  courseName: string
+  section: string
+  students: StudentRecord[]
+}
+
+function todayIso() {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function formatDateDDMMYYYY(dateStr: string) {
+  if (!dateStr) return dateStr
+  const parts = dateStr.split("-")
+  if (parts.length === 3 && parts[0].length === 4) {
+    return `${parts[2].padStart(2, "0")}-${parts[1].padStart(2, "0")}-${parts[0]}`
+  }
+  return dateStr
+}
+
+function countMarks(records: ChildMark[]) {
+  const present = records.filter(r => r.status === "present").length
+  const absent = records.filter(r => r.status === "absent").length
+  const leave = records.filter(r => r.status === "leave").length
+  const late = records.filter(r => r.status === "late").length
+  const total = records.length
+  const attended = present + late
+  const rate = total ? Math.round((attended / total) * 100) : 0
+  return { total, present, absent, leave, late, rate }
+}
 
 function statusBadge(status: AttendanceStatus) {
   if (status === "present") return <Badge variant="success">Present</Badge>
@@ -51,158 +104,276 @@ function statusBadge(status: AttendanceStatus) {
   return <Badge variant="info">Late</Badge>
 }
 
-export function ParentAttendanceView() {
-  const { state, ready } = usePreschoolAttendance()
-  const child = childAttendanceById(PARENT_CHILD_ID) || ATTENDANCE_CHILDREN.find((item) => item.id === PARENT_CHILD_ID)
-  const stats = studentMonthStats(state.sessions, PARENT_CHILD_ID, 2026, 8)
-  const todaySession = state.sessions.find((session) => session.date === todayIso() && session.marks.some((mark) => mark.childId === PARENT_CHILD_ID))
-  const todayMark = todaySession?.marks.find((mark) => mark.childId === PARENT_CHILD_ID)
-
-  if (!ready || !child) return <p className="text-xs text-muted-foreground py-16 text-center">Loading attendance...</p>
-
-  return (
-    <div className="space-y-6 max-w-3xl">
-      <div>
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">My child</p>
-        <h1 className="text-2xl font-bold tracking-tight mt-1">{child.name}</h1>
-        <p className="text-sm text-muted-foreground">{child.klass}{child.section !== "-" ? ` - ${child.section}` : ""} · {child.admissionNo}</p>
-      </div>
-      <Card>
-        <CardContent className="p-5 flex items-center justify-between gap-3">
-          <div>
-            <p className="text-xs text-muted-foreground">Today’s attendance</p>
-            <p className="text-lg font-bold mt-1">{todayMark ? todayMark.status : "Not marked yet"}</p>
-          </div>
-          {todayMark ? statusBadge(todayMark.status) : <Badge variant="outline">Pending</Badge>}
-        </CardContent>
-      </Card>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <KPICard title="Present" value={stats.present} icon={CalendarCheck} />
-        <KPICard title="Absent" value={stats.absent} icon={UserX} />
-        <KPICard title="Leave" value={stats.leave} icon={CalendarOff} />
-        <KPICard title="Attendance" value={`${stats.rate}%`} icon={Percent} />
-      </div>
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">August 2026</CardTitle>
-          <CardDescription>Only {child.name}’s days are shown.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid grid-cols-7 gap-1 text-center text-[11px]">
-          {["S", "M", "T", "W", "T", "F", "S"].map((label, index) => (
-            <div key={`wd-${index}`} className="font-semibold text-muted-foreground py-1">{label}</div>
-          ))}
-          {Array.from({ length: new Date(2026, 7, 1).getDay() }).map((_, index) => (
-            <div key={`pad-${index}`} />
-          ))}
-          {Array.from({ length: 31 }).map((_, index) => {
-            const day = index + 1
-            const date = `2026-08-${String(day).padStart(2, "0")}`
-            const status = stats.byDate[date]
-            return (
-              <div
-                key={`cal-${date}`}
-                className={cn(
-                  "h-9 rounded-md flex items-center justify-center",
-                  status === "present" && "bg-emerald-100 text-emerald-800",
-                  status === "absent" && "bg-rose-100 text-rose-800",
-                  status === "leave" && "bg-amber-100 text-amber-800",
-                  status === "late" && "bg-sky-100 text-sky-800",
-                  !status && "text-muted-foreground"
-                )}
-              >
-                {day}
-              </div>
-            )
-          })}
-        </CardContent>
-      </Card>
-    </div>
-  )
+function statusIcon(status: AttendanceStatus) {
+  if (status === "present") return <Check className="h-3.5 w-3.5 mr-1.5" />
+  if (status === "absent") return <X className="h-3.5 w-3.5 mr-1.5" />
+  if (status === "leave") return <CalendarOff className="h-3.5 w-3.5 mr-1.5" />
+  return <Clock className="h-3.5 w-3.5 mr-1.5" />
 }
 
+function statusStyle(status: AttendanceStatus, active: boolean) {
+  const map: Record<AttendanceStatus, string> = {
+    present: active ? "bg-emerald-500 text-white border-emerald-500 shadow-sm" : "bg-transparent border-transparent text-muted-foreground hover:bg-emerald-50 hover:text-emerald-700",
+    absent: active ? "bg-rose-500 text-white border-rose-500 shadow-sm" : "bg-transparent border-transparent text-muted-foreground hover:bg-rose-50 hover:text-rose-700",
+    leave: active ? "bg-amber-500 text-white border-amber-500 shadow-sm" : "bg-transparent border-transparent text-muted-foreground hover:bg-amber-50 hover:text-amber-700",
+    late: active ? "bg-sky-500 text-white border-sky-500 shadow-sm" : "bg-transparent border-transparent text-muted-foreground hover:bg-sky-50 hover:text-sky-700",
+  }
+  return map[status]
+}
+
+const VISIBLE_STATUSES: AttendanceStatus[] = ["present", "absent", "leave"]
+
+// ─── Main Module ──────────────────────────────────────────────────────────────
 export function AttendanceModule() {
   const { user, addNotification } = useStore()
-  const { state, update, ready } = usePreschoolAttendance()
-  const { state: ops, ready: opsReady } = usePreschoolOps()
   const [tab, setTab] = React.useState<Tab>("today")
-  const [historyDate, setHistoryDate] = React.useState("")
-  const [historyClass, setHistoryClass] = React.useState("all")
+
+  // Real data from DB
+  const [batches, setBatches] = React.useState<BatchGroup[]>([])
+  const [sessions, setSessions] = React.useState<AttendanceSession[]>([])
+  const [loading, setLoading] = React.useState(true)
+
+  // Take Attendance state
+  const [selectedBatchId, setSelectedBatchId] = React.useState<string>("")
+  const [takeDate, setTakeDate] = React.useState(todayIso())
+  const [marks, setMarks] = React.useState<ChildMark[]>([])
+  const [submitting, setSubmitting] = React.useState(false)
+  const [confirmOpen, setConfirmOpen] = React.useState(false)
+  const [editOpen, setEditOpen] = React.useState(false)
+  const [editReason, setEditReason] = React.useState("")
+  const [successMsg, setSuccessMsg] = React.useState("")
+
+  // History filters
+  const [historyFromDate, setHistoryFromDate] = React.useState("")
+  const [historyToDate, setHistoryToDate] = React.useState("")
+  const [historyBatch, setHistoryBatch] = React.useState("all")
   const [historyStatus, setHistoryStatus] = React.useState("all")
-  const [studentId, setStudentId] = React.useState(ATTENDANCE_CHILDREN[0]?.id || "")
-  const [className, setClassName] = React.useState("Nursery A")
-  const [reportType, setReportType] = React.useState("daily")
+  const [historyPage, setHistoryPage] = React.useState(1)
+
+  // Student tab
+  const [studentId, setStudentId] = React.useState("")
+
+  // Settings
+  const [lateEnabled, setLateEnabled] = React.useState(false)
+  const [notifyAbsent, setNotifyAbsent] = React.useState(true)
 
   const role = user?.role
-  const isParent = role === "student"
   const canTake = role === "trainer" || role === "owner" || role === "super_admin"
   const canSettings = role === "owner" || role === "super_admin"
-  const canCorrect = role === "owner" || role === "super_admin" || (role === "trainer" && state.settings.teachersCanEdit)
-  const tabs = TABS.filter((item) => {
-    if (isParent) return item.id === "today" || item.id === "student"
-    if (!canSettings && item.id === "settings") return false
-    if (role === "bde" && (item.id === "take" || item.id === "settings")) return false
+  const canCorrect = role === "owner" || role === "super_admin"
+
+  const tabs = TABS.filter(t => {
+    if (!canSettings && t.id === "settings") return false
     return true
   })
 
-  if (!ready || !opsReady) {
-    return <p className="text-xs text-muted-foreground py-16 text-center">Loading classroom attendance...</p>
-  }
+  // ─── Load data ─────────────────────────────────────────────────────────────
+  const loadData = React.useCallback(async () => {
+    try {
+      setLoading(true)
+      const [studentsData, batchesData, attendanceData] = await Promise.all([
+        api.getStudents(),
+        api.getBatches(),
+        api.getStudentAttendance(),
+      ])
 
-  if (isParent) return <ParentAttendanceView />
+      const studentList: any[] = Array.isArray(studentsData) ? studentsData : []
+      const batchList: any[] = Array.isArray(batchesData) ? batchesData : []
 
+      // Build batch groups with students
+      // Batches link to students via batch.studentNames (array of student names)
+      const groups: BatchGroup[] = batchList
+        .filter((b: any) => b.status !== "inactive")
+        .map((b: any) => {
+          const bId = b._id || b.id
+          const studentNames: string[] = b.studentNames || []
+          const batchStudents = studentList
+            .filter((s: any) => studentNames.includes(s.name))
+            .map((s: any) => ({
+              id: s._id || s.id,
+              name: s.name,
+              parentName: s.parentName,
+              batch: bId,
+              batchName: `${b.courseName || "Batch"} — ${b.section || b.code || "A"}`,
+              courseName: b.courseName || "",
+            }))
+
+          return {
+            id: bId,
+            name: `${b.courseName || "Batch"} — ${b.section || b.code || "A"}`,
+            courseName: b.courseName || "",
+            section: b.section || "",
+            students: batchStudents,
+          }
+        })
+        .filter(g => g.students.length > 0)
+
+      setBatches(groups)
+      if (groups.length > 0) {
+        setSelectedBatchId(prev => prev || groups[0].id)
+      }
+
+      // Normalise sessions from DB
+      const dbSessions: AttendanceSession[] = Array.isArray(attendanceData)
+        ? attendanceData.map((a: any) => ({
+            _id: a._id,
+            date: a.date,
+            className: a.className || "",
+            batchId: a.batchId || "",
+            submitted: a.submitted || false,
+            submittedBy: a.submittedBy || "",
+            submittedAt: a.submittedAt || "",
+            records: (a.records || []).map((r: any) => ({
+              entityId: r.entityId,
+              name: r.name,
+              status: r.status,
+              note: r.note,
+              absenceReason: r.absenceReason,
+              parentInformed: r.parentInformed,
+              arrivalTime: r.arrivalTime,
+            })),
+          }))
+        : []
+
+      setSessions(dbSessions)
+    } catch (err) {
+      console.error("Failed to load attendance data", err)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  React.useEffect(() => { void loadData() }, [])
+
+  // ─── Current session for take-attendance ───────────────────────────────────
+  const selectedBatch = batches.find(b => b.id === selectedBatchId)
+  const currentSession = sessions.find(
+    s => s.date === takeDate && s.batchId === selectedBatchId
+  )
+  const locked = Boolean(currentSession?.submitted)
+
+  React.useEffect(() => {
+    if (!selectedBatch) return
+    if (currentSession) {
+      setMarks(currentSession.records.map(r => ({ ...r })))
+    } else {
+      setMarks(selectedBatch.students.map(st => ({
+        entityId: st.id,
+        name: st.name,
+        status: "present" as AttendanceStatus,
+      })))
+    }
+  }, [selectedBatchId, takeDate, sessions])
+
+  // ─── Today's overview ──────────────────────────────────────────────────────
   const today = todayIso()
-  const watchClass = "Nursery A"
-  const todaySession = findSession(state.sessions, today, watchClass)
-  const todayMarks = todaySession?.marks || []
-  const todayCounts = countMarks(todayMarks)
-  const absentees = todayMarks.filter((mark) => mark.status === "absent")
-  const onLeave = todayMarks.filter((mark) => mark.status === "leave")
-  const classRows = CLASS_GROUPS.map((group) => {
-    const session = findSession(state.sessions, today, group.className)
-    return { group, session, counts: countMarks(session?.marks || []) }
-  })
-  const student = childAttendanceById(studentId)
-  const studentStats = studentMonthStats(state.sessions, studentId, 2026, 8)
-  const classStats = classMonthStats(state.sessions, className, 2026, 8)
+  const todayBatchSession = sessions.find(s => s.date === today && s.batchId === selectedBatchId)
+  const todayCounts = countMarks(todayBatchSession?.records || [])
+  const absentees = (todayBatchSession?.records || []).filter(r => r.status === "absent")
+  const onLeaveToday = (todayBatchSession?.records || []).filter(r => r.status === "leave")
 
-  const historyRows = state.sessions
-    .flatMap((session) =>
-      session.marks.map((mark) => ({
-        key: `${session.id}-${mark.childId}`,
-        date: session.date,
-        className: session.className,
-        mark,
-        child: childAttendanceById(mark.childId),
-        submitted: session.submitted,
+  // ─── History ───────────────────────────────────────────────────────────────
+  const historyRows = sessions
+    .flatMap(s =>
+      s.records.map(r => ({
+        key: `${s.date}-${s.batchId}-${r.entityId}`,
+        date: s.date,
+        batchId: s.batchId,
+        batchName: batches.find(b => b.id === s.batchId)?.name || s.className,
+        record: r,
+        submitted: s.submitted,
       }))
     )
-    .filter((row) => {
-      if (historyDate && row.date !== historyDate) return false
-      if (historyClass !== "all" && row.className !== historyClass) return false
-      if (historyStatus !== "all" && row.mark.status !== historyStatus) return false
+    .filter(row => {
+      if (historyFromDate && row.date < historyFromDate) return false
+      if (historyToDate && row.date > historyToDate) return false
+      if (historyBatch !== "all" && row.batchId !== historyBatch) return false
+      if (historyStatus !== "all" && row.record.status !== historyStatus) return false
       return true
     })
-    .sort((a, b) => b.date.localeCompare(a.date) || (a.child?.name || "").localeCompare(b.child?.name || ""))
-    .slice(0, 80)
+    .sort((a, b) => b.date.localeCompare(a.date))
 
-  const exportReport = (kind: "csv" | "html") => {
-    const rows = classStats.map((row) => [
-      row.child.name,
-      String(row.present),
-      String(row.absent),
-      String(row.leave),
-      state.settings.lateEnabled ? String(row.late) : "—",
-      `${row.rate}%`,
-    ])
-    const header = ["Student", "Present", "Absent", "Leave", "Late", "Attendance %"]
-    if (kind === "csv") downloadCsv(`attendance-${className}.csv`, [header, ...rows])
-    else {
-      const table = `<table><thead><tr>${header.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows
-        .map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join("")}</tr>`)
-        .join("")}</tbody></table>`
-      downloadReportHtml(`${reportType} attendance ${className}`, table)
+  const historyPerPage = 20
+  const historyTotalPages = Math.max(1, Math.ceil(historyRows.length / historyPerPage))
+  const pagedHistory = historyRows.slice((historyPage - 1) * historyPerPage, historyPage * historyPerPage)
+
+  // ─── Student stats ─────────────────────────────────────────────────────────
+  const allStudents = batches.flatMap(b => b.students)
+  const selectedStudent = allStudents.find(s => s.id === studentId) || allStudents[0]
+
+  const studentSessions = sessions.filter(s =>
+    s.records.some(r => r.entityId === selectedStudent?.id)
+  )
+  const studentPresent = studentSessions.filter(s => s.records.find(r => r.entityId === selectedStudent?.id)?.status === "present").length
+  const studentAbsent = studentSessions.filter(s => s.records.find(r => r.entityId === selectedStudent?.id)?.status === "absent").length
+  const studentLeave = studentSessions.filter(s => s.records.find(r => r.entityId === selectedStudent?.id)?.status === "leave").length
+  const studentRate = studentSessions.length ? Math.round((studentPresent / studentSessions.length) * 100) : 0
+
+  // ─── Submit attendance ─────────────────────────────────────────────────────
+  const persistAttendance = async (submitted: boolean, reason?: string) => {
+    if (!selectedBatch) return
+    setSubmitting(true)
+    try {
+      const payload = {
+        date: takeDate,
+        className: selectedBatch.name,
+        batchId: selectedBatch.id,
+        submitted,
+        submittedBy: user?.name || "Coordinator",
+        submittedAt: new Date().toISOString(),
+        records: marks,
+      }
+      const saved = await api.saveAttendance(payload)
+      // Update local sessions
+      setSessions(prev => {
+        const filtered = prev.filter(s => !(s.date === takeDate && s.batchId === selectedBatchId))
+        return [{ ...payload, _id: saved._id }, ...filtered]
+      })
+      addNotification({
+        title: "Attendance submitted",
+        description: `${selectedBatch.name} · ${formatDateDDMMYYYY(takeDate)}`,
+        type: "attendance",
+      })
+      setSuccessMsg("Attendance submitted successfully.")
+      setConfirmOpen(false)
+      setEditOpen(false)
+      setEditReason("")
+    } catch (err) {
+      console.error("Save attendance failed", err)
+      addNotification({ title: "Save failed", description: "Could not save attendance. Please try again.", type: "system" })
+    } finally {
+      setSubmitting(false)
     }
-    addNotification({ title: "Report exported", description: `${className} ${kind.toUpperCase()} downloaded.`, type: "attendance" })
+  }
+
+  const markAllPresent = () => {
+    setMarks(prev => prev.map(m => ({ ...m, status: "present" as AttendanceStatus })))
+    setSuccessMsg("")
+  }
+
+  const setMark = (entityId: string, patch: Partial<ChildMark>) => {
+    setMarks(prev => prev.map(m => m.entityId === entityId ? { ...m, ...patch } : m))
+    setSuccessMsg("")
+  }
+
+  const exportHistory = () => {
+    const rows = historyRows.map(row => [
+      formatDateDDMMYYYY(row.date),
+      row.record.name,
+      row.batchName || "",
+      row.record.status,
+      row.record.absenceReason || row.record.note || "",
+    ])
+    downloadCsv("attendance-history.csv", [["Date", "Student", "Batch", "Status", "Remarks"], ...rows])
+    addNotification({ title: "History exported", description: `Downloaded ${historyRows.length} records.`, type: "attendance" })
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <p className="text-sm text-muted-foreground animate-pulse">Loading classroom attendance...</p>
+      </div>
+    )
   }
 
   return (
@@ -210,367 +381,442 @@ export function AttendanceModule() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
           <CalendarCheck className="h-6 w-6 text-primary" />
-          Classroom attendance
+          Classroom Attendance
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          {role === "super_admin"
-            ? "Branch roll-call status across classes. Open Take Attendance to inspect a class."
-            : "Mark 20–30 children in under a minute. Mark All Present, then change only absences and leave."}
+          Mark attendance for your classes. Mark All Present, then change only absences and leave.
         </p>
       </div>
 
+      {/* Tabs */}
       <div className="flex gap-1 overflow-x-auto pb-1">
-        {tabs.map((item) => (
+        {tabs.map(t => (
           <button
-            key={`att-tab-${item.id}`}
+            key={`att-tab-${t.id}`}
             type="button"
-            onClick={() => setTab(item.id)}
+            onClick={() => setTab(t.id)}
             className={cn(
               "px-3 h-9 rounded-lg text-xs font-semibold whitespace-nowrap border cursor-pointer",
-              tab === item.id ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border text-muted-foreground hover:text-foreground"
+              tab === t.id
+                ? "bg-primary text-primary-foreground border-primary"
+                : "bg-card border-border text-muted-foreground hover:text-foreground"
             )}
           >
-            {item.label}
+            {t.label}
           </button>
         ))}
       </div>
 
+      {/* ── Today Tab ──────────────────────────────────────────────────────── */}
       {tab === "today" && (
         <div className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            <KPICard title="Total students" value={todayCounts.total || childrenInClass(watchClass).length} icon={Users} />
-            <KPICard title="Present" value={todayCounts.present} icon={CalendarCheck} />
-            <KPICard title="Absent" value={todayCounts.absent} icon={UserX} />
-            <KPICard title="Leave" value={todayCounts.leave} icon={CalendarOff} />
-            <KPICard title="Attendance rate" value={todaySession ? `${todayCounts.rate}%` : "—"} icon={Percent} />
-          </div>
-          <div className="grid gap-4 lg:grid-cols-3">
+          {/* Batch selector */}
+          {batches.length > 1 && (
+            <Select
+              value={selectedBatchId}
+              onChange={e => setSelectedBatchId(e.target.value)}
+              className="h-9 text-xs max-w-xs"
+            >
+              {batches.map(b => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </Select>
+          )}
+
+          {batches.length === 0 ? (
             <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm">Today’s absentees</CardTitle></CardHeader>
-              <CardContent className="space-y-2 text-xs">
-                {absentees.length === 0 && <p className="text-muted-foreground">{todaySession ? "No absentees." : "Attendance not submitted yet."}</p>}
-                {absentees.map((mark) => (
-                  <p key={`abs-${mark.childId}`}>{childAttendanceById(mark.childId)?.name}</p>
-                ))}
+              <CardContent className="py-12 text-center text-muted-foreground text-sm">
+                No batches with enrolled students found. Please enroll students in a batch first.
               </CardContent>
             </Card>
-            <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm">Today’s leave</CardTitle></CardHeader>
-              <CardContent className="space-y-2 text-xs">
-                {onLeave.length === 0 && <p className="text-muted-foreground">No leave recorded today.</p>}
-                {onLeave.map((mark) => (
-                  <p key={`lv-${mark.childId}`}>{childAttendanceById(mark.childId)?.name}</p>
-                ))}
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm">Submission status</CardTitle></CardHeader>
-              <CardContent className="space-y-2 text-xs">
-                {classRows.map((row) => (
-                  <div key={`sub-${row.group.className}`} className="flex items-center justify-between gap-2">
-                    <span>{row.group.className}</span>
-                    {row.session?.submitted ? (
-                      <Badge variant="success"><Lock className="h-3 w-3 mr-1" />Submitted</Badge>
-                    ) : (
-                      <Badge variant="warning">Pending</Badge>
-                    )}
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          </div>
-          {canTake && (
-            <Button size="sm" onClick={() => setTab("take")}>Take attendance</Button>
+          ) : (
+            <>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                <KPICard title="Total students" value={selectedBatch?.students.length || 0} icon={Users} />
+                <KPICard title="Present" value={todayCounts.present} icon={CalendarCheck} />
+                <KPICard title="Absent" value={todayCounts.absent} icon={UserX} />
+                <KPICard title="Leave" value={todayCounts.leave} icon={CalendarOff} />
+                <KPICard title="Attendance rate" value={todayBatchSession ? `${todayCounts.rate}%` : "—"} icon={Percent} />
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-3">
+                <Card>
+                  <CardHeader className="pb-2"><CardTitle className="text-sm">Today's absentees</CardTitle></CardHeader>
+                  <CardContent className="space-y-2 text-xs">
+                    {absentees.length === 0
+                      ? <p className="text-muted-foreground">{todayBatchSession ? "No absentees." : "Attendance not submitted yet."}</p>
+                      : absentees.map(r => <p key={`abs-${r.entityId}`}>{r.name}</p>)
+                    }
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2"><CardTitle className="text-sm">Today's leave</CardTitle></CardHeader>
+                  <CardContent className="space-y-2 text-xs">
+                    {onLeaveToday.length === 0
+                      ? <p className="text-muted-foreground">No leave recorded today.</p>
+                      : onLeaveToday.map(r => <p key={`lv-${r.entityId}`}>{r.name}</p>)
+                    }
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2"><CardTitle className="text-sm">Submission status</CardTitle></CardHeader>
+                  <CardContent className="space-y-2 text-xs">
+                    {batches.map(b => {
+                      const s = sessions.find(sess => sess.date === today && sess.batchId === b.id)
+                      return (
+                        <div key={`sub-${b.id}`} className="flex items-center justify-between gap-2">
+                          <span>{b.name}</span>
+                          {s?.submitted
+                            ? <Badge variant="success"><Lock className="h-3 w-3 mr-1" />Submitted</Badge>
+                            : <Badge variant="warning">Pending</Badge>
+                          }
+                        </div>
+                      )
+                    })}
+                    {batches.length === 0 && <p className="text-muted-foreground">No batches found.</p>}
+                  </CardContent>
+                </Card>
+              </div>
+              {canTake && (
+                <Button size="sm" onClick={() => setTab("take")}>Take attendance</Button>
+              )}
+            </>
           )}
         </div>
       )}
 
+      {/* ── Take Attendance Tab ────────────────────────────────────────────── */}
       {tab === "take" && (
-        <TakeAttendancePanel
-          state={state}
-          leaves={ops.leaves}
-          actorName={user?.name || "Coordinator"}
-          canTake={canTake}
-          canCorrect={canCorrect}
-          onSave={(next, message) => {
-            update(next)
-            addNotification({ title: message, description: "Roll call saved for the selected class.", type: "attendance" })
-          }}
-        />
-      )}
-
-      {tab === "history" && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm flex items-center gap-2"><History className="h-4 w-4" />Attendance history</CardTitle>
-            <div className="grid gap-2 sm:grid-cols-4 pt-2">
-              <Input type="date" value={historyDate} onChange={(e) => setHistoryDate(e.target.value)} />
-              <Select value={historyClass} onChange={(e) => setHistoryClass(e.target.value)}>
-                <option value="all">All classes</option>
-                {CLASS_GROUPS.map((item) => (
-                  <option key={`h-class-${item.className}`} value={item.className}>{item.className}</option>
+        <div className="space-y-4">
+          {/* Controls */}
+          <div className="grid gap-3 sm:grid-cols-2 bg-card border border-border rounded-xl p-3">
+            <div className="space-y-1">
+              <label className="text-[10px] font-semibold uppercase text-muted-foreground">Batch / Class</label>
+              <Select value={selectedBatchId} onChange={e => setSelectedBatchId(e.target.value)}>
+                {batches.map(b => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
                 ))}
-              </Select>
-              <Select value={historyStatus} onChange={(e) => setHistoryStatus(e.target.value)}>
-                <option value="all">All statuses</option>
-                <option value="present">Present</option>
-                <option value="absent">Absent</option>
-                <option value="leave">Leave</option>
-                {state.settings.lateEnabled && <option value="late">Late</option>}
-              </Select>
-              <Select value="all" disabled>
-                <option>Student filter in Student tab</option>
               </Select>
             </div>
-          </CardHeader>
-          <CardContent className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-left text-muted-foreground border-b">
-                  <th className="py-2">Date</th>
-                  <th>Student</th>
-                  <th>Class</th>
-                  <th>Status</th>
-                  <th>Remarks</th>
-                </tr>
-              </thead>
-              <tbody>
-                {historyRows.map((row) => (
-                  <tr key={row.key} className="border-b border-border/50">
-                    <td className="py-2">{row.date}</td>
-                    <td>{row.child?.name}</td>
-                    <td>{row.className}</td>
-                    <td className="capitalize">{row.mark.status}</td>
-                    <td className="text-muted-foreground">{row.mark.remarks || row.mark.absenceReason || "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
-      )}
-
-      {tab === "student" && student && (
-        <div className="space-y-4">
-          <Select value={studentId} onChange={(e) => setStudentId(e.target.value)}>
-            {ATTENDANCE_CHILDREN.map((child) => (
-              <option key={`st-sel-${child.id}`} value={child.id}>{child.name} · {child.className}</option>
-            ))}
-          </Select>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            <KPICard title="Working days" value={studentStats.workingDays} icon={ClipboardList} />
-            <KPICard title="Present" value={studentStats.present} icon={CalendarCheck} />
-            <KPICard title="Absent" value={studentStats.absent} icon={UserX} />
-            <KPICard title="Leave" value={studentStats.leave} icon={CalendarOff} />
-            <KPICard title="Attendance" value={`${studentStats.rate}%`} icon={Percent} />
+            <div className="space-y-1">
+              <label className="text-[10px] font-semibold uppercase text-muted-foreground">Date</label>
+              <Input type="date" value={takeDate} onChange={e => setTakeDate(e.target.value)} />
+            </div>
           </div>
-          {state.settings.lateEnabled && <p className="text-xs text-muted-foreground">Late days: {studentStats.late}</p>}
-          <Card>
-            <CardHeader><CardTitle className="text-sm">{student.name} · August calendar</CardTitle></CardHeader>
-            <CardContent className="grid grid-cols-7 gap-1 text-center text-[11px]">
-              {Array.from({ length: 31 }).map((_, index) => {
-                const date = `2026-08-${String(index + 1).padStart(2, "0")}`
-                const status = studentStats.byDate[date]
-                return (
-                  <div key={`stu-cal-${date}`} className={cn("h-9 rounded-md flex items-center justify-center", status === "present" && "bg-emerald-100", status === "absent" && "bg-rose-100", status === "leave" && "bg-amber-100", status === "late" && "bg-sky-100")}>
-                    {index + 1}
+
+          {!selectedBatch ? (
+            <Card>
+              <CardContent className="py-12 text-center text-muted-foreground text-sm">
+                No batches available. Please create a batch and enroll students first.
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <p className="text-sm text-muted-foreground font-medium flex items-center gap-2">
+                  {marks.length} children · {formatLongDate(takeDate)}
+                  {locked
+                    ? <Badge variant="success"><Lock className="h-3 w-3 mr-1" />Submitted</Badge>
+                    : <Badge variant="warning">Not submitted</Badge>
+                  }
+                </p>
+                {canTake && (
+                  <Button size="sm" variant="primary" icon={Check} onClick={markAllPresent}>
+                    Mark All Present
+                  </Button>
+                )}
+              </div>
+
+              {successMsg && <p className="text-sm font-medium text-emerald-600">{successMsg}</p>}
+
+              {marks.length === 0 ? (
+                <Card>
+                  <CardContent className="py-12 text-center text-muted-foreground text-sm">
+                    No students enrolled in this batch.
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-2">
+                  {marks.map(mark => (
+                    <div key={`take-row-${mark.entityId}`} className="rounded-xl border border-border bg-card p-3 sm:p-4">
+                      <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div className="h-10 w-10 rounded-full bg-primary/10 text-primary font-bold text-sm flex items-center justify-center shrink-0 border border-primary/10">
+                            {mark.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold truncate">{mark.name}</p>
+                            <p className="text-[11px] text-muted-foreground">{selectedBatch.name}</p>
+                          </div>
+                        </div>
+                        <div className="flex bg-muted/40 p-1 rounded-xl border border-border/80 gap-1 w-full lg:w-auto">
+                          {VISIBLE_STATUSES.map(status => (
+                            <button
+                              key={`st-${mark.entityId}-${status}`}
+                              type="button"
+                              disabled={!canTake || (locked && !canCorrect)}
+                              onClick={() => setMark(mark.entityId, { status })}
+                              className={cn(
+                                "flex items-center justify-center flex-1 h-10 px-3 rounded-lg border text-[13px] font-semibold capitalize transition-all duration-200",
+                                statusStyle(status, mark.status === status),
+                                (!canTake || (locked && !canCorrect)) && "opacity-60 cursor-not-allowed"
+                              )}
+                            >
+                              {statusIcon(status)}
+                              {status}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {mark.status === "absent" && canTake && (!locked || canCorrect) && (
+                        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                          <Select
+                            value={mark.absenceReason || ""}
+                            onChange={e => setMark(mark.entityId, { absenceReason: (e.target.value || undefined) as AbsenceReason | undefined })}
+                          >
+                            <option value="">Reason (optional)</option>
+                            {ABSENCE_REASONS.map(r => (
+                              <option key={r} value={r}>{r}</option>
+                            ))}
+                          </Select>
+                          <Select
+                            value={mark.parentInformed ? "yes" : "no"}
+                            onChange={e => setMark(mark.entityId, { parentInformed: e.target.value === "yes" })}
+                          >
+                            <option value="no">Parent informed: No</option>
+                            <option value="yes">Parent informed: Yes</option>
+                          </Select>
+                          <Input
+                            placeholder="Remarks (optional)"
+                            value={mark.note || ""}
+                            onChange={e => setMark(mark.entityId, { note: e.target.value })}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {canTake && marks.length > 0 && (
+                <div className="sticky bottom-3 rounded-xl border border-border bg-card/95 backdrop-blur p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
+                  {(() => { const s = countMarks(marks); return (
+                    <p className="text-xs font-medium">
+                      Present {s.present} · Absent {s.absent} · Leave {s.leave}
+                    </p>
+                  )})()}
+                  {locked
+                    ? <Button size="sm" variant="outline" icon={Unlock} onClick={() => setEditOpen(true)}>Correct attendance</Button>
+                    : <Button size="sm" icon={Check} onClick={() => setConfirmOpen(true)} disabled={submitting}>Submit Attendance</Button>
+                  }
+                </div>
+              )}
+
+              {/* Confirm dialog */}
+              {confirmOpen && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                  <div className="bg-card rounded-2xl border border-border p-6 max-w-sm w-full space-y-4">
+                    <h3 className="font-bold text-base">Submit attendance?</h3>
+                    <p className="text-xs text-muted-foreground">{selectedBatch.name} · {formatLongDate(takeDate)}</p>
+                    <div className="text-sm space-y-1">
+                      {(() => { const s = countMarks(marks); return (<>
+                        <p>Present: {s.present}</p>
+                        <p>Absent: {s.absent}</p>
+                        <p>Leave: {s.leave}</p>
+                      </>)})()}
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setConfirmOpen(false)}>Cancel</Button>
+                      <Button size="sm" onClick={() => persistAttendance(true)} disabled={submitting}>Submit</Button>
+                    </div>
                   </div>
-                )
-              })}
-            </CardContent>
-          </Card>
+                </div>
+              )}
+
+              {/* Correct dialog */}
+              {editOpen && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                  <div className="bg-card rounded-2xl border border-border p-6 max-w-sm w-full space-y-4">
+                    <h3 className="font-bold text-base">Correct submitted attendance</h3>
+                    <p className="text-xs text-muted-foreground">A reason is required and will be stored in the audit log.</p>
+                    <Input
+                      placeholder="Reason for correction"
+                      value={editReason}
+                      onChange={e => setEditReason(e.target.value)}
+                    />
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setEditOpen(false)}>Cancel</Button>
+                      <Button
+                        size="sm"
+                        disabled={!editReason.trim() || submitting}
+                        onClick={() => persistAttendance(true, editReason.trim())}
+                      >
+                        Save correction
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
 
-      {tab === "class" && (
+      {/* ── History Tab ────────────────────────────────────────────────────── */}
+      {tab === "history" && (
         <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Class attendance · August</CardTitle>
-            <Select value={className} onChange={(e) => setClassName(e.target.value)}>
-              {CLASS_GROUPS.map((item) => (
-                <option key={`cls-${item.className}`} value={item.className}>{item.className}</option>
-              ))}
-            </Select>
-          </CardHeader>
-          <CardContent className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-left text-muted-foreground border-b">
-                  <th className="py-2">Student</th>
-                  <th>Present</th>
-                  <th>Absent</th>
-                  <th>Leave</th>
-                  {state.settings.lateEnabled && <th>Late</th>}
-                  <th>Attendance %</th>
-                </tr>
-              </thead>
-              <tbody>
-                {classStats.map((row) => (
-                  <tr key={`cls-row-${row.child.id}`} className="border-b border-border/50">
-                    <td className="py-2">{row.child.name}</td>
-                    <td>{row.present}</td>
-                    <td>{row.absent}</td>
-                    <td>{row.leave}</td>
-                    {state.settings.lateEnabled && <td>{row.late}</td>}
-                    <td>{row.rate}%</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
-      )}
-
-      {tab === "leave" && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Leave on roll call</CardTitle>
-            <CardDescription>Approved parent leave auto-fills as Leave when you take attendance. Manage requests on Child Leave.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2 text-xs">
-            {ops.leaves.map((leave) => {
-              const child = childAttendanceById(leave.childId)
-              return (
-                <div key={leave.id} className="rounded-lg border border-border/60 px-3 py-2 flex justify-between gap-2">
-                  <div>
-                    <p className="font-semibold">{child?.name || leave.childId}</p>
-                    <p className="text-muted-foreground">{leave.fromDate} → {leave.toDate} · {leave.reason}</p>
-                  </div>
-                  <Badge variant={leave.status === "approved" ? "success" : leave.status === "rejected" ? "destructive" : "warning"} className="capitalize">{leave.status}</Badge>
-                </div>
-              )
-            })}
-            <Button size="sm" variant="outline" onClick={() => (window.location.href = "/absences")}>Open leave management</Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {tab === "reports" && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm flex items-center gap-2"><BarChart3 className="h-4 w-4" />Attendance reports</CardTitle>
-            <CardDescription>Preview exports a CSV (Excel) or HTML (print/PDF).</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid gap-2 sm:grid-cols-3">
-              <Select value={reportType} onChange={(e) => setReportType(e.target.value)}>
-                <option value="daily">Daily attendance report</option>
-                <option value="monthly">Monthly attendance report</option>
-                <option value="student">Student attendance report</option>
-                <option value="class">Class attendance report</option>
-                <option value="percent">Attendance percentage report</option>
-                <option value="frequent">Frequent absentee report</option>
-                <option value="low">Low attendance report</option>
-              </Select>
-              <Select value={className} onChange={(e) => setClassName(e.target.value)}>
-                {CLASS_GROUPS.map((item) => (
-                  <option key={`rep-${item.className}`} value={item.className}>{item.className}</option>
-                ))}
-              </Select>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" icon={Download} onClick={() => exportReport("csv")}>Excel</Button>
-                <Button size="sm" variant="outline" icon={Download} onClick={() => exportReport("html")}>PDF</Button>
+          <CardHeader className="border-b pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+              <CardTitle className="text-base flex items-center gap-2">
+                <History className="h-5 w-5 text-primary" />Attendance history
+              </CardTitle>
+              <Button size="sm" variant="outline" icon={Download} onClick={exportHistory}>Export CSV</Button>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-semibold text-muted-foreground uppercase">From</label>
+                <Input type="date" value={historyFromDate} onChange={e => { setHistoryFromDate(e.target.value); setHistoryPage(1) }} />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-semibold text-muted-foreground uppercase">To</label>
+                <Input type="date" value={historyToDate} onChange={e => { setHistoryToDate(e.target.value); setHistoryPage(1) }} />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-semibold text-muted-foreground uppercase">Batch</label>
+                <Select value={historyBatch} onChange={e => { setHistoryBatch(e.target.value); setHistoryPage(1) }}>
+                  <option value="all">All batches</option>
+                  {batches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-semibold text-muted-foreground uppercase">Status</label>
+                <Select value={historyStatus} onChange={e => { setHistoryStatus(e.target.value); setHistoryPage(1) }}>
+                  <option value="all">All</option>
+                  <option value="present">Present</option>
+                  <option value="absent">Absent</option>
+                  <option value="leave">Leave</option>
+                </Select>
               </div>
             </div>
-            {reportType === "frequent" || reportType === "low" ? (
-              <div className="space-y-1 text-xs">
-                {classStats
-                  .filter((row) => (reportType === "low" ? row.rate < 90 : row.absent >= 2))
-                  .map((row) => (
-                    <p key={`low-${row.child.id}`}>{row.child.name} · {row.absent} absent · {row.rate}%</p>
-                  ))}
-              </div>
+          </CardHeader>
+          <CardContent className="p-0 overflow-x-auto">
+            {pagedHistory.length === 0 ? (
+              <div className="py-12 text-center text-muted-foreground text-sm">No records match your filters.</div>
             ) : (
-              <p className="text-xs text-muted-foreground">{classStats.length} students in {className} for August. Export to download.</p>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-muted-foreground border-b border-border bg-muted/20">
+                    <th className="py-3 px-4 font-semibold">Date</th>
+                    <th className="py-3 px-4 font-semibold">Student</th>
+                    <th className="py-3 px-4 font-semibold">Batch</th>
+                    <th className="py-3 px-4 font-semibold">Status</th>
+                    <th className="py-3 px-4 font-semibold">Remarks</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pagedHistory.map(row => (
+                    <tr key={row.key} className="border-b border-border/50 hover:bg-muted/10 transition-colors">
+                      <td className="py-3 px-4">{formatDateDDMMYYYY(row.date)}</td>
+                      <td className="py-3 px-4 font-medium">{row.record.name}</td>
+                      <td className="py-3 px-4 text-muted-foreground text-xs">{row.batchName}</td>
+                      <td className="py-3 px-4">{statusBadge(row.record.status)}</td>
+                      <td className="py-3 px-4 text-muted-foreground text-xs">{row.record.absenceReason || row.record.note || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             )}
+          </CardContent>
+          {historyTotalPages > 1 && (
+            <div className="border-t border-border p-4 flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Showing {pagedHistory.length} of {historyRows.length}</span>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" disabled={historyPage === 1} onClick={() => setHistoryPage(p => p - 1)}>Previous</Button>
+                <span className="px-2 font-medium">Page {historyPage} of {historyTotalPages}</span>
+                <Button variant="outline" size="sm" disabled={historyPage === historyTotalPages} onClick={() => setHistoryPage(p => p + 1)}>Next</Button>
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* ── Student Tab ────────────────────────────────────────────────────── */}
+      {tab === "student" && (
+        <div className="space-y-4">
+          {allStudents.length === 0 ? (
+            <Card><CardContent className="py-12 text-center text-muted-foreground text-sm">No students enrolled in any batch.</CardContent></Card>
+          ) : (
+            <>
+              <Select value={studentId || selectedStudent?.id || ""} onChange={e => setStudentId(e.target.value)} className="max-w-sm">
+                {allStudents.map((s, i) => (
+                  <option key={`st-${s.id || i}`} value={s.id}>{s.name} · {s.batchName}</option>
+                ))}
+              </Select>
+              {selectedStudent && (
+                <>
+                  <div className="grid gap-3 sm:grid-cols-4">
+                    <KPICard title="Sessions" value={studentSessions.length} icon={ClipboardList} />
+                    <KPICard title="Present" value={studentPresent} icon={CalendarCheck} />
+                    <KPICard title="Absent" value={studentAbsent} icon={UserX} />
+                    <KPICard title="Leave" value={studentLeave} icon={CalendarOff} />
+                  </div>
+                  <KPICard title="Attendance Rate" value={`${studentRate}%`} icon={Percent} />
+                  {studentSessions.length === 0 && (
+                    <Card><CardContent className="py-8 text-center text-muted-foreground text-sm">No attendance records yet for {selectedStudent.name}.</CardContent></Card>
+                  )}
+                </>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── Reports Tab ────────────────────────────────────────────────────── */}
+      {tab === "reports" && (
+        <Card>
+          <CardHeader className="border-b pb-4">
+            <CardTitle className="text-base flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-primary" />Attendance Reports
+            </CardTitle>
+            <CardDescription>Export attendance data for any batch.</CardDescription>
+          </CardHeader>
+          <CardContent className="pt-6 space-y-4">
+            <Select value={selectedBatchId} onChange={e => setSelectedBatchId(e.target.value)} className="max-w-xs">
+              {batches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </Select>
+            <Button size="sm" variant="outline" icon={Download} onClick={exportHistory}>
+              Export CSV
+            </Button>
           </CardContent>
         </Card>
       )}
 
+      {/* ── Settings Tab ───────────────────────────────────────────────────── */}
       {tab === "settings" && canSettings && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm flex items-center gap-2"><Settings className="h-4 w-4" />Attendance settings</CardTitle>
-            <CardDescription>Late attendance is off by default for flexible play-school timings.</CardDescription>
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Settings className="h-4 w-4" />Attendance settings
+            </CardTitle>
+            <CardDescription>Configure attendance options for your school.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
             <label className="flex items-center justify-between gap-3">
               <span>Enable late attendance</span>
               <input
                 type="checkbox"
-                checked={state.settings.lateEnabled}
-                onChange={(e) => update({ settings: { ...state.settings, lateEnabled: e.target.checked } })}
-              />
-            </label>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">School arrival time</p>
-                <Input type="time" value={state.settings.arrivalTime} onChange={(e) => update({ settings: { ...state.settings, arrivalTime: e.target.value } })} />
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Submission deadline</p>
-                <Input type="time" value={state.settings.submitDeadline} onChange={(e) => update({ settings: { ...state.settings, submitDeadline: e.target.value } })} />
-              </div>
-            </div>
-            <label className="flex items-center justify-between gap-3">
-              <span>Allow classroom coordinators to correct attendance</span>
-              <input
-                type="checkbox"
-                checked={state.settings.teachersCanEdit}
-                onChange={(e) => update({ settings: { ...state.settings, teachersCanEdit: e.target.checked } })}
+                checked={lateEnabled}
+                onChange={e => setLateEnabled(e.target.checked)}
               />
             </label>
             <div className="pt-2 border-t space-y-2">
-              <p className="font-semibold flex items-center gap-2"><Bell className="h-4 w-4" />Parent notifications (preview)</p>
+              <p className="font-semibold flex items-center gap-2"><Bell className="h-4 w-4" />Parent notifications</p>
               <label className="flex items-center justify-between gap-3 text-xs">
                 <span>Absent notification</span>
-                <input type="checkbox" checked={state.settings.notifyAbsent} onChange={(e) => update({ settings: { ...state.settings, notifyAbsent: e.target.checked } })} />
+                <input type="checkbox" checked={notifyAbsent} onChange={e => setNotifyAbsent(e.target.checked)} />
               </label>
-              <label className="flex items-center justify-between gap-3 text-xs">
-                <span>Leave confirmation</span>
-                <input type="checkbox" checked={state.settings.notifyLeave} onChange={(e) => update({ settings: { ...state.settings, notifyLeave: e.target.checked } })} />
-              </label>
-              {state.settings.lateEnabled && (
-                <label className="flex items-center justify-between gap-3 text-xs">
-                  <span>Late notification</span>
-                  <input type="checkbox" checked={state.settings.notifyLate} onChange={(e) => update({ settings: { ...state.settings, notifyLate: e.target.checked } })} />
-                </label>
-              )}
-              <label className="flex items-center justify-between gap-3 text-xs">
-                <span>Daily attendance summary</span>
-                <input type="checkbox" checked={state.settings.notifyDailySummary} onChange={(e) => update({ settings: { ...state.settings, notifyDailySummary: e.target.checked } })} />
-              </label>
-              <div className="flex flex-wrap gap-2 pt-1">
-                {(["app", "whatsapp", "sms", "email"] as const).map((channel) => (
-                  <button
-                    key={`ch-${channel}`}
-                    type="button"
-                    onClick={() => {
-                      const channels = state.settings.channels.includes(channel)
-                        ? state.settings.channels.filter((item) => item !== channel)
-                        : [...state.settings.channels, channel]
-                      update({ settings: { ...state.settings, channels } })
-                    }}
-                    className={cn("px-2 py-1 rounded-md text-[11px] border capitalize cursor-pointer", state.settings.channels.includes(channel) ? "bg-primary text-primary-foreground border-primary" : "border-border")}
-                  >
-                    {channel === "app" ? "App notification" : channel}
-                  </button>
-                ))}
-              </div>
             </div>
-            {state.audits.length > 0 && (
-              <div className="pt-2 border-t space-y-2">
-                <p className="font-semibold">Audit log</p>
-                {state.audits.map((audit) => (
-                  <p key={audit.id} className="text-xs text-muted-foreground">
-                    {childAttendanceById(audit.childId)?.name} · {audit.fromStatus} → {audit.toStatus} · {audit.changedBy} · {new Date(audit.changedAt).toLocaleString("en-IN")} · {audit.reason}
-                  </p>
-                ))}
-              </div>
-            )}
-            {state.notices[0] && (
-              <p className="text-xs text-muted-foreground border-t pt-2">{state.notices[0].body}</p>
-            )}
           </CardContent>
         </Card>
       )}

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Check, Lock, Unlock } from "lucide-react"
+import { Check, Lock, Unlock, X, CalendarOff, Clock } from "lucide-react"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 import { Select } from "@/components/ui/Select"
@@ -32,12 +32,19 @@ import type { LeaveRequest } from "@/lib/preschoolOps"
 
 const STATUSES: AttendanceStatus[] = ["present", "absent", "leave", "late"]
 
+function statusIcon(status: AttendanceStatus) {
+  if (status === "present") return <Check className="h-3.5 w-3.5 mr-1.5" />
+  if (status === "absent") return <X className="h-3.5 w-3.5 mr-1.5" />
+  if (status === "leave") return <CalendarOff className="h-3.5 w-3.5 mr-1.5" />
+  return <Clock className="h-3.5 w-3.5 mr-1.5" />
+}
+
 function statusStyle(status: AttendanceStatus, active: boolean) {
   const map: Record<AttendanceStatus, string> = {
-    present: active ? "bg-emerald-500 text-white border-emerald-500" : "border-emerald-200 text-emerald-700 hover:bg-emerald-50",
-    absent: active ? "bg-rose-500 text-white border-rose-500" : "border-rose-200 text-rose-700 hover:bg-rose-50",
-    leave: active ? "bg-amber-500 text-white border-amber-500" : "border-amber-200 text-amber-800 hover:bg-amber-50",
-    late: active ? "bg-sky-500 text-white border-sky-500" : "border-sky-200 text-sky-700 hover:bg-sky-50",
+    present: active ? "bg-emerald-500 text-white border-emerald-500 shadow-sm" : "bg-transparent border-transparent text-muted-foreground hover:bg-emerald-50 hover:text-emerald-700 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-400",
+    absent: active ? "bg-rose-500 text-white border-rose-500 shadow-sm" : "bg-transparent border-transparent text-muted-foreground hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-500/10 dark:hover:text-rose-400",
+    leave: active ? "bg-amber-500 text-white border-amber-500 shadow-sm" : "bg-transparent border-transparent text-muted-foreground hover:bg-amber-50 hover:text-amber-700 dark:hover:bg-amber-500/10 dark:hover:text-amber-400",
+    late: active ? "bg-sky-500 text-white border-sky-500 shadow-sm" : "bg-transparent border-transparent text-muted-foreground hover:bg-sky-50 hover:text-sky-700 dark:hover:bg-sky-500/10 dark:hover:text-sky-400",
   }
   return map[status]
 }
@@ -182,16 +189,18 @@ export function TakeAttendancePanel({
       </div>
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground font-medium flex items-center">
           {kids.length} children · {formatLongDate(date)}
           {locked ? (
-            <Badge variant="success" className="ml-2"><Lock className="h-3 w-3 mr-1" />Attendance Submitted</Badge>
+            <Badge variant="success" className="ml-3"><Lock className="h-3 w-3 mr-1" />Submitted</Badge>
           ) : (
-            <Badge variant="warning" className="ml-2">Not submitted</Badge>
+            <Badge variant="warning" className="ml-3">Not submitted</Badge>
           )}
         </p>
         {editable && (
-          <Button size="sm" onClick={markAllPresent}>Mark All Present</Button>
+          <Button size="sm" variant="primary" icon={Check} onClick={markAllPresent}>
+            Mark All Present
+          </Button>
         )}
       </div>
 
@@ -214,7 +223,7 @@ export function TakeAttendancePanel({
                     {leave && <p className="text-[11px] text-amber-700">Approved leave {leave.fromDate} → {leave.toDate}</p>}
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex bg-muted/40 p-1 rounded-xl border border-border/80 gap-1 overflow-x-auto w-full lg:w-auto">
                   {visibleStatuses.map((status) => (
                     <button
                       key={`st-${child.id}-${status}`}
@@ -227,11 +236,12 @@ export function TakeAttendancePanel({
                         })
                       }
                       className={cn(
-                        "min-w-[72px] h-10 px-3 rounded-lg border text-xs font-bold capitalize cursor-pointer",
+                        "flex items-center justify-center flex-1 lg:flex-none min-w-[96px] h-10 px-3 rounded-lg border text-[13px] font-semibold capitalize transition-all duration-200",
                         statusStyle(status, mark.status === status),
                         !editable && "opacity-60 cursor-not-allowed"
                       )}
                     >
+                      {statusIcon(status)}
                       {status}
                     </button>
                   ))}

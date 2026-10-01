@@ -33,6 +33,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Button } from "@/components/ui/Button"
 import { useStore } from "@/store/useStore"
 import { api } from "@/lib/api"
+import { DailyJournalDashboardWidget } from "./DailyJournalDashboardWidget"
 
 function DashboardChart({
   children,
@@ -215,6 +216,9 @@ export function TrainerDashboard() {
           <p className="text-[11px] text-muted-foreground mt-1">Meals, Naps & Photos shared</p>
         </div>
       </div>
+
+      {/* Daily Journal Today Status / Reminder Widget */}
+      <DailyJournalDashboardWidget />
 
       {/* Visual Analytics Graphs Grid */}
       <div className="grid gap-6 lg:grid-cols-2">

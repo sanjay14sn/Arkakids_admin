@@ -18,6 +18,7 @@ import {
   X,
   Clock,
   AlertCircle,
+  Info,
 } from "lucide-react"
 import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
@@ -47,13 +48,13 @@ function getCompletionStats(docs: ChildDocument[]) {
 function statusBadge(status: ChildDocument["status"]) {
   if (status === "verified")
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 px-2.5 py-0.5 text-[11px] font-semibold">
+      <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 border border-primary/20 text-primary px-2.5 py-0.5 text-[11px] font-semibold">
         <CheckCircle2 className="h-3 w-3" /> Verified
       </span>
     )
   if (status === "uploaded")
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800 text-sky-700 dark:text-sky-400 px-2.5 py-0.5 text-[11px] font-semibold">
+      <span className="inline-flex items-center gap-1 rounded-full bg-accent border border-border text-foreground px-2.5 py-0.5 text-[11px] font-semibold">
         <Clock className="h-3 w-3" /> Uploaded
       </span>
     )
@@ -87,7 +88,6 @@ function StudentList({ isParent, allDocs, onSelect }: StudentListProps) {
   const [branchFilter, setBranchFilter] = React.useState("all")
   const [classFilter, setClassFilter] = React.useState("all")
   const [statusFilter, setStatusFilter] = React.useState<"all" | "complete" | "pending" | "missing">("all")
-  const [showFilters, setShowFilters] = React.useState(false)
   const [page, setPage] = React.useState(1)
 
   // Reset to page 1 whenever any filter / search changes
@@ -164,33 +164,11 @@ function StudentList({ isParent, allDocs, onSelect }: StudentListProps) {
             </button>
           )}
         </div>
-
-        {/* Filter toggle */}
-        {!isParent && (
-          <button
-            type="button"
-            onClick={() => setShowFilters((p) => !p)}
-            className={cn(
-              "h-9 px-4 rounded-lg border text-xs font-semibold flex items-center gap-2 transition-colors",
-              showFilters
-                ? "border-primary bg-primary/5 text-primary"
-                : "border-border bg-card text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <Filter className="h-3.5 w-3.5" />
-            Filters
-            {activeFilters > 0 && (
-              <span className="h-4 w-4 rounded-full bg-primary text-white text-[10px] flex items-center justify-center font-bold">
-                {activeFilters}
-              </span>
-            )}
-          </button>
-        )}
       </div>
 
-      {/* Expanded filter panel */}
-      {showFilters && !isParent && (
-        <div className="flex flex-wrap gap-3 p-4 rounded-xl border border-border/60 bg-card">
+      {/* Filter panel (Always open) */}
+      {!isParent && (
+        <div className="flex flex-wrap gap-3 p-4 rounded-xl border border-border/60 bg-card mt-3">
           {/* Branch */}
           <div className="flex items-center gap-2">
             <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
@@ -264,55 +242,7 @@ function StudentList({ isParent, allDocs, onSelect }: StudentListProps) {
         </div>
       )}
 
-      {/* Summary pills */}
-      {!isParent && (
-        <div className="flex gap-2.5 flex-wrap">
-          {(
-            [
-              {
-                label: "All complete",
-                count: visibleChildren.filter((c) => {
-                  const s = getCompletionStats(allDocs.filter((d) => d.childId === c.id))
-                  return s.missing === 0 && s.uploaded === 0
-                }).length,
-                badgeBg: "bg-emerald-600 text-white",
-                color: "bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border-emerald-500/30",
-              },
-              {
-                label: "Pending verify",
-                count: visibleChildren.filter((c) => {
-                  const s = getCompletionStats(allDocs.filter((d) => d.childId === c.id))
-                  return s.missing === 0 && s.uploaded > 0
-                }).length,
-                badgeBg: "bg-sky-600 text-white",
-                color: "bg-sky-500/10 text-sky-800 dark:text-sky-300 border-sky-500/30",
-              },
-              {
-                label: "Has missing",
-                count: visibleChildren.filter((c) => {
-                  const s = getCompletionStats(allDocs.filter((d) => d.childId === c.id))
-                  return s.missing > 0
-                }).length,
-                badgeBg: "bg-amber-600 text-white",
-                color: "bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-500/30",
-              },
-            ] as const
-          ).map((pill) => (
-            <span
-              key={pill.label}
-              className={cn(
-                "inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-bold border transition-all",
-                pill.color
-              )}
-            >
-              <span className={cn("h-5 min-w-[20px] px-1.5 rounded-md flex items-center justify-center text-[11px] font-extrabold shadow-xs", pill.badgeBg)}>
-                {pill.count}
-              </span>
-              <span className="font-bold">{pill.label}</span>
-            </span>
-          ))}
-        </div>
-      )}
+
 
       {/* Student list */}
       {filtered.length === 0 ? (
@@ -361,8 +291,8 @@ function StudentList({ isParent, allDocs, onSelect }: StudentListProps) {
                             title={`${type.label}: ${status}`}
                             className={cn(
                               "h-2 w-2 rounded-full",
-                              status === "verified" ? "bg-emerald-500" :
-                              status === "uploaded" ? "bg-sky-500" :
+                              status === "verified" ? "bg-primary" :
+                              status === "uploaded" ? "bg-primary/40" :
                               "bg-border"
                             )}
                           />
@@ -371,24 +301,32 @@ function StudentList({ isParent, allDocs, onSelect }: StudentListProps) {
                     </div>
 
                     {/* Count badge */}
-                    <span className="text-[11px] font-semibold text-foreground bg-muted border border-border px-2.5 py-1 rounded-full">
-                      {stats.verified + stats.uploaded}/{stats.total} on file
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {stats.uploaded > 0 && !isParent && (
+                        <span 
+                          className="hidden sm:flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md cursor-help"
+                          title={`${stats.uploaded} document(s) uploaded by parent, awaiting coordinator verification.`}
+                        >
+                          Verification pending
+                          <Info className="h-3 w-3 text-amber-600/70" />
+                        </span>
+                      )}
+                      {stats.verified === stats.total && stats.total > 0 && !isParent && (
+                        <span 
+                          className="hidden sm:flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md"
+                        >
+                          <CheckCircle2 className="h-3 w-3" /> Fully Verified
+                        </span>
+                      )}
+                      <span className="text-[11px] font-semibold text-foreground bg-muted border border-border px-2.5 py-1 rounded-full">
+                        {stats.verified + stats.uploaded}/{stats.total} on file
+                      </span>
+                    </div>
 
                     <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
                   </div>
                 </div>
 
-                {/* Progress bar */}
-                <div className="h-0.5 w-full bg-border/40 overflow-hidden">
-                  <div
-                    className={cn(
-                      "h-full transition-all duration-500",
-                      stats.missing === 0 && stats.uploaded === 0 ? "bg-emerald-500" : "bg-primary"
-                    )}
-                    style={{ width: `${((stats.verified + stats.uploaded) / stats.total) * 100}%` }}
-                  />
-                </div>
               </button>
             )
           })}
@@ -516,11 +454,11 @@ function DocumentDetail({ child, docs, canVerify, onBack, onUpload, onVerify }: 
           {/* Summary stats */}
           <div className="flex gap-3 shrink-0">
             <div className="text-center px-3.5 py-2 rounded-xl bg-card border border-border">
-              <p className="text-lg font-bold text-emerald-600">{stats.verified}</p>
+              <p className="text-lg font-bold text-foreground">{stats.verified}</p>
               <p className="text-[10px] text-muted-foreground font-semibold">Verified</p>
             </div>
             <div className="text-center px-3.5 py-2 rounded-xl bg-card border border-border">
-              <p className="text-lg font-bold text-sky-600">{stats.uploaded}</p>
+              <p className="text-lg font-bold text-foreground">{stats.uploaded}</p>
               <p className="text-[10px] text-muted-foreground font-semibold">Uploaded</p>
             </div>
             <div className="text-center px-3.5 py-2 rounded-xl bg-card border border-border">
@@ -544,7 +482,7 @@ function DocumentDetail({ child, docs, canVerify, onBack, onUpload, onVerify }: 
           </div>
           {stats.missing > 0 && (
             <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-1">
-              <AlertCircle className="h-3 w-3 text-amber-500" />
+              <AlertCircle className="h-3 w-3 text-muted-foreground" />
               Admission cannot be treated as complete until all required papers are verified.
             </p>
           )}
@@ -620,7 +558,7 @@ function DocumentDetail({ child, docs, canVerify, onBack, onUpload, onVerify }: 
 
                   {/* Verified tick */}
                   {status === "verified" && (
-                    <span className="flex items-center gap-1 text-[11px] text-emerald-600 font-semibold">
+                    <span className="flex items-center gap-1 text-[11px] text-primary font-semibold">
                       <CheckCircle2 className="h-3.5 w-3.5" /> Verified
                     </span>
                   )}

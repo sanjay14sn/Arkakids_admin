@@ -29,7 +29,7 @@ import {
   centerFromApi,
   centerToPayload,
 } from "@/lib/centerConfig"
-import { CenterConfigTabs } from "@/components/centers/CenterConfigTabs"
+import { Input } from "@/components/ui/Input"
 
 const STATUS_STYLES: Record<CenterConfig["status"], string> = {
   active: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20",
@@ -46,7 +46,7 @@ export default function EditCenterPage() {
   const [config, setConfig] = React.useState<CenterConfig>(DEFAULT_CENTER_CONFIG)
   const [isLoading, setIsLoading] = React.useState(true)
   const [isSaving, setIsSaving] = React.useState(false)
-  const [activeTab, setActiveTab] = React.useState<ConfigTabId>("general")
+
   const [loadError, setLoadError] = React.useState("")
   const [isDirty, setIsDirty] = React.useState(false)
 
@@ -75,13 +75,11 @@ export default function EditCenterPage() {
   const handleSave = async (e?: React.FormEvent) => {
     e?.preventDefault()
     if (!config.name || !config.location || !config.manager || !config.email) {
-      alert("Please complete all required fields under General.")
-      setActiveTab("general")
+      alert("Please complete all required fields.")
       return
     }
     if (config.enabledModules.length === 0) {
       alert("Enable at least one module.")
-      setActiveTab("modules")
       return
     }
 
@@ -241,12 +239,70 @@ export default function EditCenterPage() {
       {/* Settings shell */}
       <form onSubmit={handleSave}>
         <div className="rounded-2xl border border-border/80 bg-card shadow-xs overflow-hidden">
-          <CenterConfigTabs
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            config={config}
-            updateConfig={updateConfig}
-          />
+          <div className="p-6 sm:p-8 space-y-6">
+            <div>
+              <h3 className="text-lg font-semibold mb-4">Branch Details</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">Institute Name *</label>
+                  <Input
+                    value={config.name}
+                    onChange={(e) => updateConfig({ name: e.target.value })}
+                    required
+                    className="h-10"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">Location *</label>
+                  <Input
+                    value={config.location}
+                    onChange={(e) => updateConfig({ location: e.target.value })}
+                    required
+                    className="h-10"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">Manager / Admin Name *</label>
+                  <Input
+                    value={config.manager}
+                    onChange={(e) => updateConfig({ manager: e.target.value })}
+                    required
+                    className="h-10"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">Email Address *</label>
+                  <Input
+                    type="email"
+                    value={config.email}
+                    onChange={(e) => updateConfig({ email: e.target.value })}
+                    required
+                    className="h-10"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">Phone Number</label>
+                  <Input
+                    value={config.phone || ""}
+                    onChange={(e) => updateConfig({ phone: e.target.value })}
+                    className="h-10"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">Status *</label>
+                  <select
+                    value={config.status}
+                    onChange={(e) => updateConfig({ status: e.target.value as any })}
+                    className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                    <option value="maintenance">Maintenance</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Sticky action bar — Stripe / Vercel pattern */}
