@@ -16,36 +16,43 @@ export function Sidebar() {
   const searchParams = useSearchParams()
   const currentSection = searchParams.get("section")
   const currentTab = searchParams.get("tab") || "overview"
-  const { sidebarCollapsed, toggleSidebar, user, centerPolicy, supportQueueCount } = useStore()
+  const { sidebarCollapsed, toggleSidebar, user, centerPolicy, supportQueueCount, pendingLeavesCount } = useStore()
 
-  // State to track expanded sub-menus (e.g. /staff, /fees)
+  // State to track expanded sub-menus (e.g. /staff, /fees, /admin-users)
   const [expandedMenus, setExpandedMenus] = React.useState<Record<string, boolean>>(() => ({
     "/staff": pathname.startsWith("/staff"),
     "/fees": pathname.startsWith("/fees"),
+    "/admin-users":
+      pathname.startsWith("/admin-users") ||
+      pathname.startsWith("/panel-associates") ||
+      pathname.startsWith("/roles"),
   }))
 
   React.useEffect(() => {
     if (pathname.startsWith("/staff")) {
-      setExpandedMenus(prev => ({ ...prev, "/staff": true }))
+      setExpandedMenus((prev) => ({ ...prev, "/staff": true }))
     }
     if (pathname.startsWith("/fees")) {
-      setExpandedMenus(prev => ({ ...prev, "/fees": true }))
+      setExpandedMenus((prev) => ({ ...prev, "/fees": true }))
+    }
+    if (
+      pathname.startsWith("/admin-users") ||
+      pathname.startsWith("/panel-associates") ||
+      pathname.startsWith("/roles")
+    ) {
+      setExpandedMenus((prev) => ({ ...prev, "/admin-users": true }))
     }
   }, [pathname])
 
   const policyOk = (feature: Parameters<typeof isPolicyFeatureEnabled>[1]) =>
     user?.role === "super_admin" || isPolicyFeatureEnabled(centerPolicy, feature)
 
-  const { state: ops } = usePreschoolOps()
-  const pendingLeavesCount = user?.role === "trainer" || user?.role === "owner" || user?.role === "super_admin" 
-    ? ops?.leaves?.filter(l => l.status === "pending").length || 0 
-    : undefined
-
   const links = getPortalNavLinks({
     role: user?.role,
     policyOk,
+    permissions: user?.permissions,
     supportQueueCount,
-    pendingLeavesCount
+    pendingLeavesCount,
   })
 
   const toggleSubMenu = (path: string, e: React.MouseEvent) => {
@@ -95,9 +102,12 @@ export function Sidebar() {
           const Icon = link.icon
           const hasSubLinks = link.subLinks && link.subLinks.length > 0
           const isMenuExpanded = Boolean(expandedMenus[link.path])
-          const isParentActive =
-            pathname === link.path ||
-            (link.path !== "/dashboard" && pathname.startsWith(link.path))
+          const [linkBase, linkQuery] = link.path.split("?")
+          const linkSection = new URLSearchParams(linkQuery || "").get("section")
+          const isParentActive = linkSection
+            ? pathname === linkBase && currentSection === linkSection
+            : pathname === link.path ||
+              (link.path !== "/dashboard" && pathname.startsWith(link.path))
 
           return (
             <div key={link.path} className="space-y-1">

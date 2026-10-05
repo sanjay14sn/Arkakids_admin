@@ -115,9 +115,12 @@ const TONES = [
 ]
 
 export default function DailyJournalPage() {
-  const { user, addNotification } = useStore()
+  const { user, addNotification, activeTenant } = useStore()
   const isParent = user?.role === "student"
   const canManage = !isParent
+
+  const isMultiBranch = user?.role === "super_admin" || user?.role === "owner"
+  const myBranchName = String(activeTenant?.name ?? user?.tenantId ?? "").trim()
 
   const { state, update, ready } = usePreschoolOps()
 
@@ -167,26 +170,36 @@ export default function DailyJournalPage() {
 
         // Populate Real Franchises / Branches
         if (Array.isArray(centersData) && centersData.length > 0) {
-          const names = centersData.map((c: any) => c.name || c.tenantName).filter(Boolean)
-          const mergedBranches = Array.from(new Set([...names, ...BRANCHES]))
-          setBranchesList(mergedBranches)
-          setBranch((prev) => (mergedBranches.includes(prev) ? prev : mergedBranches[0]))
+          const names = centersData
+            .map((c: any) => (typeof c === "string" ? c : c?.name || c?.tenantName || c?.location || ""))
+            .filter(Boolean) as string[]
+          let finalBranches = Array.from(new Set(names))
+          
+          if (!isMultiBranch && myBranchName) {
+            const matched = finalBranches.filter(n => String(n || "").trim().toLowerCase() === myBranchName.toLowerCase())
+            finalBranches = matched.length > 0 ? matched : [myBranchName]
+          }
+
+          setBranchesList(finalBranches)
+          setBranch((prev) => (finalBranches.includes(prev) ? prev : finalBranches[0]))
+        } else if (!isMultiBranch && myBranchName) {
+          setBranchesList([myBranchName])
+          setBranch(myBranchName)
         }
 
         // Populate Real Classes / Programs
         const namesClasses: string[] = []
-        if (Array.isArray(coursesData)) {
-          coursesData.forEach((c: any) => c.name && namesClasses.push(c.name))
-        }
         if (Array.isArray(batchesData)) {
           batchesData.forEach((b: any) => {
-            if (b.courseName) namesClasses.push(b.courseName)
-            if (b.grade) namesClasses.push(b.grade)
+            const batchName = `${b.courseName || "Batch"} — ${b.section || b.code || "A"}`
+            if (!namesClasses.includes(batchName)) {
+              namesClasses.push(batchName)
+            }
           })
         }
 
         if (namesClasses.length > 0) {
-          const mergedClasses = Array.from(new Set([...namesClasses, ...CLASSES]))
+          const mergedClasses = Array.from(new Set([...namesClasses]))
           setClassesList(mergedClasses)
           setClassName((prev) => (mergedClasses.includes(prev) ? prev : mergedClasses[0]))
         }
@@ -199,7 +212,15 @@ export default function DailyJournalPage() {
             if (newFromDb.length === 0) return prev
             return {
               ...prev,
-              journals: [...newFromDb.map((j: any) => ({ ...j, id: j.id || j._id })), ...prev.journals],
+              journals: [
+                ...newFromDb.map((j: any) => ({
+                  ...j,
+                  id: j.id || j._id,
+                  tags: Array.isArray(j.tags) ? j.tags : [],
+                  media: Array.isArray(j.media) ? j.media : [],
+                })),
+                ...prev.journals,
+              ],
             }
           })
         }
@@ -209,7 +230,7 @@ export default function DailyJournalPage() {
     }
 
     void fetchRealData()
-  }, [update])
+  }, [update, isMultiBranch, myBranchName])
 
   // Reset & Open create modal
   const handleOpenCreate = () => {
@@ -228,11 +249,11 @@ export default function DailyJournalPage() {
   // Populate & Open edit modal
   const handleOpenEdit = (entry: JournalEntry) => {
     setEditingEntry(entry)
-    setClassName(entry.className)
-    setBranch(entry.branch)
-    setNote(entry.note)
-    setTags(entry.tags.join(", "))
-    const firstMedia = entry.media[0]
+    setClassName(entry.className || "")
+    setBranch(entry.branch || "")
+    setNote(entry.note || "")
+    setTags(Array.isArray(entry.tags) ? entry.tags.join(", ") : "")
+    const firstMedia = (entry.media || [])[0]
     setMediaKind(firstMedia?.kind || "photo")
     setMediaLabel(firstMedia?.label || "Classroom moment")
     setPreviewUrl(firstMedia?.src || "")
@@ -244,7 +265,7 @@ export default function DailyJournalPage() {
   const handleDelete = async (entry: JournalEntry) => {
     if (
       !window.confirm(
-        `Are you sure you want to delete the journal post for ${entry.className} (${formatDateHeader(entry.date)})?`
+        `Are you sure you want to delete the journal post for ${entry.className || "this class"} (${formatDateHeader(entry.date)})?`
       )
     ) {
       return
@@ -262,7 +283,7 @@ export default function DailyJournalPage() {
 
       addNotification({
         title: "Journal update deleted",
-        description: `${entry.className} post has been removed.`,
+        description: `${entry.className || "Class"} post has been removed.`,
         type: "system",
       })
     } catch (err: any) {
@@ -273,6 +294,8 @@ export default function DailyJournalPage() {
   // Filter entries based on role, date, branch, class, and search query
   const allEntries = parentChildFilter(state.journals, isParent)
   const filteredEntries = allEntries.filter((entry) => {
+    if (!entry) return false
+
     // Date filter
     if (dateMode === "today") {
       if (entry.date !== getTodayStr()) return false
@@ -286,12 +309,12 @@ export default function DailyJournalPage() {
     if (filterClass !== "all" && entry.className !== filterClass) return false
 
     // Search query
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase()
-      const matchNote = entry.note.toLowerCase().includes(q)
-      const matchClass = entry.className.toLowerCase().includes(q)
-      const matchBranch = entry.branch.toLowerCase().includes(q)
-      const matchTag = entry.tags.some((t) => t.toLowerCase().includes(q))
+    if (searchQuery && String(searchQuery).trim()) {
+      const q = String(searchQuery).toLowerCase().trim()
+      const matchNote = String(entry.note || "").toLowerCase().includes(q)
+      const matchClass = String(entry.className || "").toLowerCase().includes(q)
+      const matchBranch = String(entry.branch || "").toLowerCase().includes(q)
+      const matchTag = Array.isArray(entry.tags) && entry.tags.some((t) => String(t || "").toLowerCase().includes(q))
       if (!matchNote && !matchClass && !matchBranch && !matchTag) return false
     }
     return true
@@ -299,14 +322,15 @@ export default function DailyJournalPage() {
 
   // Group entries date-wise (newest date first)
   const entriesByDate = React.useMemo(() => {
-    const sorted = [...filteredEntries].sort((a, b) => b.date.localeCompare(a.date))
+    const sorted = [...filteredEntries].sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))
     const groups: Record<string, JournalEntry[]> = {}
 
     for (const entry of sorted) {
-      if (!groups[entry.date]) {
-        groups[entry.date] = []
+      const dKey = entry.date || getTodayStr()
+      if (!groups[dKey]) {
+        groups[dKey] = []
       }
-      groups[entry.date].push(entry)
+      groups[dKey].push(entry)
     }
     return groups
   }, [filteredEntries])
@@ -330,7 +354,7 @@ export default function DailyJournalPage() {
   }
 
   const publish = async () => {
-    if (!note.trim()) return
+    if (!note || !String(note).trim()) return
 
     setUploading(true)
     let uploadedMediaUrl = ""
@@ -345,7 +369,7 @@ export default function DailyJournalPage() {
       const mediaItem: JournalMedia = {
         id: editingEntry?.media[0]?.id || `m-${Date.now()}`,
         kind: mediaKind,
-        label: mediaLabel.trim() || (mediaKind === "video" ? "Class video" : "Class photo"),
+        label: String(mediaLabel || "").trim() || (mediaKind === "video" ? "Class video" : "Class photo"),
         tone: editingEntry?.media[0]?.tone || TONES[Math.floor(Math.random() * TONES.length)],
         src: uploadedMediaUrl || previewUrl || editingEntry?.media[0]?.src || undefined,
       }
@@ -356,8 +380,8 @@ export default function DailyJournalPage() {
           ...editingEntry,
           className,
           branch,
-          note: note.trim(),
-          tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
+          note: String(note || "").trim(),
+          tags: String(tags || "").split(",").map((t) => String(t || "").trim()).filter(Boolean),
           media: [mediaItem],
         }
 
@@ -384,8 +408,8 @@ export default function DailyJournalPage() {
           className,
           branch,
           author: user?.name || "Classroom Coordinator",
-          note: note.trim(),
-          tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
+          note: String(note || "").trim(),
+          tags: String(tags || "").split(",").map((t) => String(t || "").trim()).filter(Boolean),
           media: [mediaItem],
         }
 
@@ -526,7 +550,7 @@ export default function DailyJournalPage() {
                 onChange={(e) => setFilterBranch(e.target.value)}
                 className="h-8 text-xs bg-muted/40 min-w-[170px]"
               >
-                <option value="all">All Franchises</option>
+                {isMultiBranch && <option value="all">All Franchises</option>}
                 {branchesList.map((b) => (
                   <option key={`branch-filter-${b}`} value={b}>
                     {b}
@@ -538,13 +562,13 @@ export default function DailyJournalPage() {
             {/* Real Class Filter */}
             <div className="flex items-center gap-1.5">
               <Filter className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground font-medium">Class:</span>
+              <span className="text-xs text-muted-foreground font-medium">Class Batches:</span>
               <Select
                 value={filterClass}
                 onChange={(e) => setFilterClass(e.target.value)}
                 className="h-8 text-xs bg-muted/40 w-36"
               >
-                <option value="all">All Classes</option>
+                <option value="all">All Batches</option>
                 {classesList.map((cls) => (
                   <option key={`class-filter-${cls}`} value={cls}>
                     {cls}
@@ -628,7 +652,7 @@ export default function DailyJournalPage() {
 
                           <div className="flex items-center gap-2">
                             <div className="flex flex-wrap gap-1.5">
-                              {entry.tags.map((tag) => (
+                              {(entry.tags || []).map((tag) => (
                                 <Badge key={`${entry.id}-${tag}`} variant="secondary" className="text-[11px] font-medium">
                                   #{tag}
                                 </Badge>
@@ -665,7 +689,7 @@ export default function DailyJournalPage() {
                         <p className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">{entry.note}</p>
 
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                          {entry.media.map((item) => (
+                          {(entry.media || []).map((item) => (
                             <JournalMediaTile key={item.id} item={item} onClick={() => setSelectedMedia(item)} />
                           ))}
                         </div>
@@ -720,7 +744,7 @@ export default function DailyJournalPage() {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-semibold text-muted-foreground block mb-1">Class</label>
+              <label className="text-xs font-semibold text-muted-foreground block mb-1">Class Batches</label>
               <Select value={className} onChange={(e) => setClassName(e.target.value)} className="h-9 text-xs">
                 {classesList.map((item) => (
                   <option key={`modal-class-${item}`} value={item}>

@@ -28,9 +28,9 @@ import {
   type AttendanceStatus,
   type ChildMark,
 } from "@/lib/preschoolAttendance"
-import type { LeaveRequest } from "@/lib/preschoolOps"
+import { usePreschoolOps, closureReason, type LeaveRequest } from "@/lib/preschoolOps"
 
-const STATUSES: AttendanceStatus[] = ["present", "absent", "leave", "late"]
+const STATUSES: AttendanceStatus[] = ["present", "absent", "leave"]
 
 function statusIcon(status: AttendanceStatus) {
   if (status === "present") return <Check className="h-3.5 w-3.5 mr-1.5" />
@@ -44,7 +44,6 @@ function statusStyle(status: AttendanceStatus, active: boolean) {
     present: active ? "bg-emerald-500 text-white border-emerald-500 shadow-sm" : "bg-transparent border-transparent text-muted-foreground hover:bg-emerald-50 hover:text-emerald-700 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-400",
     absent: active ? "bg-rose-500 text-white border-rose-500 shadow-sm" : "bg-transparent border-transparent text-muted-foreground hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-500/10 dark:hover:text-rose-400",
     leave: active ? "bg-amber-500 text-white border-amber-500 shadow-sm" : "bg-transparent border-transparent text-muted-foreground hover:bg-amber-50 hover:text-amber-700 dark:hover:bg-amber-500/10 dark:hover:text-amber-400",
-    late: active ? "bg-sky-500 text-white border-sky-500 shadow-sm" : "bg-transparent border-transparent text-muted-foreground hover:bg-sky-50 hover:text-sky-700 dark:hover:bg-sky-500/10 dark:hover:text-sky-400",
   }
   return map[status]
 }
@@ -82,6 +81,10 @@ export function TakeAttendancePanel({
   const [success, setSuccess] = React.useState("")
   const loadedKey = React.useRef("")
 
+  const { state: opsState } = usePreschoolOps()
+  const offReason = React.useMemo(() => closureReason(opsState, date), [date, opsState])
+  const isOffDay = Boolean(offReason)
+
   const kids = childrenInClass(className)
   const session = findSession(state.sessions, date, className)
   const locked = Boolean(session?.submitted)
@@ -97,9 +100,9 @@ export function TakeAttendancePanel({
     else setMarks(defaultMarks(roster, date, leaves))
   }, [date, className, state.sessions, leaves])
 
-  const visibleStatuses = settings.lateEnabled ? STATUSES : STATUSES.filter((status) => status !== "late")
+  const visibleStatuses = STATUSES
   const summary = countMarks(marks)
-  const editable = canTake && (!locked || canCorrect)
+  const editable = canTake && !isOffDay && (!locked || canCorrect)
 
   const setMark = (childId: string, patch: Partial<ChildMark>) => {
     setMarks((prev) => prev.map((mark) => (mark.childId === childId ? { ...mark, ...patch } : mark)))
@@ -146,13 +149,12 @@ export function TakeAttendancePanel({
       })
     }
     const notices = [...state.notices]
-    if (settings.notifyAbsent || settings.notifyLeave || settings.notifyLate) {
+    if (settings.notifyAbsent || settings.notifyLeave) {
       marks.forEach((mark) => {
         const child = childAttendanceById(mark.childId)
         if (!child) return
         if (mark.status === "absent" && !settings.notifyAbsent) return
         if (mark.status === "leave" && !settings.notifyLeave) return
-        if (mark.status === "late" && !settings.notifyLate) return
         const notice = noticeForMark(child, date, mark.status)
         if (notice) notices.unshift(notice)
       })
@@ -204,6 +206,13 @@ export function TakeAttendancePanel({
         )}
       </div>
 
+      {isOffDay && (
+        <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm font-medium text-red-700 dark:text-red-400 flex items-center gap-2">
+          <CalendarOff className="h-4 w-4 shrink-0" />
+          {offReason} — school is closed on {formatLongDate(date)}. Attendance cannot be taken. Please choose a working day.
+        </div>
+      )}
+
       {success && <p className="text-sm font-medium text-emerald-600">{success}</p>}
 
       <div className="space-y-2">
@@ -232,7 +241,6 @@ export function TakeAttendancePanel({
                       onClick={() =>
                         setMark(child.id, {
                           status,
-                          arrivalTime: status === "late" ? mark.arrivalTime || nowTime() || settings.arrivalTime : mark.arrivalTime,
                         })
                       }
                       className={cn(
@@ -270,13 +278,6 @@ export function TakeAttendancePanel({
                 </div>
               )}
 
-              {mark.status === "late" && settings.lateEnabled && editable && (
-                <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                  <Input type="time" value={mark.arrivalTime || settings.arrivalTime} onChange={(e) => setMark(child.id, { arrivalTime: e.target.value })} />
-                  <Input placeholder="Reason (optional)" value={mark.lateReason || ""} onChange={(e) => setMark(child.id, { lateReason: e.target.value })} />
-                  <Input placeholder="Remarks (optional)" value={mark.remarks || ""} onChange={(e) => setMark(child.id, { remarks: e.target.value })} />
-                </div>
-              )}
             </div>
           )
         })}
@@ -286,7 +287,6 @@ export function TakeAttendancePanel({
         <div className="sticky bottom-3 rounded-xl border border-border bg-card/95 backdrop-blur p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
           <p className="text-xs font-medium">
             Present {summary.present} · Absent {summary.absent} · Leave {summary.leave}
-            {settings.lateEnabled ? ` · Late ${summary.late}` : ""}
           </p>
           {locked ? (
             <Button size="sm" variant="outline" icon={Unlock} onClick={() => setEditOpen(true)}>Correct attendance</Button>
@@ -301,7 +301,7 @@ export function TakeAttendancePanel({
           <p>Present: {summary.present}</p>
           <p>Absent: {summary.absent}</p>
           <p>Leave: {summary.leave}</p>
-          {settings.lateEnabled && <p>Late: {summary.late}</p>}
+
           {settings.notifyAbsent && summary.absent > 0 && (
             <p className="text-xs text-muted-foreground">Parents of absent children will get a preview notification.</p>
           )}

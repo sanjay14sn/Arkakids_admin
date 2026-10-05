@@ -494,6 +494,12 @@ export default function CoursesPage() {
     return normalizedBatch
   }
 
+  const handleOpenBatchDetails = (batch: Batch) => {
+    setDetailBatch(batch)
+    setDialogView("details")
+    setIsAddOpen(true)
+  }
+
   const handleOpenEditBatch = (batch: Batch) => {
     setEditingBatch(batch)
     setDetailBatch(batch)
@@ -813,7 +819,6 @@ export default function CoursesPage() {
                       <th className="p-4 min-w-[90px]">Room</th>
                       <th className="p-4 min-w-[110px]">Coordinator</th>
                       <th className="p-4 min-w-[110px]">Class Teacher</th>
-                      {user?.role !== "student" && <th className="p-4 min-w-[110px]">Students</th>}
                       <th className="p-4 min-w-[80px]">Status</th>
                       <th className="p-4 text-right min-w-[140px]">Actions</th>
                     </tr>
@@ -826,7 +831,11 @@ export default function CoursesPage() {
                       const status = statusBadge(batch.status)
 
                       return (
-                        <tr key={batch.id || `batch-${index}`} className="hover:bg-muted/30 transition-colors align-top">
+                        <tr 
+                          key={batch.id || `batch-${index}`} 
+                          className="hover:bg-muted/30 transition-colors align-top cursor-pointer"
+                          onClick={() => handleOpenBatchDetails(batch)}
+                        >
                           <td className="p-4">
                             <p className="font-bold text-foreground">{batchTitle(batch)}</p>
                             <p className="text-[10px] font-semibold text-muted-foreground mt-0.5">{batch.code}</p>
@@ -841,19 +850,10 @@ export default function CoursesPage() {
                           <td className="p-4 text-muted-foreground">{batch.roomName || "—"}</td>
                           <td className="p-4 text-foreground">{batch.trainerName || "—"}</td>
                           <td className="p-4 text-foreground">{batch.classTeacherName || "—"}</td>
-                          {user?.role !== "student" && (
-                            <td className="p-4">
-                              <div className="space-y-1.5 min-w-[110px]">
-                                <div className="text-[12px] text-muted-foreground font-medium">
-                                  {batch.enrolled}
-                                </div>
-                              </div>
-                            </td>
-                          )}
                           <td className="p-4">
                             <Badge variant={status.variant} className="text-[10px]">{status.label}</Badge>
                           </td>
-                          <td className="p-4">
+                          <td className="p-4" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center justify-end gap-1 flex-wrap">
                               {user?.role !== "student" && (
                                 <Button
@@ -1150,10 +1150,6 @@ export default function CoursesPage() {
                 <p className="text-muted-foreground">Timing</p>
                 <p className="font-semibold text-foreground mt-0.5">{detailBatch.schedule}</p>
               </div>
-              <div>
-                <p className="text-muted-foreground">Students</p>
-                <p className="font-semibold text-foreground mt-0.5">{detailBatch.enrolled} / {detailBatch.capacity}</p>
-              </div>
             </div>
             <div className="border-t border-border/40 pt-4 space-y-3 text-xs">
               <div>
@@ -1188,7 +1184,7 @@ export default function CoursesPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center">
               <button
                 type="button"
                 onClick={() => setDialogView(studentsReturnView)}
@@ -1197,9 +1193,6 @@ export default function CoursesPage() {
                 <span>&larr;</span>
                 <span>Back</span>
               </button>
-              <p className="text-xs text-muted-foreground">
-                {selectedStudentIds.length} / {maxCapacity} Students
-              </p>
             </div>
 
             <Input

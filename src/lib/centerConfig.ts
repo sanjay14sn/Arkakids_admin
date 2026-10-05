@@ -113,6 +113,45 @@ export interface CenterConfig {
   googleRedirectUri: string
   googleRefreshToken: string
   autoAiReply: boolean
+  // Registration Details & Franchise Profile
+  academicYear: string
+  ownerName: string
+  ownerMobile: string
+  ownerEmail: string
+  ownerAltMobile: string
+  ownerDob: string
+  ownerPan: string
+  ownerAadhaar: string
+  ownerPhotoUrl: string
+  address1: string
+  address2: string
+  gmapsUrl: string
+  officialEmail: string
+  officialMobile: string
+  whatsappNumber: string
+  adminName: string
+  adminEmail: string
+  adminMobile: string
+  adminUsername: string
+  selectedClasses: string[]
+  totalCapacity: string
+  capacityNoLimit: boolean
+  classroomsCount: number
+  openingDate: string
+  workingDays: string[]
+  agreementStartDate: string
+  agreementEndDate: string
+  franchiseFee: string
+  renewalDate: string
+  agreementDocName: string
+  gstNumber: string
+  subPlan: string
+  subStartDate: string
+  subEndDate: string
+  studentLimit: string
+  staffLimit: string
+  paymentStatus: string
+  uploadedDocs: Record<string, string>
 }
 
 export const DEFAULT_CENTER_CONFIG: CenterConfig = {
@@ -136,6 +175,46 @@ export const DEFAULT_CENTER_CONFIG: CenterConfig = {
   maxTrainers: 25,
   maxBdes: 10,
   enabledModules: [...ALL_MODULES],
+
+  // Registration & Owner Details
+  academicYear: "",
+  ownerName: "",
+  ownerMobile: "",
+  ownerEmail: "",
+  ownerAltMobile: "",
+  ownerDob: "",
+  ownerPan: "",
+  ownerAadhaar: "",
+  ownerPhotoUrl: "",
+  address1: "",
+  address2: "",
+  gmapsUrl: "",
+  officialEmail: "",
+  officialMobile: "",
+  whatsappNumber: "",
+  adminName: "",
+  adminEmail: "",
+  adminMobile: "",
+  adminUsername: "",
+  selectedClasses: ["Toddler", "Nursery", "Jr. KG", "Sr. KG"],
+  totalCapacity: "120",
+  capacityNoLimit: false,
+  classroomsCount: 6,
+  openingDate: "",
+  workingDays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+  agreementStartDate: "",
+  agreementEndDate: "",
+  franchiseFee: "",
+  renewalDate: "",
+  agreementDocName: "",
+  gstNumber: "",
+  subPlan: "Standard",
+  subStartDate: "",
+  subEndDate: "",
+  studentLimit: "200",
+  staffLimit: "15",
+  paymentStatus: "Pending",
+  uploadedDocs: {},
 
   logoUrl: "",
   faviconUrl: "",
@@ -227,6 +306,26 @@ export function centerFromApi(data: Record<string, unknown>): CenterConfig {
       ;(base as Record<string, unknown>)[key] = data[key]
     }
   }
+
+  // Cross-compatibility fallbacks between API data and edit forms
+  if (!base.tenantName && base.name) base.tenantName = base.name as string
+  if (!base.ownerName && base.manager) base.ownerName = base.manager as string
+  if (!base.manager && base.ownerName) base.manager = base.ownerName as string
+  if (!base.officialEmail && base.email) base.officialEmail = base.email as string
+  if (!base.email && base.officialEmail) base.email = base.officialEmail as string
+  if (!base.officialMobile && base.phone) base.officialMobile = base.phone as string
+  if (!base.phone && base.officialMobile) base.phone = base.officialMobile as string
+  if (!base.address1 && base.location) base.address1 = base.location as string
+  if (!base.location && base.address1) {
+    base.location = [base.address1, base.city, base.state].filter(Boolean).join(", ")
+  }
+  if (!base.gstVatNumber && data.gstNumber) base.gstVatNumber = data.gstNumber as string
+  if (!base.gstNumber && base.gstVatNumber) base.gstNumber = base.gstVatNumber as string
+  if (!base.whatsappNumber && (data.whatsapp || base.whatsapp)) base.whatsappNumber = (data.whatsapp || base.whatsapp) as string
+  if (!base.whatsapp && base.whatsappNumber) base.whatsapp = base.whatsappNumber as string
+  if (!base.gmapsUrl && base.googleMaps) base.gmapsUrl = base.googleMaps as string
+  if (!base.googleMaps && base.gmapsUrl) base.googleMaps = base.gmapsUrl as string
+
   if (Array.isArray(data.enabledModules)) {
     base.enabledModules = data.enabledModules as ModuleKey[]
   }

@@ -3,6 +3,8 @@ import { persist } from "zustand/middleware"
 import { api } from "@/lib/api"
 import { type CenterPolicy, DEFAULT_CENTER_POLICY } from "@/lib/centerPolicyClient"
 
+import type { RolePermissions } from "@/lib/rolePermissions"
+
 export type UserRole = "super_admin" | "owner" | "trainer" | "student" | "bde"
 
 export interface User {
@@ -10,8 +12,10 @@ export interface User {
   name: string
   email: string
   role: UserRole
+  roleName?: string
   avatar?: string
   tenantId?: string
+  permissions?: RolePermissions | null
 }
 
 export type LeadStage = "new" | "contacted" | "interested" | "demo_scheduled" | "follow_up" | "requested_as_student" | "converted" | "lost"
@@ -358,6 +362,10 @@ interface AppState {
   // Super admin support queue badge
   supportQueueCount: number
   fetchSupportQueueCount: () => Promise<void>
+
+  // Child leaves badge
+  pendingLeavesCount: number
+  fetchPendingLeavesCount: () => Promise<void>
 }
 
 export interface TrainingCenter {
@@ -776,6 +784,24 @@ export const useStore = create<AppState>()(
         try {
           const data = await api.getSupportQueueCount()
           set({ supportQueueCount: data.pending ?? 0 })
+        } catch {
+          // Keep last known count on transient errors
+        }
+      },
+
+      pendingLeavesCount: 0,
+      fetchPendingLeavesCount: async () => {
+        const user = get().user
+        if (!user || user.role === "student") {
+          set({ pendingLeavesCount: 0 })
+          return
+        }
+        try {
+          const leaves = await api.getChildLeaves()
+          if (Array.isArray(leaves)) {
+            const count = leaves.filter((l: any) => l.status === "pending" || l.status === "Pending").length
+            set({ pendingLeavesCount: count })
+          }
         } catch {
           // Keep last known count on transient errors
         }

@@ -280,6 +280,13 @@ export const api = {
   getApplications: () => fetchAPI('/jobs/applications'),
   updateApplicationStatus: (id: string, status: string) => fetchAPI(`/jobs/applications/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
   
+  // Homework
+  getHomeworks: () => fetchAPI('/homework'),
+  createHomework: (data: any) => fetchAPI('/homework', { method: 'POST', body: JSON.stringify(data) }),
+  updateHomework: (id: string, data: any) => fetchAPI(`/homework/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteHomework: (id: string) => fetchAPI(`/homework/${id}`, { method: 'DELETE' }),
+  submitHomework: (id: string, data: any) => fetchAPI(`/homework/${id}/submit`, { method: 'POST', body: JSON.stringify(data) }),
+
   // Batches (existing)
   getBatches: () => fetchAPI("/batches"),
   getBatchById: (id: string) => fetchAPI(`/batches/${id}`),
@@ -347,6 +354,12 @@ export const api = {
     }),
   sendAllFeeReminderEmails: () =>
     fetchAPI('/fees/reminders/email-all', { method: 'POST' }),
+
+  // Fee Structures
+  getFeeStructures: () => fetchAPI('/fees/structures'),
+  createFeeStructure: (data: any) => fetchAPI('/fees/structures', { method: 'POST', body: JSON.stringify(data) }),
+  updateFeeStructure: (id: string, data: any) => fetchAPI(`/fees/structures/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteFeeStructure: (id: string) => fetchAPI(`/fees/structures/${id}`, { method: 'DELETE' }),
 
   updateBatchStudentRemarks: (batchId: string, studentName: string, remarks: string) =>
     fetchAPI(`/batches/${batchId}/remarks`, {
@@ -521,6 +534,31 @@ export const api = {
   }) => fetchAPI(`/roles/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteRole: (id: string) => fetchAPI(`/roles/${id}`, { method: 'DELETE' }),
   duplicateRole: (id: string) => fetchAPI(`/roles/${id}/duplicate`, { method: 'POST' }),
+
+  // Admin Users
+  getAdminUsers: () => fetchAPI('/admin-users'),
+  createAdminUser: (data: {
+    profileImage?: string;
+    name: string;
+    mobileNumber: string;
+    email: string;
+    pin: string;
+    role: string;
+  }) => fetchAPI('/admin-users', { method: 'POST', body: JSON.stringify(data) }),
+  updateAdminUser: (id: string, data: any) => fetchAPI(`/admin-users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteAdminUser: (id: string) => fetchAPI(`/admin-users/${id}`, { method: 'DELETE' }),
+
+  // Panel Associates
+  getPanelAssociates: () => fetchAPI('/panel-associates'),
+  createPanelAssociate: (data: {
+    profileImage?: string;
+    name: string;
+    mobileNumber: string;
+    email: string;
+    department?: string;
+  }) => fetchAPI('/panel-associates', { method: 'POST', body: JSON.stringify(data) }),
+  updatePanelAssociate: (id: string, data: any) => fetchAPI(`/panel-associates/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deletePanelAssociate: (id: string) => fetchAPI(`/panel-associates/${id}`, { method: 'DELETE' }),
 
   // Platform usage (super admin)
   getPlatformUsage: () => fetchAPI('/platform/usage'),

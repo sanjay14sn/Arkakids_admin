@@ -20,7 +20,7 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   const router = useRouter()
-  const { isAuthenticated, user, theme, logout, login, fetchNotifications, fetchCenterPolicy, fetchSupportQueueCount } = useStore()
+  const { isAuthenticated, user, theme, logout, login, fetchNotifications, fetchCenterPolicy, fetchSupportQueueCount, fetchPendingLeavesCount } = useStore()
   const [verified, setVerified] = React.useState(false)
 
   // Apply theme
@@ -70,6 +70,7 @@ export default function DashboardLayout({
         if (freshUser?.role === "super_admin") {
           await fetchSupportQueueCount()
         }
+        await fetchPendingLeavesCount()
         setVerified(true)
         void fetchNotifications()
       } catch {
@@ -92,6 +93,7 @@ export default function DashboardLayout({
       } else {
         void fetchCenterPolicy()
       }
+      void fetchPendingLeavesCount()
     }
     const onVisibility = () => {
       if (document.visibilityState === "visible") onRefresh()
@@ -102,15 +104,9 @@ export default function DashboardLayout({
       window.removeEventListener("focus", onRefresh)
       document.removeEventListener("visibilitychange", onVisibility)
     }
-  }, [verified, user?.role, fetchCenterPolicy, fetchSupportQueueCount])
+  }, [verified, user?.role, fetchCenterPolicy, fetchSupportQueueCount, fetchPendingLeavesCount])
 
-  if (!verified) {
-    return <PageLoader variant="fullscreen" />
-  }
-
-  if (!isAuthenticated || !user) {
-    return <PageLoader variant="fullscreen" />
-  }
+  const isReady = verified && isAuthenticated && !!user
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
@@ -118,11 +114,11 @@ export default function DashboardLayout({
       <div className="flex flex-1 flex-col overflow-hidden">
         <Navbar />
         <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-6 bg-background">
-          <div className="mx-auto max-w-7xl animate-slide-in-bottom dash-page">
-            {children}
+          <div className="mx-auto max-w-7xl animate-slide-in-bottom dash-page h-full">
+            {!isReady ? <PageLoader variant="page" /> : children}
           </div>
         </main>
-        {user.role === "student" && !isPreviewSession() ? <SessionFeedbackPrompt /> : null}
+        {isReady && user?.role === "student" && !isPreviewSession() ? <SessionFeedbackPrompt /> : null}
       </div>
     </div>
   )

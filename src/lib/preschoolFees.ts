@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
+import { api } from "@/lib/api"
 import { BRANCHES, PARENT_CHILD_ID } from "@/lib/preschoolOps"
 import { todayIso } from "@/lib/preschoolAttendance"
 
@@ -866,118 +867,16 @@ function seedPay(
 }
 
 function buildSeed(): FeesState {
-  const nursery: FeeStructure = {
-    id: "str-nursery",
-    academicYear: ACADEMIC_YEAR,
-    branch: KORA,
-    className: "Nursery A",
-    status: "active",
-    components: nurseryComponents(),
-  }
-  const lkg: FeeStructure = {
-    id: "str-lkg",
-    academicYear: ACADEMIC_YEAR,
-    branch: KORA,
-    className: "LKG A",
-    status: "active",
-    components: nurseryComponents(),
-  }
-  const lkgB: FeeStructure = {
-    id: "str-lkg-b",
-    academicYear: ACADEMIC_YEAR,
-    branch: BRANCHES[1],
-    className: "LKG B",
-    status: "active",
-    components: nurseryComponents(),
-  }
-  const ukg: FeeStructure = {
-    id: "str-ukg",
-    academicYear: ACADEMIC_YEAR,
-    branch: KORA,
-    className: "UKG A",
-    status: "active",
-    components: nurseryComponents(),
-  }
-  const playgroup: FeeStructure = {
-    id: "str-play",
-    academicYear: ACADEMIC_YEAR,
-    branch: BRANCHES[2],
-    className: "Playgroup",
-    status: "active",
-    components: playgroupComponents(),
-  }
-
-  const students: FeeStudent[] = [
-    makeStudent(PARENT_CHILD_ID, "AK-N-2401", "Aanya Sharma", "Neha Sharma", "Nursery", "Nursery A", "A", nursery.id, false, "term"),
-    makeStudent("fee-aarav", "AK-L-2501", "Aarav Kumar", "Meera Kumar", "LKG", "LKG A", "A", lkg.id, true, "monthly"),
-    makeStudent("child-vihaan", "AK-L-2402", "Vihaan Reddy", "Kiran Reddy", "LKG", "LKG B", "B", lkgB.id, false, "full"),
-    makeStudent("child-mira", "AK-U-2403", "Mira Iyer", "Anjali Iyer", "UKG", "UKG A", "A", ukg.id, false, "term"),
-    makeStudent("child-arjun", "AK-P-2404", "Arjun Menon", "Priya Menon", "Playgroup", "Playgroup", "-", playgroup.id, false, "monthly"),
-    makeStudent("child-sara", "AK-L-2405", "Sara Khan", "Imran Khan", "LKG", "LKG A", "A", lkg.id, false, "monthly"),
-    makeStudent("att-diya", "AK-N-2402", "Diya Kumar", "Ritu Kumar", "Nursery", "Nursery A", "A", nursery.id, false, "monthly"),
-    makeStudent("att-rahul", "AK-N-2403", "Rahul Kumar", "Sanjay Kumar", "Nursery", "Nursery A", "A", nursery.id, true, "monthly"),
-    makeStudent("att-kabir", "AK-N-2406", "Kabir Joshi", "Amit Joshi", "Nursery", "Nursery A", "A", nursery.id, false, "term"),
-    makeStudent("att-myra", "AK-N-2408", "Myra Singh", "Pooja Singh", "Nursery", "Nursery A", "A", nursery.id, false, "monthly"),
-    makeStudent("att-kiara", "AK-N-2410", "Kiara Shah", "Dev Shah", "Nursery", "Nursery A", "A", nursery.id, false, "full"),
-    makeStudent("att-avni", "AK-N-2417", "Avni Sharma", "Rohit Sharma", "Nursery", "Nursery A", "A", nursery.id, false, "monthly"),
-  ]
-
-  const structures = [nursery, lkg, lkgB, ukg, playgroup]
-  const invoices = students.flatMap((student) => {
-    const structure = structures.find((item) => item.id === student.structureId)!
-    return invoicesForAssignment(student, structure)
-  })
-
-  let state: FeesState = {
-    structures,
-    students,
-    invoices,
+  return {
+    structures: [],
+    students: [],
+    invoices: [],
     payments: [],
     discounts: [],
     notices: [],
     audits: [],
     settings: DEFAULT_SETTINGS,
   }
-
-  const concession = applyDiscount(state, {
-    studentId: "fee-aarav",
-    type: "sibling",
-    mode: "amount",
-    value: 5000,
-    reason: "Younger sibling in Nursery A",
-    approvedBy: "Franchise Owner",
-  })
-  if (concession.ok) state = concession.state
-
-  seedPay(state, PARENT_CHILD_ID, 27000, "2026-06-10", "upi", "UPI88321", "Accounts")
-  seedPay(state, PARENT_CHILD_ID, 20000, "2026-08-10", "card", "CARD5521", "Accounts")
-
-  seedPay(state, "fee-aarav", 10000, "2026-06-10", "upi", "UPI123456", "Accounts")
-  seedPay(state, "fee-aarav", 5000, "2026-06-10", "upi", "UPI123457", "Accounts")
-  seedPay(state, "fee-aarav", 16000, "2026-08-08", "cash", "", "Accounts")
-  seedPay(state, "fee-aarav", 4000, "2026-08-24", "upi", "UPI77821", "Accounts")
-
-  seedPay(state, "child-vihaan", 67000, "2026-06-12", "bank", "NEFT8821", "Accounts")
-  seedPay(state, "child-mira", 27000, "2026-06-15", "online", "PAYTM331", "Accounts")
-  seedPay(state, "child-arjun", 8000, "2026-06-20", "cash", "", "Accounts")
-  seedPay(state, "att-diya", 23000, "2026-07-10", "upi", "UPI4410", "Accounts")
-  seedPay(state, "att-rahul", 28000, "2026-07-12", "card", "CARD4411", "Accounts")
-  seedPay(state, "att-kabir", 26800, "2026-06-18", "upi", "UPI4412", "Accounts")
-  seedPay(state, "att-myra", 19000, "2026-08-24", "cash", "", "Accounts")
-  seedPay(state, "att-kiara", 67000, "2026-06-11", "online", "RAZOR991", "Accounts")
-  seedPay(state, "att-avni", 15000, "2026-08-24", "upi", "UPI5520", "Accounts")
-
-  const aanya = studentById(state, PARENT_CHILD_ID)
-  if (aanya) {
-    pushNotice(
-      state,
-      aanya.id,
-      "upcoming",
-      "Upcoming payment",
-      `Dear Parent, ${aanya.name}'s term 3 fee of ₹20,000 is due on 10 January 2027.`
-    )
-  }
-  return state
 }
 
 const DEFAULT_FEES = buildSeed()
@@ -990,7 +889,7 @@ export function loadFees(): FeesState {
     const parsed = JSON.parse(raw) as FeesState
     if (!Array.isArray(parsed.students) || parsed.students.length === 0) return clone(DEFAULT_FEES)
     return {
-      structures: Array.isArray(parsed.structures) ? parsed.structures : DEFAULT_FEES.structures,
+      structures: Array.isArray(parsed.structures) ? parsed.structures : [],
       students: parsed.students,
       invoices: Array.isArray(parsed.invoices) ? parsed.invoices.map((item) => refreshInvoice(item)) : DEFAULT_FEES.invoices,
       payments: Array.isArray(parsed.payments) ? parsed.payments : [],
@@ -1013,10 +912,116 @@ export function usePreschoolFees() {
   const [state, setState] = useState<FeesState>(DEFAULT_FEES)
   const [ready, setReady] = useState(false)
 
+  const loadData = useCallback(async () => {
+      try {
+        const local = loadFees()
+        const [batchesRes, studentsRes, structuresRes] = await Promise.all([
+          api.getBatches().catch(() => []),
+          api.getStudents().catch(() => []),
+          api.getFeeStructures().catch(() => []),
+        ])
+        
+        const rawBatches = Array.isArray(batchesRes) ? batchesRes : []
+        const rawStudents = Array.isArray(studentsRes) ? studentsRes : (studentsRes?.students ?? studentsRes?.data ?? [])
+        const rawStructures = Array.isArray(structuresRes) ? structuresRes : []
+        
+        const realStructures = rawStructures.map((s: any) => ({
+          id: s._id,
+          academicYear: s.academicYear,
+          branch: s.branch,
+          className: s.className,
+          status: s.status,
+          components: s.components || []
+        }))
+
+        if (rawStudents.length > 0) {
+          const realInvoices: FeeInvoice[] = []
+          const realPayments: FeePayment[] = []
+          
+          const realStudents: FeeStudent[] = rawStudents.map((s: any) => {
+            const sid = s.id || s._id || uid("std")
+            const localStudent = local.students.find(ls => ls.id === sid)
+            
+            const batchInfo = rawBatches.find((b: any) => b.studentNames?.includes(s.name))
+            const className = batchInfo ? `${batchInfo.courseName || "Batch"} — ${batchInfo.section || batchInfo.code || "A"}` : "Unassigned"
+            
+            const feesTotal = Number(s.fees?.feesTotal) || Number(s.feesTotal) || 0
+            const feesPaid = Number(s.fees?.feesPaid) || Number(s.feesPaid) || 0
+            const nextDueDate = s.fees?.nextDueDate || s.nextDueDate || "2026-10-10"
+
+            const hasLocalInvoices = local.invoices.some(inv => inv.studentId === sid)
+
+            if (!hasLocalInvoices && feesTotal > 0) {
+              const inv: FeeInvoice = {
+                id: `inv-${sid}`,
+                studentId: sid,
+                componentId: "full-plan",
+                label: "Course Fee",
+                feeType: "tuition",
+                amount: feesTotal,
+                paidAmount: feesPaid,
+                dueDate: nextDueDate,
+                status: feesPaid >= feesTotal ? "paid" : (feesPaid > 0 ? "partial" : "pending")
+              }
+              if (inv.status === "pending" && inv.dueDate < FEE_TODAY) inv.status = "overdue"
+              if (inv.status === "partial" && inv.dueDate < FEE_TODAY) inv.status = "overdue"
+              realInvoices.push(inv)
+            }
+
+            if (!hasLocalInvoices && feesPaid > 0) {
+              realPayments.push({
+                id: `pay-${sid}`,
+                studentId: sid,
+                receiptNo: `REC-${String(realPayments.length + local.payments.length + 1).padStart(3, "0")}`,
+                amount: feesPaid,
+                date: FEE_TODAY,
+                method: "online",
+                txnId: "API_SYNC",
+                remarks: "Synced from backend",
+                invoiceIds: feesTotal > 0 ? [`inv-${sid}`] : [],
+                status: "paid",
+                createdBy: "System",
+                createdAt: new Date().toISOString()
+              })
+            }
+
+            return {
+              id: sid,
+              studentCode: s.rollNo || s.studentCode || sid.slice(-4),
+              name: s.name || "Unknown",
+              parentName: s.parentName || "Parent",
+              branch: s.tenantId || "Main",
+              academicYear: "2026–27",
+              program: className.split(" — ")[0] || "Program",
+              className,
+              section: className.split(" — ")[1] || "A",
+              structureId: localStudent ? localStudent.structureId : "str-custom",
+              includeTransport: localStudent ? localStudent.includeTransport : false,
+              schedule: localStudent ? localStudent.schedule : "full"
+            }
+          })
+          
+          setState({
+            ...local,
+            structures: realStructures,
+            students: realStudents,
+            invoices: [...local.invoices, ...realInvoices],
+            payments: [...local.payments, ...realPayments]
+          })
+        } else {
+          setState({ ...local, structures: realStructures })
+        }
+      } catch (err) {
+        console.error("Error loading fees from API:", err)
+        setState(loadFees())
+      } finally {
+        setReady(true)
+      }
+    }, [])
+    
   useEffect(() => {
-    setState(loadFees())
-    setReady(true)
-  }, [])
+    loadData()
+  }, [loadData])
 
   const update = useCallback((patch: FeesState | ((prev: FeesState) => FeesState)) => {
     setState((prev) => {
@@ -1026,7 +1031,7 @@ export function usePreschoolFees() {
     })
   }, [])
 
-  return { state, update, ready }
+  return { state, update, ready, refetch: loadData }
 }
 
 export function statusVariant(

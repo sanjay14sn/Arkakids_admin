@@ -6,35 +6,29 @@ export type RolePermissions = Record<string, FeaturePermission>
 
 export const PLATFORM_FEATURES = [
   { key: "dashboard", label: "Dashboard", group: "Core" },
-  { key: "centers", label: "Centers & Tenants", group: "Platform" },
-  { key: "roles", label: "Roles & Permissions", group: "Platform" },
   { key: "crm", label: "Enquiries", group: "Sales" },
-  { key: "bde", label: "Coordinator Staff", group: "Sales" },
-  { key: "admissions", label: "Admissions", group: "Sales" },
-  { key: "followups", label: "Follow-ups", group: "Sales" },
-  { key: "tasks", label: "Tasks", group: "Sales" },
   { key: "students", label: "Students", group: "Academic" },
-  { key: "trainers", label: "Coordinators", group: "Academic" },
-  { key: "courses", label: "Classes", group: "Academic" },
-  { key: "lms", label: "LMS", group: "Academic" },
+  { key: "staff", label: "Staff Management", group: "Staff" },
+  { key: "coordinators", label: "Center Coordinators", group: "Staff" },
+  { key: "teachers", label: "Teachers & Educators", group: "Staff" },
+  { key: "courses", label: "Class Program", group: "Academic" },
   { key: "attendance", label: "Attendance", group: "Academic" },
-  { key: "fees", label: "Fees & Billing", group: "Finance" },
-  { key: "campaigns", label: "Announcements", group: "Marketing" },
-  { key: "hr", label: "HR & Payroll", group: "Operations" },
-  { key: "jobs", label: "Job Portal", group: "Placement" },
-  { key: "analytics", label: "Analytics", group: "Insights" },
-  { key: "reports", label: "Reports", group: "Insights" },
-  { key: "support", label: "Support Desk", group: "Operations" },
-  { key: "settings", label: "Settings", group: "Platform" },
+  { key: "journal", label: "Daily Journal", group: "Classroom" },
+  { key: "homework", label: "Homework", group: "Classroom" },
+  { key: "absences", label: "Child Leave", group: "Classroom" },
+  { key: "childcare", label: "Child Care", group: "Classroom" },
+  { key: "calendar", label: "Calendar", group: "Classroom" },
+  { key: "childdocuments", label: "Child Documents", group: "Classroom" },
+  { key: "transfers", label: "Transfers", group: "Academic" },
+  { key: "fees", label: "Fees & Payments", group: "Finance" },
+  { key: "campaigns", label: "Parent Communication", group: "Communication" },
+  { key: "support", label: "Support", group: "Operations" },
 ] as const
 
 export type FeatureKey = (typeof PLATFORM_FEATURES)[number]["key"]
 
-/** Hidden from institute-scoped permission matrix (platform super-admin only) */
-export const INSTITUTE_HIDDEN_FEATURES = new Set<FeatureKey>(["centers", "roles"])
-
 export function instituteRoleFeatures() {
-  return PLATFORM_FEATURES.filter((f) => !INSTITUTE_HIDDEN_FEATURES.has(f.key))
+  return PLATFORM_FEATURES
 }
 
 export const INSTITUTE_FEATURE_GROUPS = Array.from(
@@ -58,6 +52,14 @@ export function emptyPermissions(): RolePermissions {
   const perms: RolePermissions = {}
   for (const feature of PLATFORM_FEATURES) {
     perms[feature.key] = { view: false, add: false, edit: false, delete: false }
+  }
+  return perms
+}
+
+export function fullPermissions(): RolePermissions {
+  const perms: RolePermissions = {}
+  for (const feature of PLATFORM_FEATURES) {
+    perms[feature.key] = { view: true, add: true, edit: true, delete: true }
   }
   return perms
 }

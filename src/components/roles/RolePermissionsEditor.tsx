@@ -457,4 +457,154 @@ export function setAllFeaturesLevel(
   return next
 }
 
+export function RolePermissionsMatrixTable({
+  permissions,
+  onChange,
+}: {
+  permissions: RolePermissions
+  onChange: (next: RolePermissions) => void
+}) {
+  const features = instituteRoleFeatures()
+
+  const isColumnAllChecked = (action: PermissionAction) =>
+    features.length > 0 && features.every((f) => permissions[f.key]?.[action])
+
+  const toggleColumn = (action: PermissionAction) => {
+    const allChecked = isColumnAllChecked(action)
+    const nextVal = !allChecked
+    const next = { ...permissions }
+    for (const f of features) {
+      const current = next[f.key] || { view: false, add: false, edit: false, delete: false }
+      next[f.key] = { ...current, [action]: nextVal }
+      if (action !== "view" && nextVal) next[f.key].view = true
+      if (action === "view" && !nextVal) {
+        next[f.key] = { view: false, add: false, edit: false, delete: false }
+      }
+    }
+    onChange(next)
+  }
+
+  const toggleFeatureAction = (featureKey: string, action: PermissionAction) => {
+    const current = permissions[featureKey] || { view: false, add: false, edit: false, delete: false }
+    const nextVal = !current[action]
+    const updatedRow = { ...current, [action]: nextVal }
+    if (action !== "view" && nextVal) updatedRow.view = true
+    if (action === "view" && !nextVal) {
+      updatedRow.view = false
+      updatedRow.add = false
+      updatedRow.edit = false
+      updatedRow.delete = false
+    }
+    onChange({ ...permissions, [featureKey]: updatedRow })
+  }
+
+  return (
+    <div className="space-y-4">
+      <h2 className="text-xl font-bold tracking-tight !text-black text-black">
+        Role permissions
+      </h2>
+      <div className="rounded-xl border border-slate-200/80 bg-white overflow-hidden shadow-xs">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-sm">
+            <thead>
+              <tr className="bg-[#F1F4F9] border-b border-slate-200/80 text-black !text-black font-bold text-sm">
+                <th className="py-3.5 px-6 w-2/5 text-black !text-black font-bold">Feature</th>
+                <th className="py-3.5 px-6 w-1/5">
+                  <label className="inline-flex items-center gap-2 cursor-pointer select-none font-bold text-black !text-black">
+                    <input
+                      type="checkbox"
+                      checked={isColumnAllChecked("view")}
+                      onChange={() => toggleColumn("view")}
+                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <span className="text-black !text-black font-bold">View</span>
+                  </label>
+                </th>
+                <th className="py-3.5 px-6 w-1/5">
+                  <label className="inline-flex items-center gap-2 cursor-pointer select-none font-bold text-black !text-black">
+                    <input
+                      type="checkbox"
+                      checked={isColumnAllChecked("add")}
+                      onChange={() => toggleColumn("add")}
+                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <span className="text-black !text-black font-bold">Add</span>
+                  </label>
+                </th>
+                <th className="py-3.5 px-6 w-1/5">
+                  <label className="inline-flex items-center gap-2 cursor-pointer select-none font-bold text-black !text-black">
+                    <input
+                      type="checkbox"
+                      checked={isColumnAllChecked("delete")}
+                      onChange={() => toggleColumn("delete")}
+                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <span className="text-black !text-black font-bold">Delete</span>
+                  </label>
+                </th>
+                <th className="py-3.5 px-6 w-1/5">
+                  <label className="inline-flex items-center gap-2 cursor-pointer select-none font-bold text-black !text-black">
+                    <input
+                      type="checkbox"
+                      checked={isColumnAllChecked("edit")}
+                      onChange={() => toggleColumn("edit")}
+                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <span className="text-black !text-black font-bold">Edit</span>
+                  </label>
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 bg-white">
+              {features.map((feature) => {
+                const row = permissions[feature.key] || { view: false, add: false, edit: false, delete: false }
+                return (
+                  <tr key={feature.key} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="py-3.5 px-6 font-semibold text-black !text-black">
+                      {feature.label}
+                    </td>
+                    <td className="py-3.5 px-6">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(row.view)}
+                        onChange={() => toggleFeatureAction(feature.key, "view")}
+                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                    </td>
+                    <td className="py-3.5 px-6">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(row.add)}
+                        onChange={() => toggleFeatureAction(feature.key, "add")}
+                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                    </td>
+                    <td className="py-3.5 px-6">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(row.delete)}
+                        onChange={() => toggleFeatureAction(feature.key, "delete")}
+                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                    </td>
+                    <td className="py-3.5 px-6">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(row.edit)}
+                        onChange={() => toggleFeatureAction(feature.key, "edit")}
+                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export { setAllFeaturePermissions, getAccessLevel, permissionFromLevel }
+

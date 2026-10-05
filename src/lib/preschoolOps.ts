@@ -111,6 +111,13 @@ export type BranchTransfer = {
   createdAt: string
 }
 
+export type WeeklyOffRule = "sun" | "sat_sun" | "none"
+
+/** Today's (or any Date's) calendar date in the user's LOCAL timezone as YYYY-MM-DD. */
+export function localIsoDate(d: Date = new Date()): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+}
+
 export type PreschoolOpsState = {
   journals: JournalEntry[]
   leaves: LeaveRequest[]
@@ -118,6 +125,38 @@ export type PreschoolOpsState = {
   events: CalendarEvent[]
   documents: ChildDocument[]
   transfers: BranchTransfer[]
+  weeklyOffRule?: WeeklyOffRule
+}
+
+/** Returns the weekly-off day numbers (0 = Sunday) for a rule. */
+export function weeklyOffDays(rule: WeeklyOffRule = "sun"): number[] {
+  return rule === "sun" ? [0] : rule === "sat_sun" ? [0, 6] : []
+}
+
+/**
+ * Why school is closed on `iso` (YYYY-MM-DD), or "" if it is a working day.
+ * A holiday event applies if it targets all branches or the given branch/name.
+ */
+export function closureReason(
+  state: Pick<PreschoolOpsState, "events" | "weeklyOffRule">,
+  iso: string,
+  branch?: string
+): string {
+  if (!iso) return ""
+  const holiday = state.events.find(
+    (e) =>
+      e.date === iso &&
+      e.kind === "holiday" &&
+      (e.branch === "All branches" || (!!branch && e.branch === branch))
+  )
+  if (holiday) return `Holiday: ${holiday.title}`
+  const [y, m, d] = iso.split("-").map(Number)
+  if (!y || !m || !d) return ""
+  const dow = new Date(y, m - 1, d).getDay()
+  if (weeklyOffDays(state.weeklyOffRule ?? "sun").includes(dow)) {
+    return dow === 0 ? "Weekly Off (Sunday)" : "Weekly Off (Saturday)"
+  }
+  return ""
 }
 
 const DOMAIN_LABELS: AssessmentDomain[] = [

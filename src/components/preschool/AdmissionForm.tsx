@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/Input"
 import { Select } from "@/components/ui/Select"
 import { Button } from "@/components/ui/Button"
 import { useStore } from "@/store/useStore"
-import { BRANCHES } from "@/lib/preschoolOps"
+import { useBranches } from "@/hooks/useBranches"
 import {
   PROGRAMS,
   suggestProgram,
@@ -27,9 +27,16 @@ export function AdmissionForm({
   const [dob, setDob] = React.useState("")
   const [gender, setGender] = React.useState("Girl")
   const [session, setSession] = React.useState<"morning" | "afternoon">("morning")
-  const [branch, setBranch] = React.useState<string>(BRANCHES[0])
+  const { branches, loading } = useBranches()
+  const [branch, setBranch] = React.useState<string>("")
   const [fatherName, setFatherName] = React.useState("")
   const [motherName, setMotherName] = React.useState("")
+
+  React.useEffect(() => {
+    if (branches.length > 0 && !branch) {
+      setBranch(branches[0])
+    }
+  }, [branches, branch])
   const [fatherOccupation, setFatherOccupation] = React.useState("")
   const [motherOccupation, setMotherOccupation] = React.useState("")
   const [phone, setPhone] = React.useState("")
@@ -107,7 +114,7 @@ export function AdmissionForm({
             <option value="afternoon">Afternoon session</option>
           </Select>
           <Select value={branch} onChange={(e) => setBranch(e.target.value)}>
-            {BRANCHES.map((item) => (
+            {branches.map((item) => (
               <option key={`adm-branch-${item}`} value={item}>{item}</option>
             ))}
           </Select>

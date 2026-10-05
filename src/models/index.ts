@@ -11,6 +11,18 @@ export interface IHomework extends Document {
   attachmentUrl?: string
   createdBy?: string
   submissions?: Array<{ studentId: string; studentName: string; submittedAt: string; fileUrl?: string }>
+  batch?: string
+  activity?: string
+  instructions?: string
+  assignedDate?: string
+  visibility?: "immediate" | "scheduled"
+  visibleFrom?: string
+  status?: "active" | "completed"
+  attachment?: {
+    name: string
+    kind: string
+    src?: string
+  }
 }
 
 const HomeworkSchema = new Schema<IHomework>(
@@ -27,6 +39,21 @@ const HomeworkSchema = new Schema<IHomework>(
       type: [{ studentId: String, studentName: String, submittedAt: String, fileUrl: String }],
       default: [],
     },
+    batch: { type: String },
+    activity: { type: String },
+    instructions: { type: String },
+    assignedDate: { type: String },
+    visibility: { type: String, enum: ["immediate", "scheduled"], default: "immediate" },
+    visibleFrom: { type: String },
+    status: { type: String, enum: ["active", "completed"], default: "active" },
+    attachment: {
+      type: {
+        name: String,
+        kind: String,
+        src: String
+      },
+      default: undefined
+    }
   },
   { timestamps: true }
 )
@@ -96,12 +123,36 @@ export interface IChildCare extends Document {
   tenantId: string
   studentId: string
   studentName: string
-  type: "vaccination" | "incident" | "medication" | "allergy" | "general"
+  type: "vaccination" | "incident" | "medication" | "allergy" | "general" | "meal" | "nap" | "emergency" | "medical_profile"
   title?: string
   description?: string
   date?: string
   nextDate?: string
   recordedBy?: string
+  // Medical Profile
+  bloodGroup?: string
+  allergies?: string[]
+  conditions?: string[]
+  vaccinations?: Array<{ name: string; date: string; due?: string }>
+  // Meal Log
+  meal?: string
+  items?: string
+  eaten?: string
+  // Nap Log
+  start?: string
+  end?: string
+  quality?: string
+  // Incident Log
+  time?: string
+  incidentType?: string
+  action?: string
+  notifiedParent?: boolean
+  // Emergency Contacts
+  contacts?: Array<{ name: string; relation: string; phone: string; primary: boolean }>
+  doctorName?: string
+  doctorPhone?: string
+  hospital?: string
+  note?: string
 }
 
 const ChildCareSchema = new Schema<IChildCare>(
@@ -111,7 +162,7 @@ const ChildCareSchema = new Schema<IChildCare>(
     studentName: { type: String, required: true },
     type: {
       type: String,
-      enum: ["vaccination", "incident", "medication", "allergy", "general"],
+      enum: ["vaccination", "incident", "medication", "allergy", "general", "meal", "nap", "emergency", "medical_profile"],
       required: true,
     },
     title: { type: String },
@@ -119,6 +170,25 @@ const ChildCareSchema = new Schema<IChildCare>(
     date: { type: String },
     nextDate: { type: String },
     recordedBy: { type: String },
+    bloodGroup: { type: String },
+    allergies: { type: [String], default: [] },
+    conditions: { type: [String], default: [] },
+    vaccinations: { type: [{ name: String, date: String, due: String }], default: [] },
+    meal: { type: String },
+    items: { type: String },
+    eaten: { type: String },
+    start: { type: String },
+    end: { type: String },
+    quality: { type: String },
+    time: { type: String },
+    incidentType: { type: String },
+    action: { type: String },
+    notifiedParent: { type: Boolean },
+    contacts: { type: [{ name: String, relation: String, phone: String, primary: Boolean }], default: [] },
+    doctorName: { type: String },
+    doctorPhone: { type: String },
+    hospital: { type: String },
+    note: { type: String },
   },
   { timestamps: true }
 )
@@ -468,3 +538,53 @@ const FollowUpSchema = new Schema<IFollowUp>(
 )
 
 export const FollowUp = models.FollowUp || model<IFollowUp>("FollowUp", FollowUpSchema)
+
+// ─── Fee Structure ──────────────────────────────────────────────────────────────
+export interface IFeeStructure extends Document {
+  tenantId: string
+  academicYear: string
+  branch: string
+  className: string
+  status: "active" | "inactive"
+  components: Array<{
+    id: string
+    name: string
+    type: string
+    amount: number
+    frequency: string
+    dueDate: string
+    required: boolean
+  }>
+}
+
+const FeeStructureSchema = new Schema<IFeeStructure>(
+  {
+    tenantId: { type: String, required: true, index: true },
+    academicYear: { type: String, required: true },
+    branch: { type: String, required: true },
+    className: { type: String, required: true },
+    status: { type: String, enum: ["active", "inactive"], default: "active" },
+    components: {
+      type: [
+        {
+          id: String,
+          name: String,
+          type: { type: String },
+          amount: Number,
+          frequency: String,
+          dueDate: String,
+          required: Boolean,
+        },
+      ],
+      default: [],
+    },
+  },
+  { timestamps: true }
+)
+
+export const FeeStructure = models.FeeStructure || model<IFeeStructure>("FeeStructure", FeeStructureSchema)
+
+export { AdminUser } from "./AdminUser"
+export { RoleModel } from "./Role"
+export { PanelAssociate } from "./PanelAssociate"
+

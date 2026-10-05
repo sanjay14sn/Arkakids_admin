@@ -21,6 +21,15 @@ export interface IStaff extends Document {
   coordinatorId?: string
   empId?: string
   userId?: string
+  gender?: string
+  employmentType?: string
+  dob?: string
+  specialisation?: string
+  classRole?: string
+  shift?: string
+  emergencyName?: string
+  emergencyRelation?: string
+  emergencyPhone?: string
 }
 
 const StaffSchema = new Schema<IStaff>(
@@ -49,6 +58,15 @@ const StaffSchema = new Schema<IStaff>(
     coordinatorId: { type: String },
     empId: { type: String },
     userId: { type: String },
+    gender: { type: String },
+    employmentType: { type: String },
+    dob: { type: String },
+    specialisation: { type: String },
+    classRole: { type: String },
+    shift: { type: String },
+    emergencyName: { type: String },
+    emergencyRelation: { type: String },
+    emergencyPhone: { type: String },
   },
   { timestamps: true }
 )

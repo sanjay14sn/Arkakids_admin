@@ -156,9 +156,24 @@ export default function RegisterCenterPage() {
     )
   }
 
-  // Handle doc uploads
-  const triggerDocUpload = (key: string, filename: string) => {
-    setUploadedDocs(prev => ({ ...prev, [key]: filename }))
+  // Handle doc uploads (stored in Cloudinary via backend /upload)
+  const [uploadingDocKey, setUploadingDocKey] = React.useState<string | null>(null)
+  const triggerDocUpload = async (key: string, file: File) => {
+    if (file.size > 10 * 1024 * 1024) {
+      setValidationError("Document must be 10 MB or smaller.")
+      return
+    }
+    setUploadingDocKey(key)
+    setValidationError("")
+    try {
+      const uploaded = await api.uploadFile(file, "documents")
+      if (!uploaded?.url) throw new Error("Upload returned no URL")
+      setUploadedDocs(prev => ({ ...prev, [key]: uploaded.url }))
+    } catch (err: any) {
+      setValidationError(err.message || "Document upload failed. Please try again.")
+    } finally {
+      setUploadingDocKey(null)
+    }
   }
 
   const removeDoc = (key: string) => {
@@ -277,11 +292,11 @@ export default function RegisterCenterPage() {
         // Institute Address & Contact Details
         return !!(address1 && country && state && city && pincode && officialEmail && officialMobile)
       case 3:
-        // Primary Admin Account & Play School Setup
-        return !!(adminName && adminEmail && adminMobile && adminUsername && adminPassword && (capacityNoLimit || totalCapacity) && classroomsCount && openingDate && selectedClasses.length > 0 && workingDays.length > 0)
+        // Primary Admin Account
+        return !!(adminName && adminEmail && adminMobile && adminUsername && adminPassword)
       case 4:
-        // Agreement Details & Subscription Package
-        return !!(agreementStartDate && subPlan)
+        // Agreement Details
+        return !!agreementStartDate
       case 5:
         // Documents are optional uploads/pre-valid
         return true
@@ -311,12 +326,39 @@ export default function RegisterCenterPage() {
     }
   }
 
-  const handleNextStep = () => {
+  const [checkingEmail, setCheckingEmail] = React.useState(false)
+
+  const handleNextStep = async () => {
     setHasTriedSubmit(true)
     if (!isStepValid(currentStep)) {
       setValidationError("Please fill in all required fields (marked *) before proceeding to the next step.")
       return
     }
+
+    // Emails entered on this step must not belong to another center
+    const stepEmails: Record<number, string[]> = {
+      1: [ownerEmail],
+      2: [officialEmail],
+      3: [adminEmail],
+    }
+    const norm = (v?: string) => (v || "").trim().toLowerCase()
+    const wanted = (stepEmails[currentStep] || []).map(norm).filter(Boolean)
+    if (wanted.length > 0) {
+      setCheckingEmail(true)
+      try {
+        const existing: any[] = (await api.getCenters().catch(() => [])) || []
+        const clash = existing.find((c) =>
+          [c.email, c.officialEmail, c.ownerEmail, c.adminEmail].map(norm).some((e) => e && wanted.includes(e))
+        )
+        if (clash) {
+          setValidationError(`This email is already registered with "${clash.name}". Please use a different email address.`)
+          return
+        }
+      } finally {
+        setCheckingEmail(false)
+      }
+    }
+
     setValidationError("")
     setHasTriedSubmit(false)
     setCurrentStep(prev => Math.min(prev + 1, 5))
@@ -345,6 +387,17 @@ export default function RegisterCenterPage() {
 
     setSaving(true)
     try {
+      // 0. Reject emails that are already registered with another center
+      const norm = (v?: string) => (v || "").trim().toLowerCase()
+      const wanted = [adminEmail, officialEmail, ownerEmail].map(norm).filter(Boolean)
+      const existing: any[] = (await api.getCenters().catch(() => [])) || []
+      const clash = existing.find((c) =>
+        [c.email, c.officialEmail, c.ownerEmail, c.adminEmail].map(norm).some((e) => e && wanted.includes(e))
+      )
+      if (clash) {
+        throw new Error(`This email is already registered with "${clash.name}". Please use a different email address.`)
+      }
+
       // 1. Create the primary admin account user credentials (role: owner for console auth access)
       try {
         await api.register({
@@ -355,21 +408,71 @@ export default function RegisterCenterPage() {
           tenantId: instName
         })
       } catch (err: any) {
-        if (err.message !== "User already exists") {
-          throw err
+        if (/already exists|already registered|duplicate/i.test(err.message || "")) {
+          throw new Error("This email is already registered. Please use a different email address.")
         }
+        throw err
       }
 
-      // 2. Register the training center
+      // 2. Register the training center with all registration details
       await api.createCenter({
         name: instName,
         tenantName: instName,
-        location: `${city}, ${state}`,
-        manager: adminName,
-        email: adminEmail,
-        phone: adminMobile,
+        location: address1 ? `${address1}, ${city}, ${state}` : `${city}, ${state}`,
+        manager: ownerName || adminName,
+        email: officialEmail || ownerEmail || adminEmail,
+        phone: officialMobile || ownerMobile || adminMobile,
         status: status as any,
-        enabledModules: [...ALL_MODULES]
+        enabledModules: [...ALL_MODULES],
+        centerCode: instCode,
+        academicYear,
+        ownerName,
+        ownerMobile,
+        ownerEmail,
+        ownerAltMobile,
+        ownerDob,
+        ownerPan,
+        ownerAadhaar,
+        ownerPhotoUrl: ownerPhotoName,
+        address1,
+        address2,
+        country,
+        state,
+        city,
+        pincode,
+        gmapsUrl,
+        googleMaps: gmapsUrl,
+        officialEmail,
+        officialMobile,
+        whatsappNumber,
+        whatsapp: whatsappNumber,
+        website,
+        adminName,
+        adminEmail,
+        adminMobile,
+        adminUsername,
+        selectedClasses,
+        totalCapacity,
+        capacityNoLimit,
+        classroomsCount,
+        openingDate,
+        workingDays,
+        operatingHoursStart: openingTime,
+        operatingHoursEnd: closingTime,
+        agreementStartDate,
+        agreementEndDate,
+        franchiseFee,
+        renewalDate,
+        agreementDocName,
+        gstVatNumber: gstNumber,
+        gstNumber,
+        subPlan,
+        subStartDate,
+        subEndDate,
+        studentLimit,
+        staffLimit,
+        paymentStatus,
+        uploadedDocs,
       })
 
       addNotification({
@@ -1022,143 +1125,6 @@ export default function RegisterCenterPage() {
                 </CardContent>
               </Card>
 
-              {/* Card 2: Play School Setup */}
-              <Card className="bg-card border-border/80">
-                <CardHeader>
-                  <CardTitle className="text-sm font-bold flex items-center gap-2 text-primary">
-                    <Building2 className="h-4 w-4" />
-                    Play School Setup
-                  </CardTitle>
-                  <CardDescription className="text-xs font-medium">Configure timing, operating days, and initial classes structure.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-5">
-                  <div className="space-y-2">
-                    <label className="text-xs font-semibold text-muted-foreground block">Active Classes / Programs</label>
-                    <div className="flex flex-wrap gap-2.5">
-                      {["Toddler", "Nursery", "Jr. KG", "Sr. KG"].map(cls => {
-                        const isSelected = selectedClasses.includes(cls)
-                        return (
-                          <button
-                            key={cls}
-                            type="button"
-                            onClick={() => toggleClass(cls)}
-                            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full border text-xs font-bold transition-all duration-200 cursor-pointer ${
-                              isSelected
-                                ? "bg-primary border-primary text-white"
-                                : "bg-card border-border text-slate-600 hover:border-slate-400"
-                            }`}
-                          >
-                            {isSelected && <Check className="h-3.5 w-3.5" />}
-                            {cls}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="grid gap-5 grid-cols-1 md:grid-cols-3">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-muted-foreground">Total Student Capacity</label>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          type={capacityNoLimit ? "text" : "number"}
-                          placeholder={capacityNoLimit ? "No Limit" : "e.g. 120"}
-                          value={capacityNoLimit ? "" : totalCapacity}
-                          onChange={e => setTotalCapacity(e.target.value)}
-                          disabled={capacityNoLimit}
-                          className="text-xs h-10 flex-1"
-                        />
-                        <label className="flex items-center gap-1.5 text-xs font-medium cursor-pointer">
-                          <input 
-                            type="checkbox" 
-                            checked={capacityNoLimit}
-                            onChange={(e) => {
-                              setCapacityNoLimit(e.target.checked);
-                              if (e.target.checked) setTotalCapacity("");
-                            }}
-                            className="rounded border-slate-300 text-primary focus:ring-primary h-3.5 w-3.5"
-                          />
-                          No Limit
-                        </label>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-muted-foreground">Number of Classrooms</label>
-                      <Input
-                        type="number"
-                        placeholder="e.g. 6"
-                        value={classroomsCount}
-                        onChange={e => setClassroomsCount(e.target.value)}
-                        className="text-xs h-10"
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-muted-foreground block">Opening Date</label>
-                      <Input
-                        type="date"
-                        value={openingDate}
-                        onChange={e => setOpeningDate(e.target.value)}
-                        className="text-xs h-10"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid gap-5 grid-cols-1 md:grid-cols-3">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-muted-foreground block">Working Days</label>
-                      <div className="flex gap-1.5 h-10 items-center">
-                        {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(day => {
-                          const isSelected = workingDays.includes(day)
-                          return (
-                            <button
-                              key={day}
-                              type="button"
-                              onClick={() => toggleWorkingDay(day)}
-                              title={day}
-                              className={`w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold transition-all border ${
-                                isSelected
-                                  ? "bg-primary-light border-primary text-primary"
-                                  : "bg-card border-border text-slate-500 hover:border-slate-400"
-                              } cursor-pointer`}
-                            >
-                              {day.charAt(0)}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-muted-foreground">Opening Time</label>
-                      <div className="relative">
-                        <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                        <Input
-                          type="time"
-                          value={openingTime}
-                          onChange={e => setOpeningTime(e.target.value)}
-                          className="text-xs h-10 pl-9"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-muted-foreground">Closing Time</label>
-                      <div className="relative">
-                        <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                        <Input
-                          type="time"
-                          value={closingTime}
-                          onChange={e => setClosingTime(e.target.value)}
-                          className="text-xs h-10 pl-9"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
             </div>
           )}
 
@@ -1264,87 +1230,6 @@ export default function RegisterCenterPage() {
                   </div>
                 </CardContent>
               </Card>
-
-              {/* Card 2: Subscription details */}
-              <Card className="bg-card border-border/80">
-                <CardHeader>
-                  <CardTitle className="text-sm font-bold flex items-center gap-2 text-primary">
-                    <KeyRound className="h-4 w-4" />
-                    Subscription / Package
-                  </CardTitle>
-                  <CardDescription className="text-xs font-medium">Select package plans and staff limits for the CRM system.</CardDescription>
-                </CardHeader>
-                <CardContent className="grid gap-5 grid-cols-1 md:grid-cols-3">
-                  <div className="space-y-1.5">
-                    <Select
-                      label="Plan *"
-                      value={subPlan}
-                      onChange={e => setSubPlan(e.target.value)}
-                      className="text-xs h-10"
-                    >
-                      <option value="Basic">Basic</option>
-                      <option value="Standard">Standard</option>
-                      <option value="Premium">Premium</option>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Select
-                      label="Payment Status"
-                      value={paymentStatus}
-                      onChange={e => setPaymentStatus(e.target.value)}
-                      className="text-xs h-10"
-                    >
-                      <option value="Pending">Pending</option>
-                      <option value="Paid">Paid</option>
-                      <option value="Partially Paid">Partially Paid</option>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-muted-foreground">Subscription Start Date</label>
-                    <Input
-                      type="date"
-                      value={subStartDate}
-                      onChange={e => setSubStartDate(e.target.value)}
-                      className="text-xs h-10"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-muted-foreground">Subscription End Date</label>
-                    <Input
-                      type="date"
-                      value={subEndDate}
-                      onChange={e => setSubEndDate(e.target.value)}
-                      className="text-xs h-10"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-muted-foreground">Student Limit</label>
-                    <Input
-                      type="number"
-                      placeholder="e.g. 200"
-                      value={studentLimit}
-                      onChange={e => setStudentLimit(e.target.value)}
-                      className="text-xs h-10"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-muted-foreground">Number of Staff Users</label>
-                    <Input
-                      type="number"
-                      placeholder="e.g. 15"
-                      value={staffLimit}
-                      onChange={e => setStaffLimit(e.target.value)}
-                      className="text-xs h-10"
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
             </div>
           )}
 
@@ -1372,14 +1257,17 @@ export default function RegisterCenterPage() {
                       { key: "other", label: "Other Documents" }
                     ].map(docItem => {
                       const fileName = uploadedDocs[docItem.key]
+                      const isUploading = uploadingDocKey === docItem.key
                       return (
                         <div key={docItem.key} className="p-4 rounded-xl border border-border bg-secondary/15 flex flex-col gap-2 justify-between min-h-[90px]">
                           <span className="text-[11px] font-bold text-foreground block">{docItem.label}</span>
                           <div className="flex items-center gap-2 justify-between">
-                            {fileName ? (
+                            {isUploading ? (
+                              <span className="text-xs text-muted-foreground italic">Uploading…</span>
+                            ) : fileName ? (
                               <div className="flex items-center gap-1.5 min-w-0 flex-1">
                                 <FileText className="h-4 w-4 text-primary shrink-0" />
-                                <span className="text-xs text-slate-700 truncate">{fileName}</span>
+                                <span className="text-xs text-slate-700 truncate">{decodeURIComponent(fileName.split("/").pop() || fileName)}</span>
                               </div>
                             ) : (
                               <span className="text-xs text-muted-foreground italic">No file chosen</span>
@@ -1391,10 +1279,11 @@ export default function RegisterCenterPage() {
                                 <input 
                                   type="file" 
                                   className="hidden" 
+                                  disabled={isUploading}
                                   onChange={(e) => {
-                                    if (e.target.files && e.target.files[0]) {
-                                      triggerDocUpload(docItem.key, e.target.files[0].name)
-                                    }
+                                    const file = e.target.files?.[0]
+                                    e.target.value = ""
+                                    if (file) triggerDocUpload(docItem.key, file)
                                   }}
                                 />
                               </label>
@@ -1482,6 +1371,7 @@ export default function RegisterCenterPage() {
                   type="button"
                   variant="primary"
                   onClick={handleNextStep}
+                  isLoading={checkingEmail}
                   icon={ArrowRight}
                   iconPosition="right"
                 >

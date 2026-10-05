@@ -1,5 +1,4 @@
 "use client"
-
 import * as React from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import {
@@ -9,6 +8,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  Calendar,
   CreditCard,
   Download,
   IndianRupee,
@@ -18,6 +18,7 @@ import {
   Settings,
   X,
   Trash2,
+  FileText,
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
@@ -91,7 +92,7 @@ type TabId = (typeof TABS)[number]["id"]
 
 export function FeesModule() {
   const { user, addNotification } = useStore()
-  const { state, update, ready } = usePreschoolFees()
+  const { state, update, ready, refetch } = usePreschoolFees()
   const router = useRouter()
   const pathname = usePathname()
   const params = useSearchParams()
@@ -123,6 +124,7 @@ export function FeesModule() {
   const [assignOpen, setAssignOpen] = React.useState(false)
   const [discountOpen, setDiscountOpen] = React.useState(false)
   const [studentPage, setStudentPage] = React.useState(1)
+  const [deleteStructureId, setDeleteStructureId] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     if (searchFromUrl) setQuery(searchFromUrl)
@@ -134,6 +136,20 @@ export function FeesModule() {
     if (nextStudent) next.set("student", nextStudent)
     router.replace(`${pathname}?${next.toString()}`)
     if (nextStudent) setStudentId(nextStudent)
+  }
+
+  const syncStudentToBackend = async (nextState: typeof state, sid: string) => {
+    try {
+      const summary = studentSummary(nextState, sid)
+      if (summary) {
+        await api.updateStudentFees(sid, {
+          feesTotal: summary.total,
+          feesPaid: summary.paid
+        })
+      }
+    } catch (e) {
+      console.error("Failed to sync student fees to backend", e)
+    }
   }
 
   const stats = dashboardStats(state)
@@ -219,10 +235,13 @@ export function FeesModule() {
       description: `${result.payment.receiptNo} · ${formatCurrency(result.payment.amount)}`,
       type: "fees",
     })
+    syncStudentToBackend(result.state, studentId)
   }
 
   const confirmCancel = () => {
     if (!cancelId) return
+    const payment = state.payments.find(p => p.id === cancelId)
+    const sid = payment?.studentId
     const result = cancelPayment(state, cancelId, actor)
     setCancelId(null)
     if (!result.ok) {
@@ -231,6 +250,7 @@ export function FeesModule() {
     }
     update(result.state)
     addNotification({ title: "Payment cancelled", description: "Balances were recalculated.", type: "fees" })
+    if (sid) syncStudentToBackend(result.state, sid)
   }
 
   const remind = (invoice: FeeInvoice) => {
@@ -264,9 +284,8 @@ export function FeesModule() {
               key={`fee-tab-${item.id}`}
               type="button"
               onClick={() => setTab(item.id)}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium cursor-pointer ${
-                tab === item.id ? "bg-card text-primary shadow-xs border border-border" : "text-muted-foreground hover:text-primary hover:bg-accent/70"
-              }`}
+              className={`rounded-md px-3 py-1.5 text-xs font-medium cursor-pointer ${tab === item.id ? "bg-card text-primary shadow-xs border border-border" : "text-muted-foreground hover:text-primary hover:bg-accent/70"
+                }`}
             >
               {item.label}
             </button>
@@ -298,7 +317,7 @@ export function FeesModule() {
               <p className="mt-1 text-[10px] text-rose-600/80 font-bold uppercase tracking-wider">{stats.pendingStudents} students pending</p>
             </div>
           </div>
-          
+
           {/* Today Collection Badge */}
           <div className="inline-flex items-center gap-3 px-5 py-2.5 rounded-full border border-border bg-card shadow-xs">
             <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary">
@@ -345,63 +364,87 @@ export function FeesModule() {
               <Plus className="h-4 w-4 mr-2" /> New structure
             </Button>
           </div>
-          
-          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-            {state.structures.map((structure) => {
-              const lines = structureLines(structure, true)
-              return (
-                <div key={structure.id} className="rounded-3xl border border-border bg-card shadow-xs overflow-hidden flex flex-col hover:shadow-md transition-shadow">
-                  <div className="p-6 border-b border-border/50 bg-gradient-to-br from-primary/5 to-transparent relative">
-                    <div className="absolute top-6 right-6">
-                      <Badge variant={structure.status === "active" ? "success" : "secondary"} className="uppercase text-[9px] tracking-wider font-bold shadow-xs">
-                        {structure.status}
-                      </Badge>
+
+
+          {state.structures.length === 0 ? (
+            <div className="flex flex-col items-center justify-center p-12 border border-dashed border-border rounded-xl bg-card/50 text-center">
+              <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                <FileText className="h-6 w-6 text-primary" />
+              </div>
+              <h3 className="text-lg font-bold text-foreground tracking-tight">No fee structures yet</h3>
+              <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+                Create your first fee structure to define templates for class-wise billing, including tuition, transport, and more.
+              </p>
+              <Button onClick={() => { setEditingStructure(null); setStructureOpen(true) }} className="mt-6 shadow-xs">
+                <Plus className="h-4 w-4 mr-2" /> Create structure
+              </Button>
+            </div>
+          ) : (
+            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+              {state.structures.map((structure) => {
+                const lines = structureLines(structure, true)
+                return (
+                  <div key={structure.id} className="rounded-3xl border border-border bg-card shadow-xs overflow-hidden flex flex-col hover:shadow-md transition-shadow">
+                    <div className="p-6 border-b border-border/50 bg-gradient-to-br from-primary/5 to-transparent relative">
+                      <div className="absolute top-6 right-6">
+                        <Badge variant={structure.status === "active" ? "success" : "secondary"} className="uppercase text-[9px] tracking-wider font-bold shadow-xs">
+                          {structure.status}
+                        </Badge>
+                      </div>
+                      <h4 className="text-xl font-black tracking-tight text-foreground pr-16 truncate">{structure.className}</h4>
+                      <p className="text-xs font-bold text-primary/80 mt-1 uppercase tracking-wider">{structure.academicYear} · {structure.branch}</p>
+
+                      <div className="mt-6 flex items-baseline gap-1">
+                        <span className="text-3xl font-black tracking-tight">{formatCurrency(structureTotal(structure, true))}</span>
+                        <span className="text-xs text-muted-foreground font-bold">/ yr</span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground font-semibold mt-1">
+                        incl. transport <span className="opacity-70">(without: {formatCurrency(structureTotal(structure, false))})</span>
+                      </p>
                     </div>
-                    <h4 className="text-xl font-black tracking-tight text-foreground pr-16 truncate">{structure.className}</h4>
-                    <p className="text-xs font-bold text-primary/80 mt-1 uppercase tracking-wider">{structure.academicYear} · {structure.branch}</p>
-                    
-                    <div className="mt-6 flex items-baseline gap-1">
-                      <span className="text-3xl font-black tracking-tight">{formatCurrency(structureTotal(structure, true))}</span>
-                      <span className="text-xs text-muted-foreground font-bold">/ yr</span>
-                    </div>
-                    <p className="text-[10px] text-muted-foreground font-semibold mt-1">
-                      incl. transport <span className="opacity-70">(without: {formatCurrency(structureTotal(structure, false))})</span>
-                    </p>
-                  </div>
-                  
-                  <div className="flex-1 p-6 space-y-4 bg-card/40">
-                    <div className="space-y-4">
-                      {lines.map((item) => (
-                        <div key={`${structure.id}-${item.id}`} className="flex items-start justify-between gap-3 text-sm">
-                          <div className="flex items-start gap-2.5">
-                            <CheckCircle2 className={`h-4 w-4 mt-0.5 shrink-0 ${item.required ? 'text-primary' : 'text-muted-foreground/40'}`} />
-                            <div>
-                              <p className="font-bold text-foreground leading-tight">{item.name}</p>
-                              <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mt-0.5">
-                                {frequencyLabel(item.frequency)} {item.required ? "" : "· Opt"}
-                              </p>
+
+                    <div className="flex-1 p-6 space-y-4 bg-card/40">
+                      <div className="space-y-4">
+                        {lines.map((item) => (
+                          <div key={`${structure.id}-${item.id}`} className="flex items-start justify-between gap-3 text-sm">
+                            <div className="flex items-start gap-2.5">
+                              <CheckCircle2 className={`h-4 w-4 mt-0.5 shrink-0 ${item.required ? 'text-primary' : 'text-muted-foreground/40'}`} />
+                              <div>
+                                <p className="font-bold text-foreground leading-tight">{item.name}</p>
+                                <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mt-0.5">
+                                  {frequencyLabel(item.frequency)} {item.required ? "" : "· Opt"}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <p className="font-bold text-foreground">{formatCurrency(item.amount)}</p>
+                              {(item.frequency === "monthly" || item.frequency === "term") && (
+                                <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mt-0.5">{formatCurrency(item.yearly)}/yr</p>
+                              )}
                             </div>
                           </div>
-                          <div className="text-right shrink-0">
-                            <p className="font-bold text-foreground">{formatCurrency(item.amount)}</p>
-                            {(item.frequency === "monthly" || item.frequency === "term") && (
-                              <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mt-0.5">{formatCurrency(item.yearly)}/yr</p>
-                            )}
-                          </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="p-4 border-t border-border/50 bg-muted/10 flex gap-2">
+                      <Button variant="outline" className="flex-1 text-xs font-bold bg-card" onClick={() => { setEditingStructure(structure); setStructureOpen(true) }}>
+                        Edit Structure
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
+                        onClick={() => setDeleteStructureId(structure.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
-                  
-                  <div className="p-4 border-t border-border/50 bg-muted/10">
-                    <Button variant="outline" className="w-full text-xs font-bold bg-card" onClick={() => { setEditingStructure(structure); setStructureOpen(true) }}>
-                      Edit Structure
-                    </Button>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -636,12 +679,50 @@ export function FeesModule() {
         open={structureOpen}
         onClose={() => setStructureOpen(false)}
         initial={editingStructure}
-        onSave={(structure) => {
-          update(upsertStructure(state, structure, actor))
-          setStructureOpen(false)
-          addNotification({ title: "Fee structure saved", description: `${structure.className} · ${structure.academicYear}`, type: "fees" })
+        onSave={async (structure) => {
+          try {
+            if (editingStructure && editingStructure.id && !editingStructure.id.startsWith("str-")) {
+              await api.updateFeeStructure(editingStructure.id, structure)
+            } else {
+              await api.createFeeStructure(structure)
+            }
+            await refetch?.()
+            setStructureOpen(false)
+            addNotification({ title: "Fee structure saved", description: `${structure.className} · ${structure.academicYear}`, type: "system" })
+          } catch (err: any) {
+            console.error(err)
+            addNotification({ title: "Error", description: err.message || "Failed to save fee structure", type: "system" })
+          }
         }}
       />
+
+      <Dialog
+        isOpen={Boolean(deleteStructureId)}
+        onClose={() => setDeleteStructureId(null)}
+        title="Delete Fee Structure"
+        description="Are you sure you want to delete this fee structure? This action cannot be undone."
+      >
+        <div className="flex justify-end gap-2 pt-4">
+          <Button variant="outline" size="sm" onClick={() => setDeleteStructureId(null)}>Cancel</Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={async () => {
+              if (!deleteStructureId) return
+              try {
+                await api.deleteFeeStructure(deleteStructureId)
+                await refetch?.()
+                addNotification({ title: "Deleted", description: "Fee structure removed.", type: "system" })
+                setDeleteStructureId(null)
+              } catch (err: any) {
+                addNotification({ title: "Error", description: err.message || "Failed to delete fee structure", type: "system" })
+              }
+            }}
+          >
+            Delete
+          </Button>
+        </div>
+      </Dialog>
 
       <AssignDialog
         open={assignOpen}
@@ -656,6 +737,7 @@ export function FeesModule() {
           update(result.state)
           setAssignOpen(false)
           addNotification({ title: "Fees assigned", description: "Dues were generated for this child.", type: "fees" })
+          syncStudentToBackend(result.state, sid)
         }}
       />
 
@@ -672,6 +754,7 @@ export function FeesModule() {
           update(result.state)
           setDiscountOpen(false)
           addNotification({ title: "Concession approved", description: formatCurrency(result.discount.amount), type: "fees" })
+          syncStudentToBackend(result.state, sid)
         }}
       />
 
@@ -1025,7 +1108,23 @@ function StructureDialog({
         <div className="grid sm:grid-cols-4 gap-3">
           <div className="space-y-1.5">
             <label className="text-[10px] uppercase text-muted-foreground font-semibold">Academic Year</label>
-            <Input value={year} onChange={(e) => setYear(e.target.value)} placeholder="e.g. 2026-27" className="h-9 text-xs" />
+            <div className="relative">
+              <Input value={year} onChange={(e) => setYear(e.target.value)} placeholder="e.g. 2026-27" className="h-9 text-xs pr-9" />
+              <div className="absolute right-0 top-0 h-9 w-9 flex items-center justify-center text-muted-foreground hover:text-foreground">
+                <Calendar className="w-4 h-4" />
+                <input
+                  type="date"
+                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                  onChange={(e) => {
+                    const d = new Date(e.target.value)
+                    if (!isNaN(d.getTime())) {
+                      const y = d.getFullYear()
+                      setYear(`${y}-${(y + 1).toString().slice(2)}`)
+                    }
+                  }}
+                />
+              </div>
+            </div>
           </div>
           <div className="space-y-1.5">
             <label className="text-[10px] uppercase text-muted-foreground font-semibold">Class / Program</label>
@@ -1050,54 +1149,66 @@ function StructureDialog({
 
         {/* Components */}
         <div className="space-y-3">
-          {components.map((item, index) => (
-            <div key={item.id} className="relative rounded-lg border border-border/60 bg-muted/20 p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="text-[11px] font-bold text-foreground uppercase tracking-wide">Fee Head {index + 1}</h4>
-                <Button 
-                  size="sm" 
-                  variant="ghost" 
-                  className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive transition-colors" 
-                  onClick={() => setComponents(prev => prev.filter((_, i) => i !== index))}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
+          {components.length === 0 ? (
+            <div className="flex flex-col items-center justify-center p-8 border border-dashed border-border rounded-xl bg-card/30 text-center">
+              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center mb-3">
+                <FileText className="h-5 w-5 text-primary" />
               </div>
-              <div className="grid sm:grid-cols-3 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] text-muted-foreground font-medium">Fee Name</label>
-                  <Input value={item.name} onChange={(e) => setComponents((prev) => prev.map((row, i) => i === index ? { ...row, name: e.target.value } : row))} className="h-8 text-xs" />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] text-muted-foreground font-medium">Fee Category</label>
-                  <Select value={item.type} onChange={(e) => setComponents((prev) => prev.map((row, i) => i === index ? { ...row, type: e.target.value as FeeTypeId } : row))} className="h-8 text-xs">
-                    {FEE_TYPES.map((type) => <option key={`${item.id}-${type.id}`} value={type.id}>{type.label}</option>)}
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] text-muted-foreground font-medium">Amount (₹)</label>
-                  <Input type="number" value={item.amount} onChange={(e) => setComponents((prev) => prev.map((row, i) => i === index ? { ...row, amount: Number(e.target.value) || 0 } : row))} className="h-8 text-xs" />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] text-muted-foreground font-medium">Frequency</label>
-                  <Select value={item.frequency} onChange={(e) => setComponents((prev) => prev.map((row, i) => i === index ? { ...row, frequency: e.target.value as FrequencyId } : row))} className="h-8 text-xs">
-                    {FREQUENCIES.map((freq) => <option key={`${item.id}-${freq.id}`} value={freq.id}>{freq.label}</option>)}
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] text-muted-foreground font-medium">First Due Date</label>
-                  <Input type="date" value={item.dueDate} onChange={(e) => setComponents((prev) => prev.map((row, i) => i === index ? { ...row, dueDate: e.target.value } : row))} className="h-8 text-xs" />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] text-muted-foreground font-medium">Requirement</label>
-                  <Select value={item.required ? "required" : "optional"} onChange={(e) => setComponents((prev) => prev.map((row, i) => i === index ? { ...row, required: e.target.value === "required" } : row))} className="h-8 text-xs">
-                    <option value="required">Required</option>
-                    <option value="optional">Optional</option>
-                  </Select>
-                </div>
-              </div>
+              <h4 className="text-sm font-semibold text-foreground">No fee heads added</h4>
+              <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+                Add tuition fees, admission fees, or any other charges applicable for this structure.
+              </p>
             </div>
-          ))}
+          ) : (
+            components.map((item, index) => (
+              <div key={item.id} className="relative rounded-lg border border-border/60 bg-muted/20 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-[11px] font-bold text-foreground uppercase tracking-wide">Fee Head {index + 1}</h4>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive transition-colors"
+                    onClick={() => setComponents(prev => prev.filter((_, i) => i !== index))}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+                <div className="grid sm:grid-cols-3 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] text-muted-foreground font-medium">Fee Name</label>
+                    <Input value={item.name} onChange={(e) => setComponents((prev) => prev.map((row, i) => i === index ? { ...row, name: e.target.value } : row))} className="h-8 text-xs" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] text-muted-foreground font-medium">Fee Category</label>
+                    <Select value={item.type} onChange={(e) => setComponents((prev) => prev.map((row, i) => i === index ? { ...row, type: e.target.value as FeeTypeId } : row))} className="h-8 text-xs">
+                      {FEE_TYPES.map((type) => <option key={`${item.id}-${type.id}`} value={type.id}>{type.label}</option>)}
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] text-muted-foreground font-medium">Amount (₹)</label>
+                    <Input type="number" value={item.amount} onChange={(e) => setComponents((prev) => prev.map((row, i) => i === index ? { ...row, amount: Number(e.target.value) || 0 } : row))} className="h-8 text-xs" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] text-muted-foreground font-medium">Frequency</label>
+                    <Select value={item.frequency} onChange={(e) => setComponents((prev) => prev.map((row, i) => i === index ? { ...row, frequency: e.target.value as FrequencyId } : row))} className="h-8 text-xs">
+                      {FREQUENCIES.map((freq) => <option key={`${item.id}-${freq.id}`} value={freq.id}>{freq.label}</option>)}
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] text-muted-foreground font-medium">First Due Date</label>
+                    <Input type="date" value={item.dueDate} onChange={(e) => setComponents((prev) => prev.map((row, i) => i === index ? { ...row, dueDate: e.target.value } : row))} className="h-8 text-xs" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] text-muted-foreground font-medium">Requirement</label>
+                    <Select value={item.required ? "required" : "optional"} onChange={(e) => setComponents((prev) => prev.map((row, i) => i === index ? { ...row, required: e.target.value === "required" } : row))} className="h-8 text-xs">
+                      <option value="required">Required</option>
+                      <option value="optional">Optional</option>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
         <Button size="sm" variant="outline" icon={Plus} onClick={addComponent}>Add fee head</Button>
         <div className="flex justify-end gap-2">
@@ -1107,7 +1218,7 @@ function StructureDialog({
             onClick={() => onSave({
               id: initial?.id || `str-${Date.now()}`,
               academicYear: year.trim() || ACADEMIC_YEAR,
-              branch: BRANCHES[0],
+              branch: initial?.branch || "",
               className: className.trim() || "Class",
               status,
               components,

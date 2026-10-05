@@ -58,6 +58,7 @@ export interface Student {
   installmentSchedule?: Array<{ amount: number; dueDate: string; label?: string }>
   password?: string
   vaccinations?: Array<{ name: string; date: string; due?: string; status?: "Done" | "Pending" }>
+  branch?: string
 }
 
 const STUDENTS_PAGE_SIZE = 10
@@ -78,6 +79,7 @@ function mapStudentFromDB(d: any): Student {
     attendanceRate: d.attendanceRate ?? 0,
     phone: d.phone || d.parentPhone || "",
     email: d.email || d.parentEmail || "",
+    branch: d.tenantId || d.tenantName || "Main",
   }
 }
 
@@ -87,7 +89,8 @@ export default function StudentsPage() {
   const studentsAtCapacity = atCapacity("students")
   const isTrainer = user?.role === "trainer"
   const isOwner = user?.role === "owner"
-  const showCourseBatchFilters = isTrainer || isOwner
+  const isSuperAdmin = user?.role === "super_admin"
+  const showCourseBatchFilters = isTrainer || isOwner || isSuperAdmin
   const [students, setStudents] = React.useState<Student[]>([])
   const [courses, setCourses] = React.useState<any[]>([])
   const [batches, setBatches] = React.useState<any[]>([])
@@ -107,6 +110,7 @@ export default function StudentsPage() {
   const [selectedIds, setSelectedIds] = React.useState<string[]>([])
   const [statusUpdatingId, setStatusUpdatingId] = React.useState<string | null>(null)
   const [isAddOpen, setIsAddOpen] = React.useState(false)
+  const [addBatchId, setAddBatchId] = React.useState("")
 
   // Wizard States
   const [addStep, setAddStep] = React.useState(1)
@@ -132,6 +136,7 @@ export default function StudentsPage() {
   const [editEmail, setEditEmail] = React.useState("")
   const [editPhone, setEditPhone] = React.useState("")
   const [editCourse, setEditCourse] = React.useState("")
+  const [editBatchId, setEditBatchId] = React.useState("")
   const [editDob, setEditDob] = React.useState("")
   const [editGender, setEditGender] = React.useState("Female")
   const [editParentName, setEditParentName] = React.useState("")
@@ -182,6 +187,7 @@ export default function StudentsPage() {
   const [filterStatus, setFilterStatus] = React.useState("all")
   const [filterCourse, setFilterCourse] = React.useState("all")
   const [filterBatch, setFilterBatch] = React.useState("all")
+  const [filterBranch, setFilterBranch] = React.useState("all")
   const [selectedStudent, setSelectedStudent] = React.useState<Student | null>(null)
 
   const getStudentBatches = React.useCallback(
@@ -353,6 +359,10 @@ export default function StudentsPage() {
       if (!matchesBatch) return false
     }
 
+    if (isSuperAdmin && filterBranch !== "all") {
+      if (student.branch !== filterBranch) return false
+    }
+
     return matchesSearch && matchesStatus
   })
 
@@ -361,7 +371,7 @@ export default function StudentsPage() {
 
   React.useEffect(() => {
     setCurrentPage(1)
-  }, [searchQuery, filterStatus, filterCourse, filterBatch])
+  }, [searchQuery, filterStatus, filterCourse, filterBatch, filterBranch])
 
   const totalPages = Math.max(1, Math.ceil(filteredStudents.length / STUDENTS_PAGE_SIZE))
 
@@ -448,6 +458,28 @@ export default function StudentsPage() {
           installmentsCount: Number(addInstallmentCount),
         },
       })
+      
+      let updatedBatchesData = null
+      if (addBatchId) {
+        const batch = batches.find((b: any) => String(b.id || b._id) === addBatchId)
+        if (batch) {
+          const studentNames = [...(batch.studentNames || [])]
+          if (!studentNames.some(n => n.trim().toLowerCase() === newStudent.name.trim().toLowerCase())) {
+            studentNames.push(newStudent.name)
+            await api.updateBatch(addBatchId, {
+              studentNames,
+              enrolled: studentNames.length,
+              studentLmsAccess: {
+                ...(batch.studentLmsAccess || {}),
+                [newStudent.name]: true,
+              },
+            })
+            updatedBatchesData = await api.getBatches().catch(() => [])
+            setBatches(updatedBatchesData || [])
+          }
+        }
+      }
+
       setStudents([mapStudentFromDB(newStudent), ...students])
       setIsAddOpen(false)
       addNotification({
@@ -464,6 +496,7 @@ export default function StudentsPage() {
       setPhone("")
       setPaymentScheme("full")
       setCourse(courses.length > 0 ? courses[0].name : "")
+      setAddBatchId("")
       setFeesTotal("1800")
       setFeesPaid("1800")
       setAddInstallmentCount("3")
@@ -489,6 +522,8 @@ export default function StudentsPage() {
     setEditEmail(student.email || "")
     setEditPhone(student.phone || student.parentPhone || student.guardian?.phone || "")
     setEditCourse(student.course || (courses.length > 0 ? courses[0].name : "Playgroup & Toddlers"))
+    const studentBatches = getStudentBatches(student)
+    setEditBatchId(studentBatches.length > 0 ? String(studentBatches[0].id || studentBatches[0]._id) : "")
     setEditDob(student.dateOfBirth ? String(student.dateOfBirth).slice(0, 10) : "")
     setEditGender(student.gender ? (student.gender.charAt(0).toUpperCase() + student.gender.slice(1)) : "Female")
     setEditParentName(student.parentName || student.guardian?.name || "")
@@ -542,6 +577,49 @@ export default function StudentsPage() {
       }
 
       const updatedDB = await api.updateStudent(editingStudent.id, payload)
+      
+      const currentBatches = getStudentBatches(editingStudent)
+      const currentBatchId = currentBatches.length > 0 ? String(currentBatches[0].id || currentBatches[0]._id) : ""
+      let batchesChanged = false
+
+      if (editBatchId !== currentBatchId) {
+        if (currentBatchId) {
+          const oldBatch = batches.find((b: any) => String(b.id || b._id) === currentBatchId)
+          if (oldBatch) {
+            const newNames = (oldBatch.studentNames || []).filter((n: string) => n.trim().toLowerCase() !== editingStudent.name.trim().toLowerCase())
+            await api.updateBatch(currentBatchId, { studentNames: newNames, enrolled: newNames.length })
+            batchesChanged = true
+          }
+        }
+        if (editBatchId) {
+          const newBatch = batches.find((b: any) => String(b.id || b._id) === editBatchId)
+          if (newBatch) {
+            const newNames = [...(newBatch.studentNames || [])]
+            if (!newNames.some(n => n.trim().toLowerCase() === editName.trim().toLowerCase())) {
+              newNames.push(editName.trim())
+              await api.updateBatch(editBatchId, { studentNames: newNames, enrolled: newNames.length })
+              batchesChanged = true
+            }
+          }
+        }
+      } else if (editName.trim() !== editingStudent.name.trim()) {
+        if (currentBatchId) {
+          const batch = batches.find((b: any) => String(b.id || b._id) === currentBatchId)
+          if (batch) {
+            const newNames = (batch.studentNames || []).map((n: string) => 
+              n.trim().toLowerCase() === editingStudent.name.trim().toLowerCase() ? editName.trim() : n
+            )
+            await api.updateBatch(currentBatchId, { studentNames: newNames })
+            batchesChanged = true
+          }
+        }
+      }
+
+      if (batchesChanged) {
+        const batchesData = await api.getBatches().catch(() => [])
+        setBatches(batchesData || [])
+      }
+
       const updated = mapStudentFromDB(updatedDB)
 
       setStudents((prev) => prev.map((s) => (s.id === editingStudent.id ? updated : s)))
@@ -946,7 +1024,7 @@ export default function StudentsPage() {
       )}
 
         {/* Filter and Search Bar */}
-        <div className={`grid gap-3 bg-card p-4 rounded-xl border border-border ${showCourseBatchFilters ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+        <div className={`grid gap-3 bg-card p-4 rounded-xl border border-border ${showCourseBatchFilters ? (isSuperAdmin ? "sm:grid-cols-4" : "sm:grid-cols-3") : "sm:grid-cols-2"}`}>
           <div className="relative">
             <div className="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground">
               <Search className="h-4 w-4" />
@@ -962,6 +1040,20 @@ export default function StudentsPage() {
 
         {showCourseBatchFilters && (
           <>
+            {isSuperAdmin && (
+              <Select
+                value={filterBranch}
+                onChange={(e) => {
+                  setFilterBranch(e.target.value)
+                }}
+                className="h-9 text-xs"
+              >
+                <option value="all">All Branches</option>
+                {Array.from(new Set(students.map(s => s.branch).filter(Boolean))).sort().map((bName) => (
+                  <option key={bName} value={bName}>{bName}</option>
+                ))}
+              </Select>
+            )}
             <Select
               value={filterCourse}
               onChange={(e) => {
@@ -1013,9 +1105,9 @@ export default function StudentsPage() {
                   <th className="p-4">Student</th>
                   {!isTrainer && <th className="p-4">Next Due Date</th>}
                   <th className="p-4">Course</th>
-                  <th className="p-4">Batch</th>
-                  <th className="p-4">Attendance</th>
-                  {!isTrainer && <th className="p-4">Paid / Total Dues</th>}
+                  <th className="p-4">Institute Name</th>
+                  {isOwner && <th className="p-4">Attendance</th>}
+                  {isOwner && <th className="p-4">Paid / Total Dues</th>}
                   <th className="p-4 font-semibold text-center">Actions</th>
                   <th className="p-4 text-right">Enrollment Date</th>
                 </tr>
@@ -1023,7 +1115,7 @@ export default function StudentsPage() {
               <tbody className="divide-y divide-border/60">
                 {paginatedStudents.length === 0 ? (
                   <tr>
-                    <td colSpan={isTrainer ? 6 : 8} className="py-12 text-center text-muted-foreground">
+                    <td colSpan={isOwner ? 9 : isTrainer ? 5 : 7} className="py-12 text-center text-muted-foreground">
                       No student records matched the filters.
                     </td>
                   </tr>
@@ -1081,21 +1173,23 @@ export default function StudentsPage() {
                           </td>
                         )}
                         <td className="p-4 text-foreground">{displayCourse}</td>
-                        <td className="p-4 text-foreground">{displayBatch}</td>
-                        <td className="p-4">
-                          <div className="flex items-center gap-2">
-                            <span className={`font-semibold ${student.attendanceRate < 75 ? "text-red-500" : "text-foreground"}`}>
-                              {student.attendanceRate}%
-                            </span>
-                            <div className="h-1.5 w-16 bg-secondary rounded-full overflow-hidden">
-                              <div 
-                                className={`h-full ${student.attendanceRate < 75 ? "bg-red-500" : "bg-primary"}`} 
-                                style={{ width: `${student.attendanceRate}%` }}
-                              />
+                        <td className="p-4 text-foreground">{student.branch || "—"}</td>
+                        {isOwner && (
+                          <td className="p-4">
+                            <div className="flex items-center gap-2">
+                              <span className={`font-semibold ${student.attendanceRate < 75 ? "text-red-500" : "text-foreground"}`}>
+                                {student.attendanceRate}%
+                              </span>
+                              <div className="h-1.5 w-16 bg-secondary rounded-full overflow-hidden">
+                                <div 
+                                  className={`h-full ${student.attendanceRate < 75 ? "bg-red-500" : "bg-primary"}`} 
+                                  style={{ width: `${student.attendanceRate}%` }}
+                                />
+                              </div>
                             </div>
-                          </div>
-                        </td>
-                        {!isTrainer && (
+                          </td>
+                        )}
+                        {isOwner && (
                           <td className="p-4 font-semibold text-foreground">
                             {formatCurrency(student.feesPaid)} / {formatCurrency(student.feesTotal)}
                           </td>
@@ -1571,7 +1665,7 @@ export default function StudentsPage() {
                       {/* Header metrics grid */}
                       <div className="grid grid-cols-3 gap-2 text-center text-xs font-semibold">
                         <div className="p-3 bg-emerald-500/5 text-emerald-500 rounded-xl border border-emerald-500/10">
-                          <p className="text-lg font-black">{stats.present + stats.late}</p>
+                          <p className="text-lg font-black">{stats.present}</p>
                           <p className="text-[10px] text-muted-foreground font-normal">Attended Days</p>
                         </div>
                         <div className="p-3 bg-red-500/5 text-red-500 rounded-xl border border-red-500/10">
@@ -1588,14 +1682,6 @@ export default function StudentsPage() {
                         <div className="flex items-start gap-2 p-3 rounded-lg border border-amber-500/20 bg-amber-500/5 text-xs text-amber-700 dark:text-amber-400">
                           <ShieldAlert className="h-4.5 w-4.5 shrink-0" />
                           <span>This student is not allocated to a batch. Go to the Info tab and assign a batch first.</span>
-                        </div>
-                      )}
-
-                      {/* Warning Banner */}
-                      {stats.hasLogs && stats.rate < 75 && (
-                        <div className="flex items-start gap-2 p-3 rounded-lg border border-red-500/20 bg-red-500/5 text-xs text-red-600 dark:text-red-400">
-                          <ShieldAlert className="h-4.5 w-4.5 shrink-0" />
-                          <span>Warning: Attendance rate has dropped below safety limits (75%). Action required.</span>
                         </div>
                       )}
 
@@ -1873,7 +1959,7 @@ export default function StudentsPage() {
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-muted-foreground">Class/Grade <span className="text-red-500">*</span></label>
-                  <Select value={course} onChange={(e) => setCourse(e.target.value)} className="bg-card text-xs h-9.5" required>
+                  <Select value={course} onChange={(e) => { setCourse(e.target.value); setAddBatchId(""); }} className="bg-card text-xs h-9.5" required>
                     {courses.map((c, index) => <option key={c.id || c._id || `course-opt-${index}`} value={c.name}>{c.name}</option>)}
                   </Select>
                 </div>
@@ -1881,16 +1967,25 @@ export default function StudentsPage() {
 
               <div className="grid grid-cols-2 gap-3.5">
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">Parent/Guardian Name <span className="text-red-500">*</span></label>
-                  <Input placeholder="Parent name" value={parentName} onChange={(e) => setParentName(e.target.value)} className="bg-card text-xs h-9.5" required />
+                  <label className="text-xs font-semibold text-muted-foreground">Batch</label>
+                  <Select value={addBatchId} onChange={(e) => setAddBatchId(e.target.value)} className="bg-card text-xs h-9.5">
+                    <option value="">No Batch Assigned</option>
+                    {batches.filter(b => b.courseName === course).map(b => (
+                       <option key={b.id || b._id} value={b.id || b._id}>{b.code}</option>
+                    ))}
+                  </Select>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">Parent Mobile Number <span className="text-red-500">*</span></label>
-                  <Input placeholder="+1 555-0123" value={phone} onChange={(e) => setPhone(e.target.value)} className="bg-card text-xs h-9.5" required />
+                  <label className="text-xs font-semibold text-muted-foreground">Parent/Guardian Name <span className="text-red-500">*</span></label>
+                  <Input placeholder="Parent name" value={parentName} onChange={(e) => setParentName(e.target.value)} className="bg-card text-xs h-9.5" required />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3.5">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Parent Mobile Number <span className="text-red-500">*</span></label>
+                  <Input placeholder="+1 555-0123" value={phone} onChange={(e) => setPhone(e.target.value)} className="bg-card text-xs h-9.5" required />
+                </div>
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-muted-foreground">Relationship <span className="text-red-500">*</span></label>
                   <Select value={parentRelation} onChange={(e) => setParentRelation(e.target.value)} className="bg-card text-xs h-9.5" required>
@@ -1955,15 +2050,9 @@ export default function StudentsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3.5">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">Previous School</label>
-                  <Input placeholder="Name of previous school (if any)" value={prevSchool} onChange={(e) => setPrevSchool(e.target.value)} className="bg-card text-xs h-9.5" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">Transport Details</label>
-                  <Input placeholder="Route or pickup location" value={transport} onChange={(e) => setTransport(e.target.value)} className="bg-card text-xs h-9.5" />
-                </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground">Transport Details</label>
+                <Input placeholder="Route or pickup location" value={transport} onChange={(e) => setTransport(e.target.value)} className="bg-card text-xs h-9.5" />
               </div>
             </div>
           )}
@@ -1987,17 +2076,9 @@ export default function StudentsPage() {
                   <input type="file" className="block max-w-[200px] text-[10px] file:mr-2 file:rounded file:border file:border-border file:bg-card file:px-2 file:py-1 file:text-[10px] file:font-semibold file:text-foreground cursor-pointer" />
                 </div>
 
-                <div className="flex items-center justify-between border-b border-border/50 pb-3">
-                  <div>
-                    <p className="font-bold text-foreground text-sm flex items-center gap-1.5"><FileCheck className="h-4 w-4 text-muted-foreground" /> Address Proof</p>
-                    <p className="text-[10px] text-muted-foreground">Optional</p>
-                  </div>
-                  <input type="file" className="block max-w-[200px] text-[10px] file:mr-2 file:rounded file:border file:border-border file:bg-card file:px-2 file:py-1 file:text-[10px] file:font-semibold file:text-foreground cursor-pointer" />
-                </div>
-
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-bold text-foreground text-sm flex items-center gap-1.5"><FileCheck className="h-4 w-4 text-muted-foreground" /> Previous School Record</p>
+                    <p className="font-bold text-foreground text-sm flex items-center gap-1.5"><FileCheck className="h-4 w-4 text-muted-foreground" /> Address Proof</p>
                     <p className="text-[10px] text-muted-foreground">Optional</p>
                   </div>
                   <input type="file" className="block max-w-[200px] text-[10px] file:mr-2 file:rounded file:border file:border-border file:bg-card file:px-2 file:py-1 file:text-[10px] file:font-semibold file:text-foreground cursor-pointer" />
@@ -2145,7 +2226,7 @@ export default function StudentsPage() {
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-muted-foreground">Class/Grade <span className="text-red-500">*</span></label>
-                  <Select value={editCourse} onChange={(e) => setEditCourse(e.target.value)} className="bg-card text-xs h-9.5" required>
+                  <Select value={editCourse} onChange={(e) => { setEditCourse(e.target.value); setEditBatchId(""); }} className="bg-card text-xs h-9.5" required>
                     {courses.length > 0 ? (
                       courses.map((c, index) => <option key={c.id || c._id || `edit-c-${index}`} value={c.name}>{c.name}</option>)
                     ) : (
@@ -2157,16 +2238,25 @@ export default function StudentsPage() {
 
               <div className="grid grid-cols-2 gap-3.5">
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">Parent/Guardian Name <span className="text-red-500">*</span></label>
-                  <Input placeholder="Parent name" value={editParentName} onChange={(e) => setEditParentName(e.target.value)} className="bg-card text-xs h-9.5" required />
+                  <label className="text-xs font-semibold text-muted-foreground">Batch</label>
+                  <Select value={editBatchId} onChange={(e) => setEditBatchId(e.target.value)} className="bg-card text-xs h-9.5">
+                    <option value="">No Batch Assigned</option>
+                    {batches.filter(b => b.courseName === editCourse).map(b => (
+                       <option key={b.id || b._id} value={b.id || b._id}>{b.code}</option>
+                    ))}
+                  </Select>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">Parent Mobile Number <span className="text-red-500">*</span></label>
-                  <Input placeholder="+1 555-0123" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} className="bg-card text-xs h-9.5" required />
+                  <label className="text-xs font-semibold text-muted-foreground">Parent/Guardian Name <span className="text-red-500">*</span></label>
+                  <Input placeholder="Parent name" value={editParentName} onChange={(e) => setEditParentName(e.target.value)} className="bg-card text-xs h-9.5" required />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3.5">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Parent Mobile Number <span className="text-red-500">*</span></label>
+                  <Input placeholder="+1 555-0123" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} className="bg-card text-xs h-9.5" required />
+                </div>
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-muted-foreground">Relationship <span className="text-red-500">*</span></label>
                   <Select value={editParentRelation} onChange={(e) => setEditParentRelation(e.target.value)} className="bg-card text-xs h-9.5" required>
@@ -2227,14 +2317,9 @@ export default function StudentsPage() {
                   <Input placeholder="Any medical conditions..." value={editAllergies} onChange={(e) => setEditAllergies(e.target.value)} className="bg-card text-xs h-9.5" />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">Previous School</label>
-                  <Input placeholder="Name of previous school (if any)" value={editPrevSchool} onChange={(e) => setEditPrevSchool(e.target.value)} className="bg-card text-xs h-9.5" />
+                  <label className="text-xs font-semibold text-muted-foreground">Transport Details</label>
+                  <Input placeholder="Route or pickup location" value={editTransport} onChange={(e) => setEditTransport(e.target.value)} className="bg-card text-xs h-9.5" />
                 </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground">Transport Details</label>
-                <Input placeholder="Route or pickup location" value={editTransport} onChange={(e) => setEditTransport(e.target.value)} className="bg-card text-xs h-9.5" />
               </div>
             </div>
           )}
@@ -2259,17 +2344,9 @@ export default function StudentsPage() {
                   <input type="file" className="block max-w-[200px] text-[10px] file:mr-2 file:rounded file:border file:border-border file:bg-card file:px-2 file:py-1 file:text-[10px] file:font-semibold file:text-foreground cursor-pointer" />
                 </div>
 
-                <div className="flex items-center justify-between border-b border-border/50 pb-3">
-                  <div>
-                    <p className="font-bold text-foreground text-sm flex items-center gap-1.5"><FileCheck className="h-4 w-4 text-muted-foreground" /> Address Proof</p>
-                    <p className="text-[10px] text-muted-foreground">Optional</p>
-                  </div>
-                  <input type="file" className="block max-w-[200px] text-[10px] file:mr-2 file:rounded file:border file:border-border file:bg-card file:px-2 file:py-1 file:text-[10px] file:font-semibold file:text-foreground cursor-pointer" />
-                </div>
-
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-bold text-foreground text-sm flex items-center gap-1.5"><FileCheck className="h-4 w-4 text-muted-foreground" /> Previous School Record</p>
+                    <p className="font-bold text-foreground text-sm flex items-center gap-1.5"><FileCheck className="h-4 w-4 text-muted-foreground" /> Address Proof</p>
                     <p className="text-[10px] text-muted-foreground">Optional</p>
                   </div>
                   <input type="file" className="block max-w-[200px] text-[10px] file:mr-2 file:rounded file:border file:border-border file:bg-card file:px-2 file:py-1 file:text-[10px] file:font-semibold file:text-foreground cursor-pointer" />

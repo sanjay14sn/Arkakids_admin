@@ -8,7 +8,13 @@ export async function GET(req: NextRequest) {
   if (error) return error
   try {
     await connectDB()
-    const items = await ChildCare.find(tenantFilter(user)).sort({ createdAt: -1 })
+    const query: any = tenantFilter(user)
+    const studentId = req.nextUrl.searchParams.get("studentId")
+    const type = req.nextUrl.searchParams.get("type")
+    if (studentId) query.studentId = studentId
+    if (type) query.type = type
+    
+    const items = await ChildCare.find(query).sort({ createdAt: -1 })
     return NextResponse.json(items)
   } catch (err: any) {
     return NextResponse.json({ message: err.message }, { status: 500 })

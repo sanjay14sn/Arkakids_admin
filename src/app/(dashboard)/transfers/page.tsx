@@ -11,13 +11,13 @@ import { useStore } from "@/store/useStore"
 import { formatDate } from "@/lib/utils"
 import { AccessRestricted } from "@/components/shared/AccessRestricted"
 import {
-  BRANCHES,
   CHILDREN,
   CLASSES,
   childById,
   usePreschoolOps,
   type BranchTransfer,
 } from "@/lib/preschoolOps"
+import { useBranches } from "@/hooks/useBranches"
 
 function statusBadge(status: BranchTransfer["status"]) {
   if (status === "approved") return <Badge variant="success">Approved</Badge>
@@ -32,12 +32,19 @@ export default function BranchTransferPage() {
   const { state, update, ready } = usePreschoolOps()
   const [open, setOpen] = React.useState(false)
   const [childId, setChildId] = React.useState(CHILDREN[0].id)
-  const [toBranch, setToBranch] = React.useState<string>(BRANCHES[1])
+  const { branches, loading } = useBranches()
+  const [toBranch, setToBranch] = React.useState<string>("")
   const [toClass, setToClass] = React.useState<string>(CLASSES[1])
   const [reason, setReason] = React.useState("")
 
   const child = childById(childId)
-  const fromBranch = child?.branch || BRANCHES[0]
+  const fromBranch = child?.branch || (branches.length > 0 ? branches[0] : "")
+
+  React.useEffect(() => {
+    if (branches.length > 0 && !toBranch) {
+      setToBranch(branches[1] || branches[0] || "")
+    }
+  }, [branches, toBranch])
 
   const submit = () => {
     if (!reason.trim() || toBranch === fromBranch) return
@@ -159,7 +166,7 @@ export default function BranchTransferPage() {
           </Select>
           <p className="text-xs text-muted-foreground">From {fromBranch}</p>
           <Select value={toBranch} onChange={(e) => setToBranch(e.target.value)} className="h-9 text-xs">
-            {BRANCHES.filter((item) => item !== fromBranch).map((item) => (
+            {branches.filter((item) => item !== fromBranch).map((item) => (
               <option key={item} value={item}>{item}</option>
             ))}
           </Select>

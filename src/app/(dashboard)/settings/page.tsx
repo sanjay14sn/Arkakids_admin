@@ -238,7 +238,7 @@ export default function SettingsPage() {
                   </div>
 
                   <p className="text-[10px] text-muted-foreground max-w-md leading-normal">
-                    Setting warnings prompts red danger tags next to students in lists and dashboards who drop below safety limits, sending notifications automatically.
+                    Setting warnings prompts red danger tags next to students in lists and dashboards who drop below the set threshold, sending notifications automatically.
                   </p>
 
                   <div className="pt-4 border-t border-border/50 flex justify-end">

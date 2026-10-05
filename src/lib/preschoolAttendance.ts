@@ -3,7 +3,7 @@ import { CHILDREN, type ChildRecord, type LeaveRequest } from "@/lib/preschoolOp
 
 export const ATTENDANCE_KEY = "arka_preschool_attendance_v1"
 
-export type AttendanceStatus = "present" | "absent" | "leave" | "late"
+export type AttendanceStatus = "present" | "absent" | "leave"
 export type AbsenceReason = "Sick" | "Personal" | "Family" | "No Information" | "Other"
 export type NotifyChannel = "app" | "whatsapp" | "sms" | "email"
 
@@ -16,13 +16,11 @@ export type AttendanceChild = ChildRecord & {
 }
 
 export type AttendanceSettings = {
-  lateEnabled: boolean
   arrivalTime: string
   teachersCanEdit: boolean
   submitDeadline: string
   notifyAbsent: boolean
   notifyLeave: boolean
-  notifyLate: boolean
   notifyDailySummary: boolean
   channels: NotifyChannel[]
 }
@@ -34,7 +32,6 @@ export type ChildMark = {
   absenceReason?: AbsenceReason
   parentInformed?: boolean
   arrivalTime?: string
-  lateReason?: string
 }
 
 export type AttendanceSession = {
@@ -172,13 +169,11 @@ export const CLASS_GROUPS = Array.from(
 )
 
 export const DEFAULT_SETTINGS: AttendanceSettings = {
-  lateEnabled: false,
   arrivalTime: "09:00",
   teachersCanEdit: true,
   submitDeadline: "10:00",
   notifyAbsent: true,
   notifyLeave: true,
-  notifyLate: false,
   notifyDailySummary: false,
   channels: ["app"],
 }
@@ -226,11 +221,9 @@ export function countMarks(marks: ChildMark[]) {
   const present = marks.filter((mark) => mark.status === "present").length
   const absent = marks.filter((mark) => mark.status === "absent").length
   const leave = marks.filter((mark) => mark.status === "leave").length
-  const late = marks.filter((mark) => mark.status === "late").length
   const total = marks.length
-  const attended = present + late
-  const rate = total ? Math.round((attended / total) * 100) : 0
-  return { total, present, absent, leave, late, rate }
+  const rate = total ? Math.round((present / total) * 100) : 0
+  return { total, present, absent, leave, rate }
 }
 
 export function coveringLeave(leaves: LeaveRequest[], childId: string, date: string) {
@@ -344,7 +337,6 @@ export function studentMonthStats(sessions: AttendanceSession[], childId: string
   let present = 0
   let absent = 0
   let leave = 0
-  let late = 0
   let marked = 0
   const byDate: Record<string, AttendanceStatus> = {}
   days.forEach((date) => {
@@ -356,10 +348,9 @@ export function studentMonthStats(sessions: AttendanceSession[], childId: string
     if (mark.status === "present") present += 1
     if (mark.status === "absent") absent += 1
     if (mark.status === "leave") leave += 1
-    if (mark.status === "late") late += 1
   })
-  const rate = marked ? Math.round(((present + late) / marked) * 100) : 0
-  return { workingDays: days.length, present, absent, leave, late, marked, rate, byDate, days }
+  const rate = marked ? Math.round((present / marked) * 100) : 0
+  return { workingDays: days.length, present, absent, leave, marked, rate, byDate, days }
 }
 
 export function classMonthStats(sessions: AttendanceSession[], className: string, year: number, month: number) {
@@ -434,13 +425,5 @@ export function noticeForMark(child: AttendanceChild, date: string, status: Atte
       createdAt: new Date().toISOString(),
     }
   }
-  return {
-    id: `nt-late-${child.id}-${date}`,
-    childId: child.id,
-    date,
-    channel: "app",
-    title: "Late arrival",
-    body: `Dear Parent, ${child.name} was marked late on ${label}.`,
-    createdAt: new Date().toISOString(),
-  }
+  return null
 }

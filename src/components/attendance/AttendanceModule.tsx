@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
 import { Input } from "@/components/ui/Input"
 import { Select } from "@/components/ui/Select"
+import { DatePicker } from "@/components/ui/DatePicker"
 import { KPICard } from "@/components/dashboard/KPICard"
 import { useStore } from "@/store/useStore"
 import { cn } from "@/lib/utils"
@@ -22,12 +23,13 @@ import {
   type AbsenceReason,
   type AttendanceStatus,
 } from "@/lib/preschoolAttendance"
+import { usePreschoolOps, closureReason, localIsoDate } from "@/lib/preschoolOps"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Tab = "today" | "take" | "history" | "student" | "reports" | "settings"
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: "today", label: "Today" },
+  { id: "today", label: "Overview" },
   { id: "take", label: "Take Attendance" },
   { id: "history", label: "History" },
   { id: "student", label: "Student" },
@@ -74,7 +76,7 @@ interface BatchGroup {
 }
 
 function todayIso() {
-  return new Date().toISOString().slice(0, 10)
+  return localIsoDate()
 }
 
 function formatDateDDMMYYYY(dateStr: string) {
@@ -90,25 +92,23 @@ function countMarks(records: ChildMark[]) {
   const present = records.filter(r => r.status === "present").length
   const absent = records.filter(r => r.status === "absent").length
   const leave = records.filter(r => r.status === "leave").length
-  const late = records.filter(r => r.status === "late").length
   const total = records.length
-  const attended = present + late
-  const rate = total ? Math.round((attended / total) * 100) : 0
-  return { total, present, absent, leave, late, rate }
+  const rate = total ? Math.round((present / total) * 100) : 0
+  return { total, present, absent, leave, rate }
 }
 
 function statusBadge(status: AttendanceStatus) {
   if (status === "present") return <Badge variant="success">Present</Badge>
   if (status === "absent") return <Badge variant="destructive">Absent</Badge>
   if (status === "leave") return <Badge variant="warning">Leave</Badge>
-  return <Badge variant="info">Late</Badge>
+  return null
 }
 
 function statusIcon(status: AttendanceStatus) {
   if (status === "present") return <Check className="h-3.5 w-3.5 mr-1.5" />
   if (status === "absent") return <X className="h-3.5 w-3.5 mr-1.5" />
   if (status === "leave") return <CalendarOff className="h-3.5 w-3.5 mr-1.5" />
-  return <Clock className="h-3.5 w-3.5 mr-1.5" />
+  return null
 }
 
 function statusStyle(status: AttendanceStatus, active: boolean) {
@@ -116,22 +116,27 @@ function statusStyle(status: AttendanceStatus, active: boolean) {
     present: active ? "bg-emerald-500 text-white border-emerald-500 shadow-sm" : "bg-transparent border-transparent text-muted-foreground hover:bg-emerald-50 hover:text-emerald-700",
     absent: active ? "bg-rose-500 text-white border-rose-500 shadow-sm" : "bg-transparent border-transparent text-muted-foreground hover:bg-rose-50 hover:text-rose-700",
     leave: active ? "bg-amber-500 text-white border-amber-500 shadow-sm" : "bg-transparent border-transparent text-muted-foreground hover:bg-amber-50 hover:text-amber-700",
-    late: active ? "bg-sky-500 text-white border-sky-500 shadow-sm" : "bg-transparent border-transparent text-muted-foreground hover:bg-sky-50 hover:text-sky-700",
   }
-  return map[status]
+  return map[status] || ""
 }
 
 const VISIBLE_STATUSES: AttendanceStatus[] = ["present", "absent", "leave"]
 
 // ─── Main Module ──────────────────────────────────────────────────────────────
 export function AttendanceModule() {
-  const { user, addNotification } = useStore()
+  const { user, activeTenant, addNotification } = useStore()
+  const myBranchName = String(activeTenant?.name ?? user?.tenantId ?? "").trim()
   const [tab, setTab] = React.useState<Tab>("today")
+  const { state: opsState } = usePreschoolOps()
 
   // Real data from DB
   const [batches, setBatches] = React.useState<BatchGroup[]>([])
   const [sessions, setSessions] = React.useState<AttendanceSession[]>([])
+  const [leaves, setLeaves] = React.useState<any[]>([])
   const [loading, setLoading] = React.useState(true)
+
+  // Overview (Today) state
+  const [viewDate, setViewDate] = React.useState(todayIso())
 
   // Take Attendance state
   const [selectedBatchId, setSelectedBatchId] = React.useState<string>("")
@@ -154,7 +159,6 @@ export function AttendanceModule() {
   const [studentId, setStudentId] = React.useState("")
 
   // Settings
-  const [lateEnabled, setLateEnabled] = React.useState(false)
   const [notifyAbsent, setNotifyAbsent] = React.useState(true)
 
   const role = user?.role
@@ -171,10 +175,11 @@ export function AttendanceModule() {
   const loadData = React.useCallback(async () => {
     try {
       setLoading(true)
-      const [studentsData, batchesData, attendanceData] = await Promise.all([
+      const [studentsData, batchesData, attendanceData, leavesData] = await Promise.all([
         api.getStudents(),
         api.getBatches(),
         api.getStudentAttendance(),
+        api.getChildLeaves().catch(() => []),
       ])
 
       const studentList: any[] = Array.isArray(studentsData) ? studentsData : []
@@ -236,6 +241,9 @@ export function AttendanceModule() {
         : []
 
       setSessions(dbSessions)
+      
+      const leavesList = Array.isArray(leavesData) ? leavesData : (leavesData?.leaves ?? leavesData?.data ?? [])
+      setLeaves(leavesList)
     } catch (err) {
       console.error("Failed to load attendance data", err)
     } finally {
@@ -251,26 +259,38 @@ export function AttendanceModule() {
     s => s.date === takeDate && s.batchId === selectedBatchId
   )
   const locked = Boolean(currentSession?.submitted)
+  // School closed (holiday / weekly off) on the selected date → no attendance
+  const takeClosure = closureReason(opsState, takeDate, myBranchName)
+  const viewClosure = closureReason(opsState, viewDate, myBranchName)
+  const isClosed = Boolean(takeClosure)
 
   React.useEffect(() => {
     if (!selectedBatch) return
     if (currentSession) {
       setMarks(currentSession.records.map(r => ({ ...r })))
     } else {
-      setMarks(selectedBatch.students.map(st => ({
-        entityId: st.id,
-        name: st.name,
-        status: "present" as AttendanceStatus,
-      })))
+      setMarks(selectedBatch.students.map(st => {
+        const approvedLeave = leaves.find(l => 
+          l.childId === st.id && 
+          l.status === "approved" && 
+          l.fromDate <= takeDate && 
+          l.toDate >= takeDate
+        )
+        return {
+          entityId: st.id,
+          name: st.name,
+          status: (approvedLeave ? "leave" : "present") as AttendanceStatus,
+          absenceReason: approvedLeave ? approvedLeave.reason : undefined,
+        }
+      }))
     }
-  }, [selectedBatchId, takeDate, sessions])
+  }, [selectedBatchId, takeDate, sessions, leaves])
 
-  // ─── Today's overview ──────────────────────────────────────────────────────
-  const today = todayIso()
-  const todayBatchSession = sessions.find(s => s.date === today && s.batchId === selectedBatchId)
-  const todayCounts = countMarks(todayBatchSession?.records || [])
-  const absentees = (todayBatchSession?.records || []).filter(r => r.status === "absent")
-  const onLeaveToday = (todayBatchSession?.records || []).filter(r => r.status === "leave")
+  // ─── Overview ──────────────────────────────────────────────────────────────
+  const viewBatchSession = sessions.find(s => s.date === viewDate && s.batchId === selectedBatchId)
+  const viewCounts = countMarks(viewBatchSession?.records || [])
+  const absentees = (viewBatchSession?.records || []).filter(r => r.status === "absent")
+  const onLeaveToday = (viewBatchSession?.records || []).filter(r => r.status === "leave")
 
   // ─── History ───────────────────────────────────────────────────────────────
   const historyRows = sessions
@@ -311,7 +331,7 @@ export function AttendanceModule() {
 
   // ─── Submit attendance ─────────────────────────────────────────────────────
   const persistAttendance = async (submitted: boolean, reason?: string) => {
-    if (!selectedBatch) return
+    if (!selectedBatch || isClosed) return
     setSubmitting(true)
     try {
       const payload = {
@@ -347,7 +367,10 @@ export function AttendanceModule() {
   }
 
   const markAllPresent = () => {
-    setMarks(prev => prev.map(m => ({ ...m, status: "present" as AttendanceStatus })))
+    setMarks(prev => prev.map(m => {
+      if (m.status === "leave") return m
+      return { ...m, status: "present" as AttendanceStatus }
+    }))
     setSuccessMsg("")
   }
 
@@ -407,21 +430,29 @@ export function AttendanceModule() {
         ))}
       </div>
 
-      {/* ── Today Tab ──────────────────────────────────────────────────────── */}
+      {/* ── Overview Tab ──────────────────────────────────────────────────────── */}
       {tab === "today" && (
         <div className="space-y-4">
-          {/* Batch selector */}
-          {batches.length > 1 && (
-            <Select
-              value={selectedBatchId}
-              onChange={e => setSelectedBatchId(e.target.value)}
-              className="h-9 text-xs max-w-xs"
-            >
-              {batches.map(b => (
-                <option key={b.id} value={b.id}>{b.name}</option>
-              ))}
-            </Select>
-          )}
+          {/* Controls */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            {batches.length > 1 && (
+              <Select
+                value={selectedBatchId}
+                onChange={e => setSelectedBatchId(e.target.value)}
+                className="h-9 text-xs sm:max-w-xs w-full"
+              >
+                {batches.map(b => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </Select>
+            )}
+            <div className="w-full sm:max-w-[200px]">
+              <DatePicker 
+                value={viewDate} 
+                onChange={val => setViewDate(val)} 
+              />
+            </div>
+          </div>
 
           {batches.length === 0 ? (
             <Card>
@@ -433,42 +464,44 @@ export function AttendanceModule() {
             <>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 <KPICard title="Total students" value={selectedBatch?.students.length || 0} icon={Users} />
-                <KPICard title="Present" value={todayCounts.present} icon={CalendarCheck} />
-                <KPICard title="Absent" value={todayCounts.absent} icon={UserX} />
-                <KPICard title="Leave" value={todayCounts.leave} icon={CalendarOff} />
-                <KPICard title="Attendance rate" value={todayBatchSession ? `${todayCounts.rate}%` : "—"} icon={Percent} />
+                <KPICard title="Present" value={viewCounts.present} icon={CalendarCheck} />
+                <KPICard title="Absent" value={viewCounts.absent} icon={UserX} />
+                <KPICard title="Leave" value={viewCounts.leave} icon={CalendarOff} />
+                <KPICard title="Attendance rate" value={viewBatchSession ? `${viewCounts.rate}%` : "—"} icon={Percent} />
               </div>
 
               <div className="grid gap-4 lg:grid-cols-3">
                 <Card>
-                  <CardHeader className="pb-2"><CardTitle className="text-sm">Today's absentees</CardTitle></CardHeader>
+                  <CardHeader className="pb-2"><CardTitle className="text-sm">Absentees on {formatDateDDMMYYYY(viewDate)}</CardTitle></CardHeader>
                   <CardContent className="space-y-2 text-xs">
                     {absentees.length === 0
-                      ? <p className="text-muted-foreground">{todayBatchSession ? "No absentees." : "Attendance not submitted yet."}</p>
+                      ? <p className="text-muted-foreground">{viewBatchSession ? "No absentees." : viewClosure ? `${viewClosure} — no attendance required.` : "Attendance not submitted yet."}</p>
                       : absentees.map(r => <p key={`abs-${r.entityId}`}>{r.name}</p>)
                     }
                   </CardContent>
                 </Card>
                 <Card>
-                  <CardHeader className="pb-2"><CardTitle className="text-sm">Today's leave</CardTitle></CardHeader>
+                  <CardHeader className="pb-2"><CardTitle className="text-sm">Leave on {formatDateDDMMYYYY(viewDate)}</CardTitle></CardHeader>
                   <CardContent className="space-y-2 text-xs">
                     {onLeaveToday.length === 0
-                      ? <p className="text-muted-foreground">No leave recorded today.</p>
+                      ? <p className="text-muted-foreground">No leave recorded.</p>
                       : onLeaveToday.map(r => <p key={`lv-${r.entityId}`}>{r.name}</p>)
                     }
                   </CardContent>
                 </Card>
                 <Card>
-                  <CardHeader className="pb-2"><CardTitle className="text-sm">Submission status</CardTitle></CardHeader>
+                  <CardHeader className="pb-2"><CardTitle className="text-sm">Submission status ({formatDateDDMMYYYY(viewDate)})</CardTitle></CardHeader>
                   <CardContent className="space-y-2 text-xs">
                     {batches.map(b => {
-                      const s = sessions.find(sess => sess.date === today && sess.batchId === b.id)
+                      const s = sessions.find(sess => sess.date === viewDate && sess.batchId === b.id)
                       return (
                         <div key={`sub-${b.id}`} className="flex items-center justify-between gap-2">
                           <span>{b.name}</span>
                           {s?.submitted
                             ? <Badge variant="success"><Lock className="h-3 w-3 mr-1" />Submitted</Badge>
-                            : <Badge variant="warning">Pending</Badge>
+                            : viewClosure
+                              ? <Badge variant="destructive">Closed</Badge>
+                              : <Badge variant="warning">Pending</Badge>
                           }
                         </div>
                       )
@@ -500,7 +533,7 @@ export function AttendanceModule() {
             </div>
             <div className="space-y-1">
               <label className="text-[10px] font-semibold uppercase text-muted-foreground">Date</label>
-              <Input type="date" value={takeDate} onChange={e => setTakeDate(e.target.value)} />
+              <DatePicker value={takeDate} onChange={val => setTakeDate(val)} />
             </div>
           </div>
 
@@ -521,11 +554,18 @@ export function AttendanceModule() {
                   }
                 </p>
                 {canTake && (
-                  <Button size="sm" variant="primary" icon={Check} onClick={markAllPresent}>
+                  <Button size="sm" variant="primary" icon={Check} onClick={markAllPresent} disabled={takeDate > todayIso() || isClosed}>
                     Mark All Present
                   </Button>
                 )}
               </div>
+
+              {isClosed && (
+                <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm font-medium text-red-700 flex items-center gap-2">
+                  <CalendarOff className="h-4 w-4 shrink-0" />
+                  {takeClosure} — school is closed on {formatLongDate(takeDate)}. Attendance cannot be taken. Please choose a working day.
+                </div>
+              )}
 
               {successMsg && <p className="text-sm font-medium text-emerald-600">{successMsg}</p>}
 
@@ -554,12 +594,12 @@ export function AttendanceModule() {
                             <button
                               key={`st-${mark.entityId}-${status}`}
                               type="button"
-                              disabled={!canTake || (locked && !canCorrect)}
+                              disabled={!canTake || isClosed || (locked && !canCorrect)}
                               onClick={() => setMark(mark.entityId, { status })}
                               className={cn(
                                 "flex items-center justify-center flex-1 h-10 px-3 rounded-lg border text-[13px] font-semibold capitalize transition-all duration-200",
                                 statusStyle(status, mark.status === status),
-                                (!canTake || (locked && !canCorrect)) && "opacity-60 cursor-not-allowed"
+                                (!canTake || isClosed || (locked && !canCorrect)) && "opacity-60 cursor-not-allowed"
                               )}
                             >
                               {statusIcon(status)}
@@ -599,7 +639,7 @@ export function AttendanceModule() {
                 </div>
               )}
 
-              {canTake && marks.length > 0 && (
+              {canTake && !isClosed && marks.length > 0 && (
                 <div className="sticky bottom-3 rounded-xl border border-border bg-card/95 backdrop-blur p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
                   {(() => { const s = countMarks(marks); return (
                     <p className="text-xs font-medium">
@@ -608,7 +648,9 @@ export function AttendanceModule() {
                   )})()}
                   {locked
                     ? <Button size="sm" variant="outline" icon={Unlock} onClick={() => setEditOpen(true)}>Correct attendance</Button>
-                    : <Button size="sm" icon={Check} onClick={() => setConfirmOpen(true)} disabled={submitting}>Submit Attendance</Button>
+                    : <Button size="sm" icon={Check} onClick={() => setConfirmOpen(true)} disabled={submitting || takeDate > todayIso()}>
+                        {takeDate > todayIso() ? "Cannot Submit Future Date" : "Submit Attendance"}
+                      </Button>
                   }
                 </div>
               )}
@@ -676,11 +718,11 @@ export function AttendanceModule() {
             <div className="grid gap-3 sm:grid-cols-4">
               <div className="space-y-1">
                 <label className="text-[10px] font-semibold text-muted-foreground uppercase">From</label>
-                <Input type="date" value={historyFromDate} onChange={e => { setHistoryFromDate(e.target.value); setHistoryPage(1) }} />
+                <DatePicker value={historyFromDate} onChange={val => { setHistoryFromDate(val); setHistoryPage(1) }} />
               </div>
               <div className="space-y-1">
                 <label className="text-[10px] font-semibold text-muted-foreground uppercase">To</label>
-                <Input type="date" value={historyToDate} onChange={e => { setHistoryToDate(e.target.value); setHistoryPage(1) }} />
+                <DatePicker value={historyToDate} onChange={val => { setHistoryToDate(val); setHistoryPage(1) }} />
               </div>
               <div className="space-y-1">
                 <label className="text-[10px] font-semibold text-muted-foreground uppercase">Batch</label>
@@ -802,15 +844,7 @@ export function AttendanceModule() {
             <CardDescription>Configure attendance options for your school.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
-            <label className="flex items-center justify-between gap-3">
-              <span>Enable late attendance</span>
-              <input
-                type="checkbox"
-                checked={lateEnabled}
-                onChange={e => setLateEnabled(e.target.checked)}
-              />
-            </label>
-            <div className="pt-2 border-t space-y-2">
+            <div className="space-y-2">
               <p className="font-semibold flex items-center gap-2"><Bell className="h-4 w-4" />Parent notifications</p>
               <label className="flex items-center justify-between gap-3 text-xs">
                 <span>Absent notification</span>

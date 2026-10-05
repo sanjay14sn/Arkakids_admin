@@ -8,6 +8,7 @@ import {
 } from "lucide-react"
 import { CHILDREN, type ChildRecord } from "@/lib/preschoolOps"
 import { cn } from "@/lib/utils"
+import { api } from "@/lib/api"
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type MedicalRecord = {
@@ -157,19 +158,61 @@ const STANDARD_VACCINES = [
 
 // ─── Tab 1: Health & Medical ───────────────────────────────────────────────────
 function HealthTab({ child }: { child: ChildRecord }) {
-  const [rec, setRec] = React.useState<MedicalRecord>(() => INIT_MEDICAL[child.id] ?? {
+  const [rec, setRec] = React.useState<MedicalRecord>({
     childId: child.id, bloodGroup: "", allergies: [], conditions: [], vaccinations: [], incidents: [],
   })
+  const [docId, setDocId] = React.useState<string | null>(null)
   const [allergyInput, setAllergyInput] = React.useState("")
   const [condInput, setCondInput] = React.useState("")
   const [showVaxForm, setShowVaxForm] = React.useState(false)
   const [vaxName, setVaxName] = React.useState(""); const [vaxDate, setVaxDate] = React.useState(""); const [vaxDue, setVaxDue] = React.useState("")
 
-  const addAllergy = () => { if (!allergyInput.trim()) return; setRec(p => ({ ...p, allergies: [...p.allergies, allergyInput.trim()] })); setAllergyInput("") }
-  const addCondition = () => { if (!condInput.trim()) return; setRec(p => ({ ...p, conditions: [...p.conditions, condInput.trim()] })); setCondInput("") }
+  React.useEffect(() => {
+    fetch(`/api/childcare?studentId=${child.id}&type=medical_profile`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.length > 0) {
+          const d = data[0]
+          setDocId(d._id)
+          setRec(p => ({
+            ...p,
+            bloodGroup: d.bloodGroup || "",
+            allergies: d.allergies || [],
+            conditions: d.conditions || [],
+            vaccinations: d.vaccinations || [],
+          }))
+        } else {
+          setDocId(null)
+          setRec(p => ({ ...p, bloodGroup: "", allergies: [], conditions: [], vaccinations: [] }))
+        }
+      })
+  }, [child.id])
+
+  const saveProfile = async (updates: Partial<MedicalRecord>) => {
+    const payload = {
+      studentId: child.id,
+      studentName: child.name,
+      type: "medical_profile",
+      bloodGroup: updates.bloodGroup ?? rec.bloodGroup,
+      allergies: updates.allergies ?? rec.allergies,
+      conditions: updates.conditions ?? rec.conditions,
+      vaccinations: updates.vaccinations ?? rec.vaccinations
+    }
+    if (docId) {
+      await fetch(`/api/childcare/${docId}`, { method: "PUT", body: JSON.stringify(payload) })
+    } else {
+      const res = await fetch("/api/childcare", { method: "POST", body: JSON.stringify(payload) })
+      const data = await res.json()
+      setDocId(data._id)
+    }
+    setRec(p => ({ ...p, ...updates }))
+  }
+
+  const addAllergy = () => { if (!allergyInput.trim()) return; saveProfile({ allergies: [...rec.allergies, allergyInput.trim()] }); setAllergyInput("") }
+  const addCondition = () => { if (!condInput.trim()) return; saveProfile({ conditions: [...rec.conditions, condInput.trim()] }); setCondInput("") }
   const addVax = () => {
     if (!vaxName.trim()) return
-    setRec(p => ({ ...p, vaccinations: [...p.vaccinations, { name: vaxName.trim(), date: vaxDate, due: vaxDue || undefined }] }))
+    saveProfile({ vaccinations: [...rec.vaccinations, { name: vaxName.trim(), date: vaxDate, due: vaxDue || undefined }] })
     setVaxName(""); setVaxDate(""); setVaxDue(""); setShowVaxForm(false)
   }
 
@@ -179,31 +222,27 @@ function HealthTab({ child }: { child: ChildRecord }) {
       <div className="grid sm:grid-cols-3 gap-4">
         {/* Blood Group */}
         <div className="rounded-2xl border border-rose-200/60 bg-gradient-to-br from-rose-50/80 to-white p-5 shadow-xs relative overflow-hidden group">
-          <div className="absolute -right-4 -top-4 opacity-[0.03] group-hover:opacity-10 transition-opacity">
-            <HeartPulse className="h-28 w-28 text-rose-600" />
-          </div>
+
           <div className="relative z-10 flex flex-col h-full justify-between gap-4">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-wider text-rose-600/80 mb-1 flex items-center gap-1.5"><HeartPulse className="h-3.5 w-3.5" /> Blood Group</p>
               <p className="text-4xl font-black text-rose-700 tracking-tighter">{rec.bloodGroup || "—"}</p>
             </div>
             <input className={INPUT + " h-8 text-xs bg-white/80 border-rose-200 focus:border-rose-400 focus:ring-rose-400/20 shadow-xs font-bold"} placeholder="Update (e.g. O+)" value={rec.bloodGroup}
-              onChange={e => setRec(p => ({ ...p, bloodGroup: e.target.value }))} />
+              onChange={e => setRec(p => ({ ...p, bloodGroup: e.target.value }))} onBlur={() => saveProfile({ bloodGroup: rec.bloodGroup })} />
           </div>
         </div>
         
         {/* Allergies */}
         <div className="rounded-2xl border border-amber-200/60 bg-gradient-to-br from-amber-50/80 to-white p-5 shadow-xs relative overflow-hidden group">
-          <div className="absolute -right-4 -top-4 opacity-[0.03] group-hover:opacity-10 transition-opacity">
-            <ShieldAlert className="h-28 w-28 text-amber-600" />
-          </div>
+
           <div className="relative z-10 flex flex-col h-full justify-between gap-4">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-wider text-amber-600/80 mb-2 flex items-center gap-1.5"><ShieldAlert className="h-3.5 w-3.5" /> Allergies</p>
               <div className="flex flex-wrap gap-1.5 min-h-[32px]">
                 {rec.allergies.map((a, i) => (
                   <span key={i} className="inline-flex items-center gap-1.5 rounded-lg bg-amber-100/50 border border-amber-200 text-amber-800 text-[10px] px-2 py-1 font-bold shadow-xs">
-                    {a}<button type="button" onClick={() => setRec(p => ({ ...p, allergies: p.allergies.filter((_, j) => j !== i) }))} className="hover:text-red-600 transition-colors opacity-60 hover:opacity-100"><X className="h-3 w-3" /></button>
+                    {a}<button type="button" onClick={() => saveProfile({ allergies: rec.allergies.filter((_, j) => j !== i) })} className="hover:text-red-600 transition-colors opacity-60 hover:opacity-100"><X className="h-3 w-3" /></button>
                   </span>
                 ))}
                 {rec.allergies.length === 0 && <span className="text-xs font-bold text-amber-700/40">No allergies recorded</span>}
@@ -219,16 +258,14 @@ function HealthTab({ child }: { child: ChildRecord }) {
 
         {/* Medical Conditions */}
         <div className="rounded-2xl border border-blue-200/60 bg-gradient-to-br from-blue-50/80 to-white p-5 shadow-xs relative overflow-hidden group">
-          <div className="absolute -right-4 -top-4 opacity-[0.03] group-hover:opacity-10 transition-opacity">
-            <Activity className="h-28 w-28 text-blue-600" />
-          </div>
+
           <div className="relative z-10 flex flex-col h-full justify-between gap-4">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600/80 mb-2 flex items-center gap-1.5"><Activity className="h-3.5 w-3.5" /> Medical Conditions</p>
               <div className="flex flex-wrap gap-1.5 min-h-[32px]">
                 {rec.conditions.map((c, i) => (
                   <span key={i} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-100/50 border border-blue-200 text-blue-800 text-[10px] px-2 py-1 font-bold shadow-xs">
-                    {c}<button type="button" onClick={() => setRec(p => ({ ...p, conditions: p.conditions.filter((_, j) => j !== i) }))} className="hover:text-red-600 transition-colors opacity-60 hover:opacity-100"><X className="h-3 w-3" /></button>
+                    {c}<button type="button" onClick={() => saveProfile({ conditions: rec.conditions.filter((_, j) => j !== i) })} className="hover:text-red-600 transition-colors opacity-60 hover:opacity-100"><X className="h-3 w-3" /></button>
                   </span>
                 ))}
                 {rec.conditions.length === 0 && <span className="text-xs font-bold text-blue-700/40">No conditions recorded</span>}
@@ -330,7 +367,7 @@ function HealthTab({ child }: { child: ChildRecord }) {
               <div className="flex items-center gap-3">
                 {v.date && <span className="text-[10px] uppercase tracking-wider bg-emerald-500 text-white rounded-full px-3 py-1 font-bold shadow-xs">Done</span>}
                 {!v.date && v.due && <span className="text-[10px] uppercase tracking-wider bg-amber-500 text-white rounded-full px-3 py-1 font-bold shadow-xs">Pending</span>}
-                <button type="button" onClick={() => setRec(p => ({ ...p, vaccinations: p.vaccinations.filter((_, j) => j !== i) }))} className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity bg-background border border-border rounded-lg p-1.5"><X className="h-4 w-4" /></button>
+                <button type="button" onClick={() => saveProfile({ vaccinations: rec.vaccinations.filter((_, j) => j !== i) })} className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity bg-background border border-border rounded-lg p-1.5"><X className="h-4 w-4" /></button>
               </div>
             </div>
           ))}
@@ -342,18 +379,37 @@ function HealthTab({ child }: { child: ChildRecord }) {
 
 // ─── Tab 2: Meal Tracker ───────────────────────────────────────────────────────
 function MealTab({ child }: { child: ChildRecord }) {
-  const [meals, setMeals] = React.useState<MealLog[]>(INIT_MEALS.filter(m => m.childId === child.id))
+  const [meals, setMeals] = React.useState<any[]>([])
   const [date, setDate] = React.useState(today)
   const [showForm, setShowForm] = React.useState(false)
-  const [meal, setMeal] = React.useState<MealLog["meal"]>("Breakfast")
-  const [items, setItems] = React.useState(""); const [eaten, setEaten] = React.useState<MealLog["eaten"]>("Full"); const [note, setNote] = React.useState("")
+  const [meal, setMeal] = React.useState("Breakfast")
+  const [items, setItems] = React.useState(""); const [eaten, setEaten] = React.useState("Full"); const [note, setNote] = React.useState("")
+
+  React.useEffect(() => {
+    fetch(`/api/childcare?studentId=${child.id}&type=meal`)
+      .then(res => res.json())
+      .then(data => setMeals(Array.isArray(data) ? data : []))
+  }, [child.id])
 
   const dayMeals = meals.filter(m => m.date === date)
 
-  const addMeal = () => {
+  const addMeal = async () => {
     if (!items.trim()) return
-    setMeals(prev => [...prev, { id: `m-${Date.now()}`, childId: child.id, date, meal, items: items.trim(), eaten, note }])
+    const payload = {
+      studentId: child.id,
+      studentName: child.name,
+      type: "meal",
+      date, meal, items: items.trim(), eaten, note
+    }
+    const res = await fetch("/api/childcare", { method: "POST", body: JSON.stringify(payload) })
+    const data = await res.json()
+    setMeals(prev => [data, ...prev])
     setItems(""); setNote(""); setShowForm(false)
+  }
+
+  const deleteMeal = async (id: string) => {
+    await fetch(`/api/childcare/${id}`, { method: "DELETE" })
+    setMeals(prev => prev.filter(m => m._id !== id))
   }
 
   const eatenColor = (e: string) => e === "Full" ? "text-emerald-700 bg-emerald-50 border-emerald-200" : e === "Half" ? "text-amber-700 bg-amber-50 border-amber-200" : "text-red-700 bg-red-50 border-red-200"
@@ -374,12 +430,12 @@ function MealTab({ child }: { child: ChildRecord }) {
       {showForm && (
         <div className="grid sm:grid-cols-2 gap-3 p-4 bg-muted/30 rounded-xl border border-border/50">
           <div><label className={LABEL}>Meal Time</label>
-            <select className={SELECT + " mt-1"} value={meal} onChange={e => setMeal(e.target.value as MealLog["meal"])}>
+            <select className={SELECT + " mt-1"} value={meal} onChange={e => setMeal(e.target.value)}>
               {["Breakfast", "Morning Snack", "Lunch", "Afternoon Snack"].map(m => <option key={m}>{m}</option>)}
             </select>
           </div>
           <div><label className={LABEL}>Amount Eaten</label>
-            <select className={SELECT + " mt-1"} value={eaten} onChange={e => setEaten(e.target.value as MealLog["eaten"])}>
+            <select className={SELECT + " mt-1"} value={eaten} onChange={e => setEaten(e.target.value)}>
               {["Full", "Half", "Refused"].map(e => <option key={e}>{e}</option>)}
             </select>
           </div>
@@ -395,7 +451,7 @@ function MealTab({ child }: { child: ChildRecord }) {
       <div className="space-y-2">
         {dayMeals.length === 0 && <div className="text-center py-10 text-sm text-muted-foreground border border-dashed border-border rounded-xl">No meals logged for this date.</div>}
         {dayMeals.map(m => (
-          <div key={m.id} className="rounded-xl border border-border bg-card px-4 py-3 flex items-center gap-4">
+          <div key={m._id} className="rounded-xl border border-border bg-card px-4 py-3 flex items-center gap-4">
             <div className="h-9 w-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 border border-primary/15">
               <Utensils className="h-4 w-4" />
             </div>
@@ -405,7 +461,7 @@ function MealTab({ child }: { child: ChildRecord }) {
               {m.note && <p className="text-[11px] text-muted-foreground italic mt-0.5">{m.note}</p>}
             </div>
             <span className={`text-[10px] font-bold rounded-full border px-2.5 py-0.5 shrink-0 ${eatenColor(m.eaten)}`}>{m.eaten}</span>
-            <button type="button" onClick={() => setMeals(p => p.filter(x => x.id !== m.id))} className="text-muted-foreground hover:text-destructive shrink-0"><X className="h-3.5 w-3.5" /></button>
+            <button type="button" onClick={() => deleteMeal(m._id)} className="text-muted-foreground hover:text-destructive shrink-0"><X className="h-3.5 w-3.5" /></button>
           </div>
         ))}
       </div>
@@ -415,11 +471,17 @@ function MealTab({ child }: { child: ChildRecord }) {
 
 // ─── Tab 3: Nap / Sleep Log ────────────────────────────────────────────────────
 function NapTab({ child }: { child: ChildRecord }) {
-  const [naps, setNaps] = React.useState<NapLog[]>(INIT_NAPS.filter(n => n.childId === child.id))
+  const [naps, setNaps] = React.useState<any[]>([])
   const [date, setDate] = React.useState(today)
   const [showForm, setShowForm] = React.useState(false)
   const [start, setStart] = React.useState("12:00"); const [end, setEnd] = React.useState("13:30")
-  const [quality, setQuality] = React.useState<NapLog["quality"]>("Good"); const [note, setNote] = React.useState("")
+  const [quality, setQuality] = React.useState("Good"); const [note, setNote] = React.useState("")
+
+  React.useEffect(() => {
+    fetch(`/api/childcare?studentId=${child.id}&type=nap`)
+      .then(res => res.json())
+      .then(data => setNaps(Array.isArray(data) ? data : []))
+  }, [child.id])
 
   const dayNaps = naps.filter(n => n.date === date)
   const totalMins = dayNaps.reduce((s, n) => {
@@ -428,9 +490,22 @@ function NapTab({ child }: { child: ChildRecord }) {
     return s + (eh * 60 + em) - (sh * 60 + sm)
   }, 0)
 
-  const addNap = () => {
-    setNaps(p => [...p, { id: `n-${Date.now()}`, childId: child.id, date, start, end, quality, note }])
+  const addNap = async () => {
+    const payload = {
+      studentId: child.id,
+      studentName: child.name,
+      type: "nap",
+      date, start, end, quality, note
+    }
+    const res = await fetch("/api/childcare", { method: "POST", body: JSON.stringify(payload) })
+    const data = await res.json()
+    setNaps(prev => [data, ...prev])
     setNote(""); setShowForm(false)
+  }
+
+  const deleteNap = async (id: string) => {
+    await fetch(`/api/childcare/${id}`, { method: "DELETE" })
+    setNaps(prev => prev.filter(n => n._id !== id))
   }
 
   const qualityColor = (q: string) => q === "Good" ? "text-emerald-700 bg-emerald-50 border-emerald-200" : q === "Restless" ? "text-amber-700 bg-amber-50 border-amber-200" : "text-muted-foreground bg-muted border-border"
@@ -453,7 +528,7 @@ function NapTab({ child }: { child: ChildRecord }) {
           <div><label className={LABEL}>Start Time</label><input type="time" className={INPUT + " mt-1"} value={start} onChange={e => setStart(e.target.value)} /></div>
           <div><label className={LABEL}>End Time</label><input type="time" className={INPUT + " mt-1"} value={end} onChange={e => setEnd(e.target.value)} /></div>
           <div><label className={LABEL}>Quality</label>
-            <select className={SELECT + " mt-1"} value={quality} onChange={e => setQuality(e.target.value as NapLog["quality"])}>
+            <select className={SELECT + " mt-1"} value={quality} onChange={e => setQuality(e.target.value)}>
               {["Good", "Restless", "Skipped"].map(q => <option key={q}>{q}</option>)}
             </select>
           </div>
@@ -468,7 +543,7 @@ function NapTab({ child }: { child: ChildRecord }) {
       <div className="space-y-2">
         {dayNaps.length === 0 && <div className="text-center py-10 text-sm text-muted-foreground border border-dashed border-border rounded-xl">No nap records for this date.</div>}
         {dayNaps.map(n => (
-          <div key={n.id} className="rounded-xl border border-border bg-card px-4 py-3 flex items-center gap-4">
+          <div key={n._id} className="rounded-xl border border-border bg-card px-4 py-3 flex items-center gap-4">
             <div className="h-9 w-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 border border-primary/15">
               <Moon className="h-4 w-4" />
             </div>
@@ -479,7 +554,7 @@ function NapTab({ child }: { child: ChildRecord }) {
               {n.note && <p className="text-xs text-muted-foreground">{n.note}</p>}
             </div>
             <span className={`text-[10px] font-bold rounded-full border px-2.5 py-0.5 shrink-0 ${qualityColor(n.quality)}`}>{n.quality}</span>
-            <button type="button" onClick={() => setNaps(p => p.filter(x => x.id !== n.id))} className="text-muted-foreground hover:text-destructive shrink-0"><X className="h-3.5 w-3.5" /></button>
+            <button type="button" onClick={() => deleteNap(n._id)} className="text-muted-foreground hover:text-destructive shrink-0"><X className="h-3.5 w-3.5" /></button>
           </div>
         ))}
       </div>
@@ -489,27 +564,69 @@ function NapTab({ child }: { child: ChildRecord }) {
 
 // ─── Tab 4: Emergency Contacts ─────────────────────────────────────────────────
 function EmergencyTab({ child }: { child: ChildRecord }) {
-  const [ec, setEc] = React.useState<EmergencyContact>(() => INIT_EMERGENCY[child.id] ?? {
-    childId: child.id, contacts: [], doctorName: "", doctorPhone: "", hospital: "",
-  })
+  const [docId, setDocId] = React.useState<string | null>(null)
+  const [ec, setEc] = React.useState<any>({ contacts: [], doctorName: "", doctorPhone: "", hospital: "" })
   const [showForm, setShowForm] = React.useState(false)
   const [cName, setCName] = React.useState(""); const [cRel, setCRel] = React.useState(""); const [cPhone, setCPhone] = React.useState("")
 
+  React.useEffect(() => {
+    fetch(`/api/childcare?studentId=${child.id}&type=emergency`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.length > 0) {
+          setDocId(data[0]._id)
+          setEc({
+            contacts: data[0].contacts || [],
+            doctorName: data[0].doctorName || "",
+            doctorPhone: data[0].doctorPhone || "",
+            hospital: data[0].hospital || ""
+          })
+        } else {
+          setDocId(null)
+          setEc({ contacts: [], doctorName: "", doctorPhone: "", hospital: "" })
+        }
+      })
+  }, [child.id])
+
+  const saveEmergency = async (updates: any) => {
+    const payload = {
+      studentId: child.id,
+      studentName: child.name,
+      type: "emergency",
+      contacts: updates.contacts ?? ec.contacts,
+      doctorName: updates.doctorName ?? ec.doctorName,
+      doctorPhone: updates.doctorPhone ?? ec.doctorPhone,
+      hospital: updates.hospital ?? ec.hospital,
+    }
+    if (docId) {
+      await fetch(`/api/childcare/${docId}`, { method: "PUT", body: JSON.stringify(payload) })
+    } else {
+      const res = await fetch("/api/childcare", { method: "POST", body: JSON.stringify(payload) })
+      const data = await res.json()
+      setDocId(data._id)
+    }
+    setEc((p: any) => ({ ...p, ...updates }))
+  }
+
   const addContact = () => {
     if (!cName.trim() || !cPhone.trim()) return
-    setEc(p => ({ ...p, contacts: [...p.contacts, { name: cName.trim(), relation: cRel.trim(), phone: cPhone.trim(), primary: p.contacts.length === 0 }] }))
+    const newContacts = [...ec.contacts, { name: cName.trim(), relation: cRel.trim(), phone: cPhone.trim(), primary: ec.contacts.length === 0 }]
+    saveEmergency({ contacts: newContacts })
     setCName(""); setCRel(""); setCPhone(""); setShowForm(false)
   }
+
+  const deleteContact = (i: number) => saveEmergency({ contacts: ec.contacts.filter((_: any, j: number) => j !== i) })
+  const setPrimary = (i: number) => saveEmergency({ contacts: ec.contacts.map((x: any, j: number) => ({ ...x, primary: j === i })) })
 
   return (
     <div className="space-y-5">
       {/* Primary contact highlight */}
       {ec.contacts.length > 0 && (() => {
-        const primary = ec.contacts.find(c => c.primary) ?? ec.contacts[0]
+        const primary = ec.contacts.find((c: any) => c.primary) ?? ec.contacts[0]
         return (
           <div className="rounded-xl border-2 border-primary/30 bg-primary/5 p-4 flex items-center gap-4">
             <div className="h-12 w-12 rounded-full bg-primary text-white font-bold text-lg flex items-center justify-center shrink-0">
-              {primary.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+              {primary.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
             </div>
             <div className="flex-1">
               <p className="text-[10px] font-bold uppercase tracking-wider text-primary mb-0.5">Primary Emergency Contact</p>
@@ -544,10 +661,10 @@ function EmergencyTab({ child }: { child: ChildRecord }) {
           </div>
         )}
         <div className="divide-y divide-border/40">
-          {ec.contacts.map((c, i) => (
+          {ec.contacts.map((c: any, i: number) => (
             <div key={i} className="py-3 flex items-center gap-3">
               <div className="h-8 w-8 rounded-full bg-primary/10 text-primary font-bold text-xs flex items-center justify-center border border-primary/10 shrink-0">
-                {c.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                {c.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-foreground">{c.name}</p>
@@ -556,10 +673,10 @@ function EmergencyTab({ child }: { child: ChildRecord }) {
               <div className="flex items-center gap-2 shrink-0">
                 {c.primary && <span className="text-[10px] bg-primary/10 text-primary border border-primary/20 rounded-full px-2 py-0.5 font-bold">Primary</span>}
                 {!c.primary && (
-                  <button type="button" onClick={() => setEc(p => ({ ...p, contacts: p.contacts.map((x, j) => ({ ...x, primary: j === i })) }))}
+                  <button type="button" onClick={() => setPrimary(i)}
                     className="text-[10px] text-muted-foreground border border-border rounded-full px-2 py-0.5 hover:text-primary hover:border-primary/30">Set Primary</button>
                 )}
-                <button type="button" onClick={() => setEc(p => ({ ...p, contacts: p.contacts.filter((_, j) => j !== i) }))} className="text-muted-foreground hover:text-destructive"><X className="h-3.5 w-3.5" /></button>
+                <button type="button" onClick={() => deleteContact(i)} className="text-muted-foreground hover:text-destructive"><X className="h-3.5 w-3.5" /></button>
               </div>
             </div>
           ))}
@@ -571,9 +688,9 @@ function EmergencyTab({ child }: { child: ChildRecord }) {
       <div className="rounded-xl border border-border bg-card p-4">
         <SectionHeader icon={HeartPulse} title="Doctor & Hospital" sub="Preferred medical facility for this child" />
         <div className="grid sm:grid-cols-3 gap-3">
-          <div><label className={LABEL}>Doctor Name</label><input className={INPUT + " mt-1"} value={ec.doctorName} onChange={e => setEc(p => ({ ...p, doctorName: e.target.value }))} placeholder="Dr. Name" /></div>
-          <div><label className={LABEL}>Doctor Phone</label><input className={INPUT + " mt-1"} value={ec.doctorPhone} onChange={e => setEc(p => ({ ...p, doctorPhone: e.target.value }))} placeholder="+91 ..." /></div>
-          <div><label className={LABEL}>Preferred Hospital</label><input className={INPUT + " mt-1"} value={ec.hospital} onChange={e => setEc(p => ({ ...p, hospital: e.target.value }))} placeholder="Hospital name & location" /></div>
+          <div><label className={LABEL}>Doctor Name</label><input className={INPUT + " mt-1"} value={ec.doctorName} onChange={e => setEc((p: any) => ({ ...p, doctorName: e.target.value }))} onBlur={() => saveEmergency({ doctorName: ec.doctorName })} placeholder="Dr. Name" /></div>
+          <div><label className={LABEL}>Doctor Phone</label><input className={INPUT + " mt-1"} value={ec.doctorPhone} onChange={e => setEc((p: any) => ({ ...p, doctorPhone: e.target.value }))} onBlur={() => saveEmergency({ doctorPhone: ec.doctorPhone })} placeholder="+91 ..." /></div>
+          <div><label className={LABEL}>Preferred Hospital</label><input className={INPUT + " mt-1"} value={ec.hospital} onChange={e => setEc((p: any) => ({ ...p, hospital: e.target.value }))} onBlur={() => saveEmergency({ hospital: ec.hospital })} placeholder="Hospital name & location" /></div>
         </div>
       </div>
     </div>
@@ -582,17 +699,40 @@ function EmergencyTab({ child }: { child: ChildRecord }) {
 
 // ─── Tab 5: Incident Report ────────────────────────────────────────────────────
 function IncidentTab({ child }: { child: ChildRecord }) {
-  const initIncidents = INIT_MEDICAL[child.id]?.incidents ?? []
-  const [incidents, setIncidents] = React.useState(initIncidents)
+  const [incidents, setIncidents] = React.useState<any[]>([])
   const [showForm, setShowForm] = React.useState(false)
   const [iDate, setIDate] = React.useState(today); const [iTime, setITime] = React.useState("10:00")
   const [iType, setIType] = React.useState("Minor Fall"); const [iDesc, setIDesc] = React.useState("")
   const [iAction, setIAction] = React.useState(""); const [iNotified, setINotified] = React.useState(true)
 
-  const addIncident = () => {
+  React.useEffect(() => {
+    fetch(`/api/childcare?studentId=${child.id}&type=incident`)
+      .then(res => res.json())
+      .then(data => setIncidents(Array.isArray(data) ? data : []))
+  }, [child.id])
+
+  const addIncident = async () => {
     if (!iDesc.trim()) return
-    setIncidents(p => [{ id: `inc-${Date.now()}`, date: iDate, time: iTime, type: iType, description: iDesc.trim(), action: iAction.trim(), notifiedParent: iNotified }, ...p])
+    const payload = {
+      studentId: child.id,
+      studentName: child.name,
+      type: "incident",
+      date: iDate,
+      time: iTime,
+      incidentType: iType,
+      description: iDesc.trim(),
+      action: iAction.trim(),
+      notifiedParent: iNotified
+    }
+    const res = await fetch("/api/childcare", { method: "POST", body: JSON.stringify(payload) })
+    const data = await res.json()
+    setIncidents(p => [data, ...p])
     setIDesc(""); setIAction(""); setShowForm(false)
+  }
+
+  const deleteIncident = async (id: string) => {
+    await fetch(`/api/childcare/${id}`, { method: "DELETE" })
+    setIncidents(p => p.filter(i => i._id !== id))
   }
 
   const severityColor = (t: string) => {
@@ -641,15 +781,15 @@ function IncidentTab({ child }: { child: ChildRecord }) {
       <div className="space-y-3">
         {incidents.length === 0 && <div className="text-center py-10 text-sm text-muted-foreground border border-dashed border-border rounded-xl">No incidents recorded. Good!</div>}
         {incidents.map(inc => (
-          <div key={inc.id} className="rounded-xl border border-border bg-card overflow-hidden">
+          <div key={inc._id} className="rounded-xl border border-border bg-card overflow-hidden">
             <div className="px-4 py-3 flex items-start gap-3">
               <div className="h-9 w-9 rounded-lg bg-red-50 text-red-600 flex items-center justify-center shrink-0 border border-red-200">
                 <AlertTriangle className="h-4 w-4" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-sm font-bold text-foreground">{inc.type}</p>
-                  <span className={`text-[10px] font-semibold rounded-full border px-2 py-0.5 ${severityColor(inc.type)}`}>{inc.type.includes("Emergency") || inc.type.includes("Injury") ? "Serious" : "Minor"}</span>
+                  <p className="text-sm font-bold text-foreground">{inc.incidentType}</p>
+                  <span className={`text-[10px] font-semibold rounded-full border px-2 py-0.5 ${severityColor(inc.incidentType || "")}`}>{((inc.incidentType || "").includes("Emergency") || (inc.incidentType || "").includes("Injury")) ? "Serious" : "Minor"}</span>
                   {inc.notifiedParent && <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2 py-0.5 font-semibold flex items-center gap-0.5"><Check className="h-2.5 w-2.5" />Parent Notified</span>}
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
@@ -658,7 +798,7 @@ function IncidentTab({ child }: { child: ChildRecord }) {
                 <p className="text-xs text-foreground mt-1.5">{inc.description}</p>
                 {inc.action && <p className="text-xs text-muted-foreground mt-1 italic">Action: {inc.action}</p>}
               </div>
-              <button type="button" onClick={() => setIncidents(p => p.filter(x => x.id !== inc.id))} className="text-muted-foreground hover:text-destructive shrink-0"><X className="h-3.5 w-3.5" /></button>
+              <button type="button" onClick={() => deleteIncident(inc._id)} className="text-muted-foreground hover:text-destructive shrink-0"><X className="h-3.5 w-3.5" /></button>
             </div>
           </div>
         ))}
@@ -688,7 +828,7 @@ function BirthdayTracker() {
               return (
                 <div key={i} className={`rounded-xl p-4 flex items-center gap-3 ${ring(days)}`}>
                   <div className={`h-10 w-10 rounded-full font-bold text-sm flex items-center justify-center shrink-0 ${b.type === "child" ? "bg-primary text-white" : "bg-muted text-foreground border border-border"}`}>
-                    {b.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                    {b.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-bold text-foreground truncate">{b.name}</p>
@@ -715,7 +855,7 @@ function BirthdayTracker() {
           {rest.map((b, i) => (
             <div key={i} className="px-4 py-3 flex items-center gap-3">
               <div className={`h-8 w-8 rounded-full font-bold text-xs flex items-center justify-center shrink-0 ${b.type === "child" ? "bg-primary/10 text-primary border border-primary/15" : "bg-muted text-foreground border border-border"}`}>
-                {b.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                {b.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-foreground">{b.name}</p>
@@ -746,15 +886,56 @@ type MainTab = typeof MAIN_TABS[number]["id"]
 
 export default function ChildCarePage() {
   const [activeTab, setActiveTab] = React.useState<MainTab>("health")
-  const [selectedChildId, setSelectedChildId] = React.useState(CHILDREN[0].id)
-  const [search, setSearch] = React.useState("")
+  const [allChildren, setAllChildren] = React.useState<any[]>([])
+  const [selectedChildId, setSelectedChildId] = React.useState("")
+  const [loading, setLoading] = React.useState(true)
+  const [studentSearch, setStudentSearch] = React.useState("")
+  const [studentDropdownOpen, setStudentDropdownOpen] = React.useState(false)
+  const [batchSearch, setBatchSearch] = React.useState("")
+  const [batchDropdownOpen, setBatchDropdownOpen] = React.useState(false)
 
-  const filteredChildren = CHILDREN.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    c.className.toLowerCase().includes(search.toLowerCase())
-  )
-  const selectedChild = CHILDREN.find(c => c.id === selectedChildId) ?? CHILDREN[0]
+  React.useEffect(() => {
+    async function loadData() {
+      try {
+        const [batchesRes, studentsRes] = await Promise.all([
+          api.getBatches(),
+          api.getStudents()
+        ])
+        const rawBatches = Array.isArray(batchesRes) ? batchesRes : []
+        const rawStudents = Array.isArray(studentsRes) ? studentsRes : (studentsRes?.students ?? studentsRes?.data ?? [])
+        
+        const studentOpts = rawStudents.map((s: any) => {
+          const batchInfo = rawBatches.find((b: any) => b.studentNames?.includes(s.name))
+          return {
+            id: s.id || s._id,
+            name: s.name,
+            parentName: s.parentName,
+            className: batchInfo ? `${batchInfo.courseName || "Batch"} — ${batchInfo.section || batchInfo.code || "A"}` : "Unassigned",
+            branch: s.tenantId || "Main",
+          }
+        }).sort((a: any, b: any) => a.name.localeCompare(b.name))
+        
+        setAllChildren(studentOpts)
+        if (studentOpts.length > 0) setSelectedChildId(studentOpts[0].id)
+      } catch (err) {
+        console.error(err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadData()
+  }, [])
+
+  const selectedChild = allChildren.find(c => c.id === selectedChildId) ?? allChildren[0]
   const isBirthdayTab = activeTab === "birthdays"
+
+  if (loading) {
+    return <div className="p-8 text-center text-muted-foreground animate-pulse text-sm">Loading records...</div>
+  }
+
+  if (allChildren.length === 0) {
+    return <div className="p-8 text-center text-muted-foreground text-sm">No children found.</div>
+  }
 
   return (
     <div className="space-y-5">
@@ -797,42 +978,113 @@ export default function ChildCarePage() {
           <div className="flex flex-col sm:flex-row sm:items-center gap-4 p-3 bg-muted/30 border border-border/60 rounded-2xl shadow-sm">
             <div className="flex items-center gap-3 flex-1 max-w-xl">
               <div className="relative flex-1">
-                <select 
-                  value={selectedChild.className}
-                  onChange={e => {
-                    const firstInClass = CHILDREN.find(c => c.className === e.target.value)
-                    if (firstInClass) setSelectedChildId(firstInClass.id)
-                  }}
-                  className="w-full h-10 pl-4 pr-10 appearance-none bg-card border border-border rounded-xl text-sm font-semibold focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer shadow-xs"
+                <button
+                  type="button"
+                  onClick={() => setBatchDropdownOpen(!batchDropdownOpen)}
+                  className="w-full h-10 pl-4 pr-4 bg-card border border-border rounded-xl text-sm font-semibold focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all text-left shadow-xs flex items-center justify-between"
                 >
-                  {Array.from(new Set(CHILDREN.map(c => c.className))).map(cls => (
-                    <option key={cls} value={cls}>{cls}</option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                  <span className="truncate">{selectedChild?.className || "Select batch"}</span>
+                  <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 ml-2" />
+                </button>
+
+                {batchDropdownOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setBatchDropdownOpen(false)} />
+                    <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-lg z-50 overflow-hidden flex flex-col min-w-[200px]">
+                      <div className="p-2 border-b border-border">
+                        <input 
+                          autoFocus
+                          type="text"
+                          placeholder="Search batch..."
+                          value={batchSearch}
+                          onChange={e => setBatchSearch(e.target.value)}
+                          className="w-full h-8 px-3 text-xs bg-muted/50 border border-border rounded-lg focus:outline-none focus:border-primary"
+                        />
+                      </div>
+                      <div className="max-h-48 overflow-y-auto p-1">
+                        {Array.from(new Set(allChildren.map((c: any) => c.className)))
+                          .filter((cls: string) => cls.toLowerCase().includes(batchSearch.toLowerCase()))
+                          .map((cls: string) => (
+                          <button
+                            key={cls}
+                            type="button"
+                            onClick={() => {
+                              const firstInClass = allChildren.find((c: any) => c.className === cls)
+                              if (firstInClass) setSelectedChildId(firstInClass.id)
+                              setBatchDropdownOpen(false)
+                              setBatchSearch("")
+                            }}
+                            className={cn(
+                              "w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-muted/60 transition-colors",
+                              cls === selectedChild?.className && "bg-primary/10 text-primary font-bold"
+                            )}
+                          >
+                            {cls}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="relative flex-[1.5]">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <select 
-                  value={selectedChildId}
-                  onChange={e => setSelectedChildId(e.target.value)}
-                  className="w-full h-10 pl-9 pr-10 appearance-none bg-card border border-border rounded-xl text-sm font-semibold focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer shadow-xs"
+                <button
+                  type="button"
+                  onClick={() => setStudentDropdownOpen(!studentDropdownOpen)}
+                  className="w-full h-10 pl-9 pr-4 bg-card border border-border rounded-xl text-sm font-semibold focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all text-left shadow-xs flex items-center justify-between"
                 >
-                  {CHILDREN.filter(c => c.className === selectedChild.className).map(child => (
-                    <option key={child.id} value={child.id}>
-                      {child.name}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                  <span className="truncate">{selectedChild?.name || "Select student"}</span>
+                  <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 ml-2" />
+                </button>
+
+                {studentDropdownOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setStudentDropdownOpen(false)} />
+                    <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-lg z-50 overflow-hidden flex flex-col">
+                      <div className="p-2 border-b border-border">
+                        <input 
+                          autoFocus
+                          type="text"
+                          placeholder="Search student..."
+                          value={studentSearch}
+                          onChange={e => setStudentSearch(e.target.value)}
+                          className="w-full h-8 px-3 text-xs bg-muted/50 border border-border rounded-lg focus:outline-none focus:border-primary"
+                        />
+                      </div>
+                      <div className="max-h-48 overflow-y-auto p-1">
+                        {allChildren.filter(c => c.className === selectedChild.className && c.name.toLowerCase().includes(studentSearch.toLowerCase())).length === 0 && (
+                          <p className="text-xs text-muted-foreground p-2 text-center">No students found.</p>
+                        )}
+                        {allChildren.filter(c => c.className === selectedChild.className && c.name.toLowerCase().includes(studentSearch.toLowerCase())).map(child => (
+                          <button
+                            key={child.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedChildId(child.id)
+                              setStudentDropdownOpen(false)
+                              setStudentSearch("")
+                            }}
+                            className={cn(
+                              "w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-muted/60 transition-colors",
+                              child.id === selectedChildId && "bg-primary/10 text-primary font-bold"
+                            )}
+                          >
+                            {child.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
             
             {/* Child header quick summary */}
             <div className="hidden sm:flex items-center gap-3 ml-auto pr-2 border-l border-border/60 pl-6">
               <div className="h-9 w-9 rounded-full bg-primary/10 text-primary font-bold text-xs flex items-center justify-center shrink-0 border border-primary/20 shadow-xs">
-                {selectedChild.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                {selectedChild.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
               </div>
               <div className="min-w-0 text-right">
                 <p className="text-sm font-bold text-foreground leading-none">{selectedChild.name}</p>

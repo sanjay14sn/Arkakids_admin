@@ -16,7 +16,7 @@ import { getPortalNavLinks } from "@/lib/portalNav"
 
 export function Navbar() {
   const pathname = usePathname()
-  const { user, centerPolicy, supportQueueCount } = useStore()
+  const { user, centerPolicy, supportQueueCount, pendingLeavesCount } = useStore()
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false)
   const [searchOpen, setSearchOpen] = React.useState(false)
 
@@ -50,6 +50,7 @@ export function Navbar() {
     role: user?.role,
     policyOk,
     supportQueueCount,
+    pendingLeavesCount,
   })
 
   return (

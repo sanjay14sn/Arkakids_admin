@@ -26,7 +26,6 @@ import { useStore } from "@/store/useStore"
 import { formatDate, cn } from "@/lib/utils"
 import {
   CHILDREN,
-  BRANCHES,
   CLASSES,
   DOCUMENT_TYPES,
   PARENT_CHILD_ID,
@@ -35,6 +34,8 @@ import {
   type ChildRecord,
   type ChildDocument,
 } from "@/lib/preschoolOps"
+import { useBranches } from "@/hooks/useBranches"
+import { api } from "@/lib/api"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -78,24 +79,24 @@ const DOC_ICONS: Record<string, React.ElementType> = {
 interface StudentListProps {
   isParent: boolean
   allDocs: ChildDocument[]
-  onSelect: (child: ChildRecord) => void
+  childrenList: any[]
+  onSelect: (child: any) => void
 }
 
 const PAGE_SIZE = 5
 
-function StudentList({ isParent, allDocs, onSelect }: StudentListProps) {
+function StudentList({ isParent, allDocs, childrenList, onSelect }: StudentListProps) {
   const [search, setSearch] = React.useState("")
   const [branchFilter, setBranchFilter] = React.useState("all")
   const [classFilter, setClassFilter] = React.useState("all")
   const [statusFilter, setStatusFilter] = React.useState<"all" | "complete" | "pending" | "missing">("all")
   const [page, setPage] = React.useState(1)
+  const { branches } = useBranches()
 
   // Reset to page 1 whenever any filter / search changes
   React.useEffect(() => { setPage(1) }, [search, branchFilter, classFilter, statusFilter])
 
-  const visibleChildren = isParent
-    ? CHILDREN.filter((c) => c.id === PARENT_CHILD_ID)
-    : CHILDREN
+  const visibleChildren = childrenList
 
   const filtered = visibleChildren.filter((child) => {
     if (search && !child.name.toLowerCase().includes(search.toLowerCase())) return false
@@ -178,7 +179,7 @@ function StudentList({ isParent, allDocs, onSelect }: StudentListProps) {
               className="h-8 text-xs rounded-lg border border-border bg-card px-2 focus:outline-none focus:border-primary"
             >
               <option value="all">All Branches</option>
-              {BRANCHES.map((b) => (
+              {branches.map((b) => (
                 <option key={b} value={b}>{b.replace("ARKA KIDS ", "")}</option>
               ))}
             </select>
@@ -193,8 +194,8 @@ function StudentList({ isParent, allDocs, onSelect }: StudentListProps) {
               className="h-8 text-xs rounded-lg border border-border bg-card px-2 focus:outline-none focus:border-primary"
             >
               <option value="all">All Classes</option>
-              {CLASSES.map((c) => (
-                <option key={c} value={c}>{c}</option>
+              {Array.from(new Set(childrenList.map((c) => c.className))).map((cls: any) => (
+                <option key={cls} value={cls}>{cls}</option>
               ))}
             </select>
           </div>
@@ -268,7 +269,7 @@ function StudentList({ isParent, allDocs, onSelect }: StudentListProps) {
                   {/* Avatar + Name */}
                   <div className="flex items-center gap-3.5">
                     <div className="h-10 w-10 rounded-full bg-primary/10 text-primary font-bold text-sm flex items-center justify-center shrink-0 border border-primary/15 group-hover:bg-primary group-hover:text-white transition-colors">
-                      {child.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+                      {child.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
                     </div>
                     <div>
                       <p className="text-sm font-semibold text-foreground">{child.name}</p>
@@ -582,15 +583,51 @@ export default function ChildDocumentsPage() {
     user?.role === "trainer"
 
   const { state, update, ready } = usePreschoolOps()
-  const [selectedChild, setSelectedChild] = React.useState<ChildRecord | null>(null)
+  const [selectedChild, setSelectedChild] = React.useState<any | null>(null)
+  const [allChildren, setAllChildren] = React.useState<any[]>([])
+  const [loadingChildren, setLoadingChildren] = React.useState(true)
+
+  React.useEffect(() => {
+    async function loadData() {
+      try {
+        const [batchesRes, studentsRes] = await Promise.all([
+          api.getBatches(),
+          api.getStudents()
+        ])
+        const rawBatches = Array.isArray(batchesRes) ? batchesRes : []
+        const rawStudents = Array.isArray(studentsRes) ? studentsRes : (studentsRes?.students ?? studentsRes?.data ?? [])
+        
+        const studentOpts = rawStudents.map((s: any) => {
+          const batchInfo = rawBatches.find((b: any) => b.studentNames?.includes(s.name))
+          return {
+            id: s.id || s._id,
+            name: s.name,
+            parentName: s.parentName,
+            className: batchInfo ? `${batchInfo.courseName || "Batch"} — ${batchInfo.section || batchInfo.code || "A"}` : "Unassigned",
+            branch: s.tenantId || "Main",
+          }
+        }).sort((a: any, b: any) => a.name.localeCompare(b.name))
+        
+        if (isParent) {
+          setAllChildren(studentOpts.filter((c: any) => c.id === PARENT_CHILD_ID))
+        } else {
+          setAllChildren(studentOpts)
+        }
+      } catch (err) {
+        console.error(err)
+      } finally {
+        setLoadingChildren(false)
+      }
+    }
+    loadData()
+  }, [isParent])
 
   // Auto-select for parent
   React.useEffect(() => {
-    if (isParent) {
-      const child = childById(PARENT_CHILD_ID)
-      if (child) setSelectedChild(child)
+    if (isParent && allChildren.length > 0) {
+      setSelectedChild(allChildren[0])
     }
-  }, [isParent])
+  }, [isParent, allChildren])
 
   const markUploaded = (type: ChildDocument["type"], fileName: string) => {
     if (!selectedChild) return
@@ -618,7 +655,7 @@ export default function ChildDocumentsPage() {
     }))
   }
 
-  if (!ready) {
+  if (!ready || loadingChildren) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -649,6 +686,7 @@ export default function ChildDocumentsPage() {
     <StudentList
       isParent={isParent}
       allDocs={state.documents}
+      childrenList={allChildren}
       onSelect={setSelectedChild}
     />
   )

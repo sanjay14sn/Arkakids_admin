@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { CalendarOff, Plus, Check, X, Loader2, RefreshCw, AlertTriangle } from "lucide-react"
+import { CalendarOff, Plus, Check, X, Loader2, RefreshCw, AlertTriangle, Search } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
@@ -30,11 +30,20 @@ export interface LeaveRequest {
   createdAt: string
 }
 
+interface BatchOption {
+  id: string
+  name: string
+  className: string
+  studentNames: string[] // names of students in this batch
+}
+
 interface ChildOption {
   id: string
   name: string
   className: string
   parentName: string
+  batchId?: string
+  batchName?: string
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -55,13 +64,39 @@ function mapApiLeave(r: any): LeaveRequest {
   }
 }
 
-function mapApiStudent(s: any): ChildOption {
+function mapApiBatch(b: any): BatchOption {
+  return {
+    id: b._id ?? b.id ?? "",
+    // Mirror the batchTitle() logic from courses page
+    name: b.courseName
+      ? (b.section ? `${b.courseName} - ${b.section}` : b.courseName)
+      : (b.code ?? b.name ?? b.batchName ?? ""),
+    className: b.courseName ?? b.code ?? b.name ?? "",
+    // Keep raw studentNames for matching
+    studentNames: Array.isArray(b.studentNames) ? b.studentNames as string[] : [],
+  }
+}
+
+function mapApiStudent(s: any, batchId?: string, batchName?: string): ChildOption {
   return {
     id: s._id ?? s.id ?? "",
     name: s.name ?? s.studentName ?? "",
     className: s.className ?? s.batch ?? s.class ?? "—",
     parentName: s.parentName ?? s.guardianName ?? s.fatherName ?? "Parent",
+    batchId,
+    batchName,
   }
+}
+
+function isLeaveCompleted(toDateStr?: string): boolean {
+  if (!toDateStr) return false
+  const now = new Date()
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  
+  const leaveEnd = new Date(toDateStr.includes("T") ? toDateStr : toDateStr + "T23:59:59").getTime()
+  if (isNaN(leaveEnd)) return false
+
+  return leaveEnd < todayStart
 }
 
 function statusBadge(status: LeaveStatus) {
@@ -72,7 +107,7 @@ function statusBadge(status: LeaveStatus) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function ChildLeavePage() {
-  const { user } = useStore()
+  const { user, fetchPendingLeavesCount } = useStore()
   const isParent = user?.role === "student"
   const canDecide =
     user?.role === "trainer" ||
@@ -80,16 +115,19 @@ export default function ChildLeavePage() {
     user?.role === "super_admin" ||
     user?.role === "bde"
 
-  // ── State ────────────────────────────────────────────────────────────────
+  // ── Page State ────────────────────────────────────────────────────────────
   const [leaves, setLeaves] = React.useState<LeaveRequest[]>([])
-  const [children, setChildren] = React.useState<ChildOption[]>([])
+  const [allChildren, setAllChildren] = React.useState<ChildOption[]>([])
+  const [batches, setBatches] = React.useState<BatchOption[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState("")
   const [statusFilter, setStatusFilter] = React.useState("all")
   const [searchQuery, setSearchQuery] = React.useState("")
 
-  // Dialog state
+  // ── Dialog State ─────────────────────────────────────────────────────────
   const [open, setOpen] = React.useState(false)
+  const [selectedBatchId, setSelectedBatchId] = React.useState("")
+  const [studentSearch, setStudentSearch] = React.useState("")
   const [childId, setChildId] = React.useState("")
   const [fromDate, setFromDate] = React.useState("")
   const [toDate, setToDate] = React.useState("")
@@ -105,9 +143,10 @@ export default function ChildLeavePage() {
     setLoading(true)
     setError("")
     try {
-      const [leavesRes, studentsRes] = await Promise.all([
+      const [leavesRes, studentsRes, batchesRes] = await Promise.all([
         api.getChildLeaves().catch(() => null),
         api.getStudents().catch(() => null),
+        api.getBatches().catch(() => null),
       ])
 
       // Leaves
@@ -116,25 +155,78 @@ export default function ChildLeavePage() {
         : (leavesRes?.leaves ?? leavesRes?.data ?? [])
       setLeaves(rawLeaves.map(mapApiLeave).sort((a, b) => b.createdAt.localeCompare(a.createdAt)))
 
-      // Children for dropdown
+      // Batches — plain array returned directly by /batches
+      const rawBatches: any[] = Array.isArray(batchesRes) ? batchesRes : []
+      const batchOpts = rawBatches
+        .map(mapApiBatch)
+        .filter(b => b.id && b.name)
+      setBatches(batchOpts)
+      if (batchOpts.length > 0) setSelectedBatchId(batchOpts[0].id)
+
+      // Students — plain array from /students
       const rawStudents: any[] = Array.isArray(studentsRes)
         ? studentsRes
         : (studentsRes?.students ?? studentsRes?.data ?? [])
-      const opts = rawStudents.map(mapApiStudent).filter(c => c.id && c.name)
-      setChildren(opts)
-      if (opts.length > 0 && !childId) setChildId(opts[0].id)
+
+      const studentOpts = rawStudents
+        .map(s => {
+          // Match student to batch by checking each batch's studentNames[]
+          const matchedBatch = batchOpts.find(b =>
+            b.studentNames.some(sn =>
+              sn.trim().toLowerCase() === (s.name ?? s.studentName ?? "").trim().toLowerCase()
+            )
+          )
+          return mapApiStudent(
+            s,
+            matchedBatch?.id ?? "",
+            matchedBatch?.name ?? ""
+          )
+        })
+        .filter(c => c.id && c.name)
+      setAllChildren(studentOpts)
     } catch (e: any) {
       setError(e?.message ?? "Failed to load leave requests.")
     } finally {
       setLoading(false)
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   React.useEffect(() => { fetchData() }, [fetchData])
 
-  // ── Filtered rows ─────────────────────────────────────────────────────────
-  const filtered = React.useMemo(() => {
-    return leaves.filter(r => {
+  // ── Derived: students filtered by selected batch + search ─────────────────
+  const studentsInBatch = React.useMemo(() => {
+    if (!selectedBatchId) return allChildren
+    return allChildren.filter(c => c.batchId === selectedBatchId)
+  }, [allChildren, selectedBatchId])
+
+  const filteredStudents = React.useMemo(() => {
+    if (!studentSearch.trim()) return studentsInBatch
+    const q = studentSearch.toLowerCase()
+    return studentsInBatch.filter(c =>
+      c.name.toLowerCase().includes(q) || c.parentName.toLowerCase().includes(q)
+    )
+  }, [studentsInBatch, studentSearch])
+
+  // Reset child selection when batch changes
+  React.useEffect(() => {
+    setChildId("")
+    setStudentSearch("")
+  }, [selectedBatchId])
+
+  // Auto-select first student in list
+  React.useEffect(() => {
+    if (filteredStudents.length > 0 && !childId) {
+      setChildId(filteredStudents[0].id)
+    }
+  }, [filteredStudents, childId])
+
+  // ── Filtered leave rows (Completed leave dates are automatically removed) ──
+  const activeLeaves = React.useMemo(() => {
+    return leaves.filter(r => !isLeaveCompleted(r.toDate))
+  }, [leaves])
+
+  const filteredLeaves = React.useMemo(() => {
+    return activeLeaves.filter(r => {
       if (statusFilter !== "all" && r.status !== statusFilter) return false
       if (searchQuery) {
         const q = searchQuery.toLowerCase()
@@ -142,11 +234,11 @@ export default function ChildLeavePage() {
       }
       return true
     })
-  }, [leaves, statusFilter, searchQuery])
+  }, [activeLeaves, statusFilter, searchQuery])
 
-  const pendingCount = leaves.filter(r => r.status === "pending").length
-  const approvedCount = leaves.filter(r => r.status === "approved").length
-  const rejectedCount = leaves.filter(r => r.status === "rejected").length
+  const pendingCount = activeLeaves.filter(r => r.status === "pending").length
+  const approvedCount = activeLeaves.filter(r => r.status === "approved").length
+  const rejectedCount = activeLeaves.filter(r => r.status === "rejected").length
 
   // ── Submit new leave ───────────────────────────────────────────────────────
   const handleSubmit = async () => {
@@ -154,11 +246,12 @@ export default function ChildLeavePage() {
     setSubmitting(true)
     setSubmitErr("")
     try {
-      const selectedChild = children.find(c => c.id === childId)
+      const selectedChild = allChildren.find(c => c.id === childId)
+      const selectedBatch = batches.find(b => b.id === selectedBatchId)
       const payload = {
         childId: childId || "unknown",
         childName: selectedChild?.name,
-        className: selectedChild?.className,
+        className: selectedChild?.className ?? selectedBatch?.className ?? selectedBatch?.name,
         parentName: selectedChild?.parentName,
         fromDate,
         toDate,
@@ -171,6 +264,7 @@ export default function ChildLeavePage() {
       setReason("")
       setFromDate("")
       setToDate("")
+      setChildId("")
       setOpen(false)
     } catch (e: any) {
       setSubmitErr(e?.message ?? "Failed to submit leave request.")
@@ -179,17 +273,22 @@ export default function ChildLeavePage() {
     }
   }
 
+  const closeDialog = () => {
+    setOpen(false)
+    setSubmitErr("")
+    setStudentSearch("")
+  }
+
   // ── Approve / Reject ───────────────────────────────────────────────────────
   const decide = async (id: string, status: "approved" | "rejected") => {
     setDecidingId(id)
-    // Optimistic update
     setLeaves(prev =>
       prev.map(r => r.id === id ? { ...r, status, decidedBy: user?.name || "Coordinator" } : r)
     )
     try {
       await api.reviewChildLeave(id, status, user?.name || "Coordinator")
+      void fetchPendingLeavesCount()
     } catch {
-      // Revert on failure
       fetchData()
     } finally {
       setDecidingId(null)
@@ -243,7 +342,7 @@ export default function ChildLeavePage() {
             <div>
               <p className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Pending</p>
               <p className="text-3xl font-extrabold mt-1 text-warning">
-                {loading ? <Loader2 className="h-6 w-6 animate-spin inline" /> : pendingCount}
+                {pendingCount}
               </p>
             </div>
             <div className="h-10 w-10 rounded-full bg-warning/10 flex items-center justify-center">
@@ -256,7 +355,7 @@ export default function ChildLeavePage() {
             <div>
               <p className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Approved</p>
               <p className="text-3xl font-extrabold mt-1 text-success">
-                {loading ? <Loader2 className="h-6 w-6 animate-spin inline" /> : approvedCount}
+                {approvedCount}
               </p>
             </div>
             <div className="h-10 w-10 rounded-full bg-success/10 flex items-center justify-center">
@@ -269,7 +368,7 @@ export default function ChildLeavePage() {
             <div>
               <p className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Rejected</p>
               <p className="text-3xl font-extrabold mt-1 text-destructive">
-                {loading ? <Loader2 className="h-6 w-6 animate-spin inline" /> : rejectedCount}
+                {rejectedCount}
               </p>
             </div>
             <div className="h-10 w-10 rounded-full bg-destructive/10 flex items-center justify-center">
@@ -304,7 +403,6 @@ export default function ChildLeavePage() {
           </div>
         </CardHeader>
         <CardContent className="p-0 overflow-x-auto text-xs">
-          {/* Loading skeleton */}
           {loading && leaves.length === 0 ? (
             <div className="divide-y divide-border/30">
               {[1, 2, 3].map(i => (
@@ -319,10 +417,8 @@ export default function ChildLeavePage() {
                 </div>
               ))}
             </div>
-          ) : filtered.length === 0 ? (
-            <div className="py-12 text-center text-muted-foreground text-sm">
-              No leave requests found.
-            </div>
+          ) : filteredLeaves.length === 0 ? (
+            <div className="py-12 text-center text-muted-foreground text-sm">No leave requests found.</div>
           ) : (
             <table className="w-full text-sm">
               <thead className="bg-muted/10">
@@ -335,7 +431,7 @@ export default function ChildLeavePage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40">
-                {filtered.map((row) => (
+                {filteredLeaves.map((row) => (
                   <tr key={row.id} className="hover:bg-muted/5 transition-colors">
                     <td className="py-3 px-4">
                       <p className="font-semibold text-sm">{row.childName}</p>
@@ -390,38 +486,115 @@ export default function ChildLeavePage() {
         </CardContent>
       </Card>
 
-      {/* Submit / Log dialog */}
+      {/* ── Submit / Log Dialog ─────────────────────────────────────────────── */}
       <Dialog
         isOpen={open}
-        onClose={() => { setOpen(false); setSubmitErr("") }}
+        onClose={closeDialog}
         title="Child leave request"
-        description="Submit dates and a reason. Coordinator will approve or reject."
+        description="Select a batch and child, then fill in the dates and reason."
       >
-        <div className="space-y-3">
+        <div className="space-y-4">
           {submitErr && (
             <div className="text-xs text-destructive bg-destructive/5 border border-destructive/20 rounded-lg px-3 py-2 flex items-center gap-2">
               <AlertTriangle className="h-3.5 w-3.5 shrink-0" />{submitErr}
             </div>
           )}
 
-          {/* Child selector */}
           {!isParent && (
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-foreground">Child</label>
-              {children.length === 0 ? (
-                <p className="text-xs text-muted-foreground italic">Loading children...</p>
-              ) : (
-                <Select value={childId} onChange={(e) => setChildId(e.target.value)} className="h-9 text-xs">
-                  {children.map((child) => (
-                    <option key={child.id} value={child.id}>
-                      {child.name} — {child.className}
-                    </option>
-                  ))}
-                </Select>
-              )}
-            </div>
+            <>
+              {/* Step 1 — Batch */}
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-foreground">Batch / Class</label>
+                {loading ? (
+                  <div className="h-9 rounded-lg border border-border bg-muted/20 flex items-center px-3 gap-2">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground">Loading batches…</span>
+                  </div>
+                ) : (
+                  <Select
+                    value={selectedBatchId}
+                    onChange={(e) => setSelectedBatchId(e.target.value)}
+                    className="h-9 text-xs"
+                    disabled={batches.length === 0}
+                  >
+                    {batches.length === 0 ? (
+                      <option value="">No batches available</option>
+                    ) : (
+                      batches.map((b) => (
+                        <option key={b.id} value={b.id}>{b.name}</option>
+                      ))
+                    )}
+                  </Select>
+                )}
+              </div>
+
+              {/* Step 2 — Search + pick student */}
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-foreground">
+                  Child
+                  {studentsInBatch.length > 0 && (
+                    <span className="ml-1.5 text-[10px] text-muted-foreground font-normal">
+                      ({studentsInBatch.length} in batch)
+                    </span>
+                  )}
+                </label>
+
+                {/* Search box */}
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <input
+                    type="text"
+                    placeholder="Search by name or parent…"
+                    value={studentSearch}
+                    onChange={(e) => setStudentSearch(e.target.value)}
+                    className="w-full h-9 pl-8 pr-3 rounded-lg border border-border bg-card text-xs focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all"
+                  />
+                </div>
+
+                {/* Student list */}
+                {batches.length > 0 && (
+                  filteredStudents.length === 0 ? (
+                    <p className="text-xs text-muted-foreground italic px-1">
+                      {studentSearch ? "No students match your search." : "No students in this batch."}
+                    </p>
+                  ) : (
+                    <div className="max-h-44 overflow-y-auto rounded-lg border border-border divide-y divide-border/50">
+                      {filteredStudents.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => setChildId(c.id)}
+                          className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors ${
+                            childId === c.id
+                              ? "bg-primary/10 border-l-2 border-primary"
+                              : "hover:bg-muted/40"
+                          }`}
+                        >
+                          {/* Avatar initials */}
+                          <div className={`h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${
+                            childId === c.id
+                              ? "bg-primary text-white"
+                              : "bg-primary/10 text-primary"
+                          }`}>
+                            {c.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-foreground truncate">{c.name}</p>
+                            <p className="text-[10px] text-muted-foreground truncate">{c.className} • {c.parentName}</p>
+                          </div>
+                          {childId === c.id && (
+                            <Check className="h-3.5 w-3.5 text-primary shrink-0" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )
+                )}
+              </div>
+            </>
           )}
 
+          {/* Dates */}
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
               <label className="text-xs font-semibold text-foreground">From</label>
@@ -433,27 +606,32 @@ export default function ChildLeavePage() {
             </div>
           </div>
 
+          {/* Reason */}
           <div className="space-y-1">
             <label className="text-xs font-semibold text-foreground">Reason</label>
             <textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Reason for leave"
-              className="w-full min-h-24 rounded-lg border border-border bg-card px-3 py-2 text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
+              className="w-full min-h-20 rounded-lg border border-border bg-card px-3 py-2 text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
             />
           </div>
 
+          {/* Actions */}
           <div className="flex justify-end gap-2 pt-1 border-t border-border/50">
-            <Button variant="outline" size="sm" onClick={() => { setOpen(false); setSubmitErr("") }} disabled={submitting}>
+            <Button variant="outline" size="sm" onClick={closeDialog} disabled={submitting}>
               Cancel
             </Button>
             <Button
               size="sm"
               icon={submitting ? Loader2 : Plus}
               onClick={handleSubmit}
-              disabled={!fromDate || !toDate || !reason.trim() || submitting}
+              disabled={
+                !fromDate || !toDate || !reason.trim() || submitting ||
+                (!isParent && !childId)
+              }
             >
-              {submitting ? "Submitting..." : "Submit"}
+              {submitting ? "Submitting…" : "Submit"}
             </Button>
           </div>
         </div>

@@ -10,10 +10,12 @@ import {
 import { Badge } from "@/components/ui/Badge"
 import { Button } from "@/components/ui/Button"
 import { Dialog } from "@/components/ui/Dialog"
+import { Select } from "@/components/ui/Select"
 import { formatCurrency } from "@/lib/utils"
 import { cn } from "@/lib/utils"
 import { api } from "@/lib/api"
 import { useStore } from "@/store/useStore"
+import { toast } from "sonner"
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 export interface StaffMember {
@@ -29,6 +31,17 @@ export interface StaffMember {
   status: "active" | "on_leave" | "inactive"
   assignedClass?: string
   coordinatorId?: string
+  // Additional fields
+  gender?: string
+  employmentType?: string
+  dob?: string
+  experience?: string
+  specialisation?: string
+  classRole?: string
+  shift?: string
+  emergencyName?: string
+  emergencyRelation?: string
+  emergencyPhone?: string
 }
 
 /** Fallback used only until API responds */
@@ -49,6 +62,16 @@ function mapApiStaff(s: any): StaffMember {
     status: s.status ?? "active",
     assignedClass: s.assignedClass ?? s.className ?? undefined,
     coordinatorId: s.coordinatorId ?? s.reportingTo ?? undefined,
+    gender: s.gender,
+    employmentType: s.employmentType,
+    dob: s.dob,
+    experience: s.experience,
+    specialisation: s.specialisation,
+    classRole: s.classRole,
+    shift: s.shift,
+    emergencyName: s.emergencyName,
+    emergencyRelation: s.emergencyRelation,
+    emergencyPhone: s.emergencyPhone,
   }
 }
 
@@ -102,7 +125,9 @@ function StaffCard({
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-foreground">{member.name}</p>
-            <p className="text-[11px] text-muted-foreground truncate">{member.assignedClass}</p>
+            <p className="text-[11px] text-muted-foreground truncate">
+              {member.branch.replace("ARKA KIDS ", "")}{member.assignedClass ? ` · ${member.assignedClass}` : ""}
+            </p>
           </div>
         </button>
         <div className="flex items-center gap-2 shrink-0">
@@ -165,13 +190,29 @@ function StaffCard({
               <Building2 className="h-3 w-3" />{member.branch.replace("ARKA KIDS ", "")}
             </span>
           </div>
-          <div className="grid sm:grid-cols-2 gap-y-2 gap-x-4 text-xs text-muted-foreground">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-y-2 gap-x-4 text-xs text-muted-foreground">
             <span className="flex items-center gap-1.5"><Mail className="h-3 w-3 shrink-0" />{member.email}</span>
             <span className="flex items-center gap-1.5"><Phone className="h-3 w-3 shrink-0" />{member.phone}</span>
-            <span className="flex items-center gap-1.5"><GraduationCap className="h-3 w-3 shrink-0" />{member.qualification}</span>
             <span className="flex items-center gap-1.5 font-semibold text-foreground">
-              {formatCurrency(member.salary)}<span className="font-normal text-muted-foreground">/ month</span>
+              {formatCurrency(member.salary)}<span className="font-normal text-muted-foreground">/mo</span>
             </span>
+
+            {member.qualification && <span className="flex items-center gap-1.5"><GraduationCap className="h-3 w-3 shrink-0" />{member.qualification}</span>}
+            {member.gender && <span className="flex items-center gap-1.5">Gender: {member.gender}</span>}
+            {member.employmentType && <span className="flex items-center gap-1.5">Type: {member.employmentType}</span>}
+            {member.dob && <span className="flex items-center gap-1.5">DOB: {member.dob.split('-').reverse().join('-')}</span>}
+            {member.joiningDate && <span className="flex items-center gap-1.5">Joined: {member.joiningDate.split('-').reverse().join('-')}</span>}
+            {member.experience && <span className="flex items-center gap-1.5">Exp: {member.experience} yrs</span>}
+            {member.specialisation && <span className="flex items-center gap-1.5">Spec: {member.specialisation}</span>}
+            {member.classRole && <span className="flex items-center gap-1.5">Role: {member.classRole}</span>}
+            {member.shift && <span className="flex items-center gap-1.5">Shift: {member.shift}</span>}
+
+            {(member.emergencyName || member.emergencyPhone) && (
+              <span className="flex items-center gap-1.5 sm:col-span-2 lg:col-span-3 mt-1 pt-1 border-t border-border/30">
+                <AlertTriangle className="h-3 w-3 shrink-0 text-muted-foreground" />
+                Emergency: {member.emergencyName} {member.emergencyRelation ? `(${member.emergencyRelation})` : ""} {member.emergencyPhone ? `· ${member.emergencyPhone}` : ""}
+              </span>
+            )}
           </div>
         </div>
       )}
@@ -179,144 +220,463 @@ function StaffCard({
   )
 }
 
-// ─── Add Staff Dialog ─────────────────────────────────────────────────────────
-function AddStaffDialog({
+// ─── Staff Form Dialog (Add / Edit) ─────────────────────────────────────────────────────────
+function StaffFormDialog({
   open,
   onClose,
-  onAdd,
+  onSave,
   coordinators,
   branches,
+  userRole,
+  isCoordinatorMode,
+  editMember,
 }: {
   open: boolean
   onClose: () => void
-  onAdd: (m: StaffMember) => void
+  onSave: (m: StaffMember) => void
   coordinators: StaffMember[]
   branches: string[]
+  userRole: string
+  isCoordinatorMode?: boolean
+  editMember?: StaffMember
 }) {
-  const [name, setName] = React.useState("")
-  const [email, setEmail] = React.useState("")
-  const [phone, setPhone] = React.useState("")
-  const [role, setRole] = React.useState<StaffMember["role"]>("Lead Educator")
-  const [branch, setBranch] = React.useState(branches[0] ?? "")
+  const { addNotification } = useStore()
+  
+  // Shared state
+  const [name, setName] = React.useState(editMember?.name ?? "")
+  const [email, setEmail] = React.useState(editMember?.email ?? "")
+  const [phone, setPhone] = React.useState(editMember?.phone ?? "")
+  const [branch, setBranch] = React.useState(editMember?.branch ?? (branches[0] ?? ""))
+  const [qual, setQual] = React.useState(editMember?.qualification ?? "")
+  const [cls, setCls] = React.useState(editMember?.assignedClass ?? "")
+  
+  // Teacher-specific
+  const [role, setRole] = React.useState<StaffMember["role"]>(editMember?.role ?? "Lead Educator")
+  const [salary, setSalary] = React.useState(editMember?.salary ? String(editMember.salary) : "35000")
+  const [coordId, setCoordId] = React.useState(editMember?.coordinatorId ?? (coordinators[0]?.id ?? ""))
+  
+  // Additional Teacher state
+  const [dob, setDob] = React.useState(editMember?.dob ?? "")
+  const [experience, setExperience] = React.useState(editMember?.experience ?? "")
+  const [specialisation, setSpecialisation] = React.useState(editMember?.specialisation ?? "")
+  const [assignedClasses, setAssignedClasses] = React.useState<string[]>(
+    editMember?.assignedClass ? editMember.assignedClass.split(",").map(s => s.trim()) : []
+  )
+  const [classRole, setClassRole] = React.useState(editMember?.classRole ?? "")
+  const [shift, setShift] = React.useState(editMember?.shift ?? "")
+  const [emergencyName, setEmergencyName] = React.useState(editMember?.emergencyName ?? "")
+  const [emergencyRelation, setEmergencyRelation] = React.useState(editMember?.emergencyRelation ?? "")
+  const [emergencyPhone, setEmergencyPhone] = React.useState(editMember?.emergencyPhone ?? "")
 
-  // Keep branch in sync if branches list loads after dialog mounts
-  React.useEffect(() => {
-    if (!branch && branches.length > 0) setBranch(branches[0])
-  }, [branches])
-  const [coordId, setCoordId] = React.useState(coordinators[0]?.id ?? "")
-  const [cls, setCls] = React.useState("")
-  const [qual, setQual] = React.useState("")
-  const [salary, setSalary] = React.useState("35000")
+  // Coordinator-specific (shared with teacher now)
+  const [gender, setGender] = React.useState(editMember?.gender ?? "")
+  const [joiningDate, setJoiningDate] = React.useState(editMember?.joiningDate ?? "")
+  const [empType, setEmpType] = React.useState(editMember?.employmentType ?? "Full-time")
+  const [accountStatus, setAccountStatus] = React.useState(editMember?.status === "inactive" ? "Inactive" : "Active")
+  const [sendInvite, setSendInvite] = React.useState(true)
+
   const [saving, setSaving] = React.useState(false)
-  const [err, setErr] = React.useState("")
 
-  const isCoord = role === "Center Coordinator"
+  React.useEffect(() => {
+    if (!editMember && !branch && branches.length > 0) setBranch(branches[0])
+  }, [branches, branch, editMember])
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim() || !email.trim() || !phone.trim()) return
     setSaving(true)
-    setErr("")
     try {
       const payload = {
         name: name.trim(),
         email: email.trim(),
         phone: phone.trim(),
-        role,
+        role: isCoordinatorMode ? "Center Coordinator" : role,
         branch,
-        joiningDate: new Date().toISOString().slice(0, 10),
-        qualification: qual || "Certified Early Educator",
+        joiningDate: joiningDate || new Date().toISOString().slice(0, 10),
+        qualification: qual || (isCoordinatorMode ? "" : "Certified Early Educator"),
         salary: Number(salary) || 35000,
-        status: "active",
-        assignedClass: cls.trim() || undefined,
-        coordinatorId: isCoord ? undefined : (coordId || undefined),
+        status: accountStatus === "Active" ? "active" : "inactive",
+        assignedClass: isCoordinatorMode ? undefined : (assignedClasses.length > 0 ? assignedClasses.join(", ") : undefined),
+        coordinatorId: isCoordinatorMode ? undefined : (coordId || undefined),
+        gender,
+        employmentType: empType,
+        // Teacher specific extras
+        dob: !isCoordinatorMode ? dob : undefined,
+        experience: !isCoordinatorMode ? experience : undefined,
+        specialisation: !isCoordinatorMode ? specialisation : undefined,
+        classRole: !isCoordinatorMode ? classRole : undefined,
+        shift: !isCoordinatorMode ? shift : undefined,
+        emergencyName: !isCoordinatorMode ? emergencyName : undefined,
+        emergencyRelation: !isCoordinatorMode ? emergencyRelation : undefined,
+        emergencyPhone: !isCoordinatorMode ? emergencyPhone : undefined,
       }
-      const res = await api.createStaff(payload)
-      onAdd(mapApiStaff(res?.staff ?? res))
+      if (editMember) {
+        const res = await api.updateStaff(editMember.id, payload)
+        onSave(mapApiStaff({ ...editMember, ...payload, ...(res?.staff ?? res ?? {}) }))
+      } else {
+        const res = await api.createStaff(payload)
+        onSave(mapApiStaff(res?.staff ?? res))
+      }
+      
       onClose()
-      setName(""); setEmail(""); setPhone(""); setCls(""); setQual(""); setSalary("35000")
+      if (!editMember) {
+        setName(""); setEmail(""); setPhone(""); setCls(""); setQual(""); setSalary("35000"); setJoiningDate("");
+      }
     } catch (e: any) {
-      setErr(e?.message ?? "Failed to add staff member.")
+      toast.error(e?.message ?? (editMember ? "Failed to update staff member." : "Failed to add staff member."))
     } finally {
       setSaving(false)
     }
   }
 
+  const isEdit = !!editMember
+
+  if (isCoordinatorMode) {
+    return (
+      <Dialog isOpen={open} onClose={onClose} title={isEdit ? `Edit Coordinator — ${name}` : "Add Centre Coordinator"} className="max-w-2xl">
+        <form onSubmit={submit} className="space-y-6 pt-2">
+          <p className="text-sm text-muted-foreground -mt-4">
+            Enter the coordinator's details to create their staff profile and login.
+          </p>
+
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-sm font-bold text-foreground mb-3">1. Personal Information</h3>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Full Name *</label>
+                  <input value={name} onChange={e => setName(e.target.value)} required placeholder="Enter full name"
+                    className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Gender</label>
+                  <select value={gender} onChange={e => setGender(e.target.value)}
+                    className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary">
+                    <option value="">Select gender</option>
+                    <option value="Female">Female</option>
+                    <option value="Male">Male</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Mobile Number *</label>
+                  <input value={phone} onChange={e => setPhone(e.target.value)} required placeholder="10-digit number"
+                    className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Email Address *</label>
+                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="Email address"
+                    className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary" />
+                </div>
+              </div>
+            </div>
+
+            <div className="w-full h-px bg-border/50" />
+
+            <div>
+              <h3 className="text-sm font-bold text-foreground mb-3">2. Employment Details</h3>
+              <div className="grid sm:grid-cols-2 gap-3">
+
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Date of Joining *</label>
+                  <input type="date" value={joiningDate} onChange={e => setJoiningDate(e.target.value)} required
+                    className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Qualification</label>
+                  <input value={qual} onChange={e => setQual(e.target.value)} placeholder="Select / enter"
+                    className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Employment Type</label>
+                  <select value={empType} onChange={e => setEmpType(e.target.value)}
+                    className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary">
+                    <option value="Full-time">Full-time</option>
+                    <option value="Part-time">Part-time</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="w-full h-px bg-border/50" />
+
+            <div>
+              <h3 className="text-sm font-bold text-foreground mb-3">3. Centre Assignment</h3>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Centre / Branch *</label>
+                  <select value={branch} onChange={e => setBranch(e.target.value)}
+                    className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary">
+                    {branches.map(b => <option key={b} value={b}>{b.replace("ARKA KIDS ", "")}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Assigned Classes</label>
+                  <input value={cls} onChange={e => setCls(e.target.value)} placeholder="Select classes (optional)"
+                    className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary" />
+                </div>
+              </div>
+            </div>
+
+            <div className="w-full h-px bg-border/50" />
+
+            <div>
+              <h3 className="text-sm font-bold text-foreground mb-3">4. Login & Access</h3>
+              <div className="grid sm:grid-cols-2 gap-3 mb-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Login Email *</label>
+                  <input readOnly value={email || "Use email address above"}
+                    className="w-full h-9 rounded-lg border border-border bg-muted/30 px-3 text-sm text-foreground focus:outline-none focus:border-primary" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Account Status</label>
+                  <select value={accountStatus} onChange={e => setAccountStatus(e.target.value)}
+                    className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary">
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                </div>
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={sendInvite} onChange={e => setSendInvite(e.target.checked)} className="rounded border-border text-primary focus:ring-primary h-4 w-4" />
+                <span className="text-sm font-medium text-foreground">Login invitation</span>
+              </label>
+              <p className="text-xs text-muted-foreground ml-6">Send secure account setup invitation</p>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4 border-t border-border/50 mt-4">
+            <Button type="button" variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+            <Button type="submit" variant="primary" icon={saving ? Loader2 : UserPlus} disabled={saving}>
+              {saving ? (isEdit ? "Saving..." : "Adding...") : (isEdit ? "Save Changes" : "Add Coordinator")}
+            </Button>
+          </div>
+        </form>
+      </Dialog>
+    )
+  }
+
   return (
-    <Dialog isOpen={open} onClose={onClose} title="Add Staff Member">
-      <form onSubmit={submit} className="space-y-4 pt-1">
-        {err && (
-          <div className="text-xs text-destructive bg-destructive/5 border border-destructive/20 rounded-lg px-3 py-2 flex items-center gap-2">
-            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />{err}
-          </div>
-        )}
-        <div className="grid sm:grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-foreground">Full Name *</label>
-            <input value={name} onChange={e => setName(e.target.value)} required placeholder="e.g. Anita Roy"
-              className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10" />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-foreground">Phone *</label>
-            <input value={phone} onChange={e => setPhone(e.target.value)} required placeholder="+91 ..."
-              className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10" />
-          </div>
-          <div className="space-y-1 sm:col-span-2">
-            <label className="text-xs font-semibold text-foreground">Email *</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="name@arkakids.com"
-              className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10" />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-foreground">Role</label>
-            <select value={role} onChange={e => setRole(e.target.value as StaffMember["role"])}
-              className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary">
-              <option>Center Coordinator</option>
-              <option>Lead Educator</option>
-              <option>Assistant Teacher</option>
-              <option>Enquiry Executive</option>
-              <option>Caregiver / Support</option>
-            </select>
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-foreground">Branch</label>
-            <select value={branch} onChange={e => setBranch(e.target.value)}
-              className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary">
-              {branches.map(b => <option key={b} value={b}>{b.replace("ARKA KIDS ", "")}</option>)}
-            </select>
-          </div>
-          {!isCoord && coordinators.length > 0 && (
+    <Dialog isOpen={open} onClose={onClose} title={isEdit ? `Edit Teacher — ${name}` : "Add New Teacher"} className="max-w-3xl">
+      <form onSubmit={submit} className="space-y-6 pt-2 h-[75vh] overflow-y-auto pr-2">
+        {/* 1. Personal Information */}
+        <div>
+          <h3 className="text-sm font-bold text-foreground mb-3">1. Personal Information</h3>
+          <div className="grid sm:grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-foreground">Reports to Coordinator</label>
-              <select value={coordId} onChange={e => setCoordId(e.target.value)}
+              <label className="text-xs font-medium text-muted-foreground">Full Name *</label>
+              <input value={name} onChange={e => setName(e.target.value)} required placeholder="Enter full name"
+                className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary" />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Mobile Number *</label>
+              <input value={phone} onChange={e => setPhone(e.target.value)} required placeholder="10-digit number"
+                className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Email Address *</label>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="Email address"
+                className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Date of Birth</label>
+              <input type="date" value={dob} onChange={e => setDob(e.target.value)}
+                className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Gender</label>
+              <select value={gender} onChange={e => setGender(e.target.value)}
                 className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary">
-                {coordinators.map(c => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} — {c.branch.replace("ARKA KIDS ", "")}
-                  </option>
-                ))}
+                <option value="">Select gender</option>
+                <option value="Female">Female</option>
+                <option value="Male">Male</option>
+                <option value="Other">Other</option>
               </select>
             </div>
-          )}
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-foreground">Assigned Class / Desk</label>
-            <input value={cls} onChange={e => setCls(e.target.value)} placeholder="e.g. Nursery A"
-              className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10" />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-foreground">Qualification</label>
-            <input value={qual} onChange={e => setQual(e.target.value)} placeholder="e.g. B.Ed"
-              className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10" />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-foreground">Monthly Salary (₹)</label>
-            <input type="number" value={salary} onChange={e => setSalary(e.target.value)} min={0}
-              className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10" />
           </div>
         </div>
-        <div className="flex justify-end gap-2 pt-1 border-t border-border/50">
-          <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button type="submit" variant="primary" size="sm" icon={saving ? Loader2 : UserPlus} disabled={saving}>
-            {saving ? "Adding..." : "Add Member"}
+
+        <div className="w-full h-px bg-border/50" />
+
+        {/* 2. Employment Details */}
+        <div>
+          <h3 className="text-sm font-bold text-foreground mb-3">2. Employment Details</h3>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Designation *</label>
+              <select value={role} onChange={e => setRole(e.target.value as any)} required
+                className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary">
+                <option value="">Select designation</option>
+                <option value="Lead Educator">Lead Educator</option>
+                <option value="Assistant Teacher">Assistant Teacher</option>
+                <option value="Enquiry Executive">Enquiry Executive</option>
+                <option value="Caregiver / Support">Caregiver / Support</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Employment Type *</label>
+              <select value={empType} onChange={e => setEmpType(e.target.value)} required
+                className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary">
+                <option value="Full-time">Full-time</option>
+                <option value="Part-time">Part-time</option>
+                <option value="Contract">Contract</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Date of Joining *</label>
+              <input type="date" value={joiningDate} onChange={e => setJoiningDate(e.target.value)} required
+                className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Experience (years)</label>
+              <input type="number" value={experience} onChange={e => setExperience(e.target.value)} min={0} placeholder="e.g. 3"
+                className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary" />
+            </div>
+          </div>
+        </div>
+
+        <div className="w-full h-px bg-border/50" />
+
+        {/* 3. Qualification & Skills */}
+        <div>
+          <h3 className="text-sm font-bold text-foreground mb-3">3. Qualification & Skills</h3>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Highest Qualification</label>
+              <select value={qual} onChange={e => setQual(e.target.value)}
+                className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary">
+                <option value="">Select qualification</option>
+                <option value="B.Ed">B.Ed</option>
+                <option value="M.Ed">M.Ed</option>
+                <option value="Diploma in Early Childhood">Diploma in Early Childhood</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Specialisation</label>
+              <select value={specialisation} onChange={e => setSpecialisation(e.target.value)}
+                className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary">
+                <option value="">Select specialisation</option>
+                <option value="Montessori">Montessori</option>
+                <option value="Special Education">Special Education</option>
+                <option value="Child Psychology">Child Psychology</option>
+                <option value="General">General</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div className="w-full h-px bg-border/50" />
+
+        {/* 4. Centre & Classroom Assignment */}
+        <div>
+          <h3 className="text-sm font-bold text-foreground mb-3">4. Centre & Classroom Assignment</h3>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Centre / Branch *</label>
+              <select value={branch} onChange={e => setBranch(e.target.value)} required
+                className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary">
+                {branches.map(b => <option key={b} value={b}>{b.replace("ARKA KIDS ", "")}</option>)}
+              </select>
+            </div>
+            
+            <div className="sm:col-span-2 space-y-2 mt-2">
+              <label className="text-xs font-medium text-muted-foreground">Assigned Classes *</label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {["Toddler Program", "Nursery", "Junior KG (LKG)", "Senior KG (UKG)", "Daycare & After School"].map(c => (
+                  <label key={c} className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+                    <input type="checkbox" checked={assignedClasses.includes(c)}
+                      onChange={() => setAssignedClasses(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c])}
+                      className="rounded border-border text-primary focus:ring-primary h-4 w-4"
+                    />
+                    {c}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-1 mt-2">
+              <label className="text-xs font-medium text-muted-foreground">Class Role</label>
+              <select value={classRole} onChange={e => setClassRole(e.target.value)}
+                className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary">
+                <option value="">Select role</option>
+                <option value="Class Teacher">Class Teacher</option>
+                <option value="Co-Teacher">Co-Teacher</option>
+                <option value="Substitute">Substitute</option>
+              </select>
+            </div>
+            <div className="space-y-1 mt-2">
+              <label className="text-xs font-medium text-muted-foreground">Shift</label>
+              <select value={shift} onChange={e => setShift(e.target.value)}
+                className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary">
+                <option value="">Select shift</option>
+                <option value="Morning">Morning</option>
+                <option value="Afternoon">Afternoon</option>
+                <option value="Full Day">Full Day</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div className="w-full h-px bg-border/50" />
+
+        {/* 5. Emergency Contact */}
+        <div>
+          <h3 className="text-sm font-bold text-foreground mb-3">5. Emergency Contact</h3>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Contact Name</label>
+              <input value={emergencyName} onChange={e => setEmergencyName(e.target.value)} placeholder="Name"
+                className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Relationship</label>
+              <input value={emergencyRelation} onChange={e => setEmergencyRelation(e.target.value)} placeholder="e.g. Spouse, Parent"
+                className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary" />
+            </div>
+            <div className="space-y-1 sm:col-span-2">
+              <label className="text-xs font-medium text-muted-foreground">Emergency Contact Number</label>
+              <input value={emergencyPhone} onChange={e => setEmergencyPhone(e.target.value)} placeholder="Phone number"
+                className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary" />
+            </div>
+          </div>
+        </div>
+
+        <div className="w-full h-px bg-border/50" />
+
+        {/* 6. Login & Account Access */}
+        <div>
+          <h3 className="text-sm font-bold text-foreground mb-3">6. Login & Account Access</h3>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Login Email *</label>
+              <input type="email" value={email} readOnly disabled
+                className="w-full h-9 rounded-lg border border-border bg-muted px-3 text-sm text-muted-foreground cursor-not-allowed" />
+              <p className="text-[10px] text-muted-foreground mt-1">Uses the email address provided above.</p>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Account Status</label>
+              <div className="flex gap-4 mt-2">
+                <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+                  <input type="radio" checked={accountStatus === "Active"} onChange={() => setAccountStatus("Active")}
+                    className="text-primary focus:ring-primary" name="teacher_acc_status" />
+                  Active
+                </label>
+                <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+                  <input type="radio" checked={accountStatus === "Inactive"} onChange={() => setAccountStatus("Inactive")}
+                    className="text-primary focus:ring-primary" name="teacher_acc_status" />
+                  Inactive
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-4 border-t border-border/50 mt-4 sticky bottom-0 bg-background py-2">
+          <Button type="button" variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button type="submit" variant="primary" icon={saving ? Loader2 : UserPlus} disabled={saving}>
+            {saving ? (isEdit ? "Saving..." : "Adding...") : (isEdit ? "Save Changes" : "Add Teacher")}
           </Button>
         </div>
       </form>
@@ -324,135 +684,7 @@ function AddStaffDialog({
   )
 }
 
-// ─── Edit Staff Dialog ────────────────────────────────────────────────────────
-function EditStaffDialog({
-  member,
-  onClose,
-  onSave,
-  branches,
-}: {
-  member: StaffMember
-  onClose: () => void
-  onSave: (updated: StaffMember) => void
-  branches: string[]
-}) {
-  const [name, setName] = React.useState(member.name)
-  const [email, setEmail] = React.useState(member.email)
-  const [phone, setPhone] = React.useState(member.phone)
-  const [role, setRole] = React.useState<StaffMember["role"]>(member.role)
-  const [branch, setBranch] = React.useState(member.branch)
-  const [cls, setCls] = React.useState(member.assignedClass ?? "")
-  const [qual, setQual] = React.useState(member.qualification)
-  const [salary, setSalary] = React.useState(String(member.salary))
-  const [status, setStatus] = React.useState<StaffMember["status"]>(member.status)
 
-  const [saving, setSaving] = React.useState(false)
-  const [err, setErr] = React.useState("")
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!name.trim()) return
-    setSaving(true)
-    setErr("")
-    try {
-      const payload = {
-        name: name.trim(),
-        email: email.trim(),
-        phone: phone.trim(),
-        role,
-        branch,
-        assignedClass: cls.trim() || undefined,
-        qualification: qual.trim(),
-        salary: Number(salary) || member.salary,
-        status,
-      }
-      const res = await api.updateStaff(member.id, payload)
-      onSave(mapApiStaff({ ...member, ...payload, ...(res?.staff ?? res ?? {}) }))
-      onClose()
-    } catch (e: any) {
-      setErr(e?.message ?? "Failed to save changes.")
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <Dialog isOpen onClose={onClose} title={`Edit — ${member.name}`}>
-      <form onSubmit={submit} className="space-y-4 pt-1">
-        {err && (
-          <div className="text-xs text-destructive bg-destructive/5 border border-destructive/20 rounded-lg px-3 py-2 flex items-center gap-2">
-            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />{err}
-          </div>
-        )}
-        <div className="grid sm:grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-foreground">Full Name *</label>
-            <input value={name} onChange={e => setName(e.target.value)} required
-              className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10" />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-foreground">Phone</label>
-            <input value={phone} onChange={e => setPhone(e.target.value)}
-              className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10" />
-          </div>
-          <div className="space-y-1 sm:col-span-2">
-            <label className="text-xs font-semibold text-foreground">Email</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-              className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10" />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-foreground">Role</label>
-            <select value={role} onChange={e => setRole(e.target.value as StaffMember["role"])}
-              className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary">
-              <option>Center Coordinator</option>
-              <option>Lead Educator</option>
-              <option>Assistant Teacher</option>
-              <option>Enquiry Executive</option>
-              <option>Caregiver / Support</option>
-            </select>
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-foreground">Status</label>
-            <select value={status} onChange={e => setStatus(e.target.value as StaffMember["status"])}
-              className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary">
-              <option value="active">Active</option>
-              <option value="on_leave">On Leave</option>
-              <option value="inactive">Inactive</option>
-            </select>
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-foreground">Branch</label>
-            <select value={branch} onChange={e => setBranch(e.target.value)}
-              className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary">
-              {branches.map(b => <option key={b} value={b}>{b.replace("ARKA KIDS ", "")}</option>)}
-            </select>
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-foreground">Assigned Class / Desk</label>
-            <input value={cls} onChange={e => setCls(e.target.value)} placeholder="e.g. Nursery A"
-              className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10" />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-foreground">Qualification</label>
-            <input value={qual} onChange={e => setQual(e.target.value)}
-              className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10" />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-foreground">Monthly Salary (₹)</label>
-            <input type="number" value={salary} onChange={e => setSalary(e.target.value)} min={0}
-              className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10" />
-          </div>
-        </div>
-        <div className="flex justify-end gap-2 pt-1 border-t border-border/50">
-          <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button type="submit" variant="primary" size="sm" icon={saving ? Loader2 : Pencil} disabled={saving}>
-            {saving ? "Saving..." : "Save Changes"}
-          </Button>
-        </div>
-      </form>
-    </Dialog>
-  )
-}
 
 // ─── Inner (uses useSearchParams) ─────────────────────────────────────────────
 function StaffPageInner() {
@@ -470,6 +702,9 @@ function StaffPageInner() {
   const [error, setError] = React.useState("")
   const [branches, setBranches] = React.useState<string[]>(FALLBACK_BRANCHES)
   const [search, setSearch] = React.useState("")
+  const [branchFilter, setBranchFilter] = React.useState("all")
+  const [statusFilter, setStatusFilter] = React.useState("all")
+  const [roleFilter, setRoleFilter] = React.useState("all")
   const [addOpen, setAddOpen] = React.useState(false)
   const [editMember, setEditMember] = React.useState<StaffMember | null>(null)
 
@@ -530,24 +765,25 @@ function StaffPageInner() {
     }
   }
 
-  // Which tab: "coordinators" | "teachers"
-  const [tab, setTab] = React.useState<"coordinators" | "teachers">(
-    section === "teachers" ? "teachers" : "coordinators"
-  )
-  React.useEffect(() => {
-    if (section === "teachers") setTab("teachers")
-    else if (section === "coordinators") setTab("coordinators")
-  }, [section])
-
+  // Which list are we viewing based on the dedicated link?
+  const isTeachers = section === "teachers"
   const coordinators = staff.filter(s => s.role === "Center Coordinator")
   const teachers = staff.filter(s => s.role !== "Center Coordinator")
 
-  const list = tab === "coordinators" ? coordinators : teachers
-  const filtered = list.filter(s =>
-    s.name.toLowerCase().includes(search.toLowerCase()) ||
-    (s.assignedClass ?? "").toLowerCase().includes(search.toLowerCase()) ||
-    s.branch.toLowerCase().includes(search.toLowerCase())
-  )
+  const currentList = isTeachers ? teachers : coordinators
+  const baseTitle = isTeachers ? "Teachers & Educators" : "Center Coordinators"
+  const pageTitle = user?.role === "super_admin" ? `All ${baseTitle}` : baseTitle
+  
+  const filtered = currentList.filter(s => {
+    const matchSearch = s.name.toLowerCase().includes(search.toLowerCase()) ||
+      (s.assignedClass ?? "").toLowerCase().includes(search.toLowerCase()) ||
+      s.branch.toLowerCase().includes(search.toLowerCase())
+    const matchBranch = branchFilter === "all" || s.branch === branchFilter
+    const matchStatus = statusFilter === "all" || s.status === statusFilter
+    const matchRole = !isTeachers || roleFilter === "all" || s.role === roleFilter
+    
+    return matchSearch && matchBranch && matchStatus && matchRole
+  })
 
   // Group teachers by coordinator
   const teachersByCoord = React.useMemo(() => {
@@ -560,22 +796,21 @@ function StaffPageInner() {
     return map
   }, [teachers])
 
-  // Summary stats
-  const active = staff.filter(s => s.status === "active").length
-  const onLeave = staff.filter(s => s.status === "on_leave").length
+  // Summary stats for the current view
+  const active = currentList.filter(s => s.status === "active").length
+  const onLeave = currentList.filter(s => s.status === "on_leave").length
 
   return (
     <div className="space-y-5">
       {/* Header */}
       <div className="border-b border-border/60 pb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-wider text-primary mb-1">Human Resources</p>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2 text-foreground">
-            <UserCog className="h-6 w-6 text-primary" />
-            Staff & Educators
+            {isTeachers ? <GraduationCap className="h-6 w-6 text-primary" /> : <UserCog className="h-6 w-6 text-primary" />}
+            {pageTitle}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {loading && staff.length === 0 ? "Loading..." : `${active} active · ${onLeave} on leave · ${staff.length} total`}
+            {loading && staff.length === 0 ? "Loading..." : `${active} active · ${onLeave} on leave · ${currentList.length} total`}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -589,7 +824,7 @@ function StaffPageInner() {
             {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
           </button>
           <Button variant="primary" size="sm" icon={UserPlus} onClick={() => setAddOpen(true)}>
-            Add Member
+            {isTeachers ? "Add Teacher" : "Add Coordinator"}
           </Button>
         </div>
       </div>
@@ -603,44 +838,50 @@ function StaffPageInner() {
         </div>
       )}
 
-      {/* Loading skeleton */}
+      {/* Loading */}
       {loading && staff.length === 0 && (
-        <div className="space-y-2">
-          {[1,2,3,4].map(i => (
-            <div key={i} className="rounded-xl border border-border/50 bg-card h-14 animate-pulse" />
-          ))}
+        <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+          <Loader2 className="h-8 w-8 animate-spin text-primary/80 mb-4" />
+          <p className="text-sm">Loading data...</p>
         </div>
       )}
 
-      {/* Tab + Search */}
-      <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center justify-between">
-        {/* Tabs */}
-        <div className="flex gap-1 bg-muted/60 border border-border/50 rounded-lg p-1">
-          {(["coordinators", "teachers"] as const).map(t => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setTab(t)}
-              className={cn(
-                "px-4 py-1.5 rounded-md text-xs font-semibold transition-colors capitalize",
-                tab === t
-                  ? "bg-primary text-white shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {t === "coordinators" ? "Center Coordinators" : "Teachers & Educators"}
-              <span className={cn(
-                "ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold",
-                tab === t ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
-              )}>
-                {t === "coordinators" ? coordinators.length : teachers.length}
-              </span>
-            </button>
-          ))}
+      {/* Filters + Search */}
+      {!(loading && staff.length === 0) && (
+        <>
+          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between bg-card p-2 rounded-xl border border-border/60">
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <div className="w-full sm:w-44">
+            <Select value={branchFilter} onChange={e => setBranchFilter(e.target.value)} className="h-9 text-xs">
+              <option value="all">All Branches</option>
+              {branches.map(b => (
+                <option key={b} value={b}>{b.replace("ARKA KIDS ", "")}</option>
+              ))}
+            </Select>
+          </div>
+          <div className="w-full sm:w-36">
+            <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="h-9 text-xs">
+              <option value="all">All Statuses</option>
+              <option value="active">Active</option>
+              <option value="on_leave">On Leave</option>
+              <option value="inactive">Inactive</option>
+            </Select>
+          </div>
+          {isTeachers && (
+            <div className="w-full sm:w-44">
+              <Select value={roleFilter} onChange={e => setRoleFilter(e.target.value)} className="h-9 text-xs">
+                <option value="all">All Roles</option>
+                <option value="Lead Educator">Lead Educator</option>
+                <option value="Assistant Teacher">Assistant Teacher</option>
+                <option value="Enquiry Executive">Enquiry Executive</option>
+                <option value="Caregiver / Support">Caregiver / Support</option>
+              </Select>
+            </div>
+          )}
         </div>
 
         {/* Search */}
-        <div className="relative w-full sm:w-56">
+        <div className="relative w-full sm:w-56 shrink-0">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <input
             type="text"
@@ -657,11 +898,17 @@ function StaffPageInner() {
         </div>
       </div>
 
-      {/* ── Coordinators Tab ── */}
-      {tab === "coordinators" && (
-        <div className="space-y-2">
+      {/* ── Coordinators View ── */}
+      {!isTeachers && (
+        <div className="space-y-2 mt-4">
           {filtered.length === 0 && !loading ? (
-            <p className="text-sm text-muted-foreground text-center py-10">No coordinators found.</p>
+            <div className="flex flex-col items-center justify-center py-16 px-4 bg-card rounded-xl border border-border/60 border-dashed mt-4">
+              <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-3">
+                <Search className="h-6 w-6 text-primary opacity-80" />
+              </div>
+              <p className="text-sm font-semibold text-foreground">No coordinators found</p>
+              <p className="text-xs text-muted-foreground mt-1 max-w-sm text-center">Try adjusting your filters, searching for a different name, or add a new coordinator.</p>
+            </div>
           ) : (
             filtered.map(coord => {
               const team = teachersByCoord[coord.id] ?? []
@@ -679,11 +926,17 @@ function StaffPageInner() {
         </div>
       )}
 
-      {/* ── Teachers Tab ── */}
-      {tab === "teachers" && (
-        <div className="space-y-2">
+      {/* ── Teachers View ── */}
+      {isTeachers && (
+        <div className="space-y-2 mt-4">
           {filtered.length === 0 && !loading ? (
-            <p className="text-sm text-muted-foreground text-center py-10">No staff found.</p>
+            <div className="flex flex-col items-center justify-center py-16 px-4 bg-card rounded-xl border border-border/60 border-dashed mt-4">
+              <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-3">
+                <Search className="h-6 w-6 text-primary opacity-80" />
+              </div>
+              <p className="text-sm font-semibold text-foreground">No teachers found</p>
+              <p className="text-xs text-muted-foreground mt-1 max-w-sm text-center">Try adjusting your filters, searching for a different name, or add a new teacher.</p>
+            </div>
           ) : (
             filtered.map(member => (
               <StaffCard
@@ -696,21 +949,29 @@ function StaffPageInner() {
           )}
         </div>
       )}
+        </>
+      )}
 
-      <AddStaffDialog
+      <StaffFormDialog
         open={addOpen}
         onClose={() => setAddOpen(false)}
-        onAdd={m => setStaff(prev => [m, ...prev])}
+        onSave={m => setStaff(prev => [m, ...prev])}
         coordinators={coordinators}
         branches={branches}
+        userRole={user?.role || ""}
+        isCoordinatorMode={!isTeachers}
       />
 
       {editMember && (
-        <EditStaffDialog
-          member={editMember}
+        <StaffFormDialog
+          open={true}
           onClose={() => setEditMember(null)}
           onSave={handleEdit}
+          coordinators={coordinators}
           branches={branches}
+          userRole={user?.role || ""}
+          isCoordinatorMode={editMember.role === "Center Coordinator"}
+          editMember={editMember}
         />
       )}
     </div>
@@ -811,11 +1072,25 @@ function CoordinatorRow({
       {/* Coordinator detail + team list */}
       {open && (
         <div className="border-t border-border/50">
-          {/* Coordinator details */}
-          <div className="px-4 py-3 bg-muted/10 grid sm:grid-cols-2 gap-y-2 gap-x-4 text-xs text-muted-foreground border-b border-border/40">
+          <div className="px-4 py-3 bg-muted/10 grid sm:grid-cols-2 lg:grid-cols-3 gap-y-2 gap-x-4 text-xs text-muted-foreground border-b border-border/40">
             <span className="flex items-center gap-1.5"><Mail className="h-3 w-3 shrink-0" />{coordinator.email}</span>
             <span className="flex items-center gap-1.5"><Phone className="h-3 w-3 shrink-0" />{coordinator.phone}</span>
-            <span className="flex items-center gap-1.5 sm:col-span-2"><GraduationCap className="h-3 w-3 shrink-0" />{coordinator.qualification} · {formatCurrency(coordinator.salary)}/mo</span>
+
+            
+            {coordinator.qualification && <span className="flex items-center gap-1.5"><GraduationCap className="h-3 w-3 shrink-0" />{coordinator.qualification}</span>}
+            {coordinator.gender && <span className="flex items-center gap-1.5">Gender: {coordinator.gender}</span>}
+            {coordinator.employmentType && <span className="flex items-center gap-1.5">Type: {coordinator.employmentType}</span>}
+            {coordinator.dob && <span className="flex items-center gap-1.5">DOB: {coordinator.dob.split('-').reverse().join('-')}</span>}
+            {coordinator.joiningDate && <span className="flex items-center gap-1.5">Joined: {coordinator.joiningDate.split('-').reverse().join('-')}</span>}
+            {coordinator.experience && <span className="flex items-center gap-1.5">Exp: {coordinator.experience} yrs</span>}
+            {coordinator.specialisation && <span className="flex items-center gap-1.5">Spec: {coordinator.specialisation}</span>}
+            
+            {(coordinator.emergencyName || coordinator.emergencyPhone) && (
+              <span className="flex items-center gap-1.5 sm:col-span-2 lg:col-span-3 mt-1 pt-1 border-t border-border/30">
+                <AlertTriangle className="h-3 w-3 shrink-0 text-muted-foreground" />
+                Emergency: {coordinator.emergencyName} {coordinator.emergencyRelation ? `(${coordinator.emergencyRelation})` : ""} {coordinator.emergencyPhone ? `· ${coordinator.emergencyPhone}` : ""}
+              </span>
+            )}
           </div>
 
           {/* Team members */}

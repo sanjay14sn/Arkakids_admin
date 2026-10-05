@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from "react"
+import { api } from "@/lib/api"
 import { ATTENDANCE_CHILDREN, childrenInClass, todayIso } from "@/lib/preschoolAttendance"
 import { CHILDREN, PARENT_CHILD_ID, childById } from "@/lib/preschoolOps"
 
 export const HOMEWORK_KEY = "arka_preschool_homework_v1"
 
+/** Suggestions only — the activity field is free text. */
 export const HOMEWORK_ACTIVITIES = ["English", "Maths", "Drawing", "Rhymes", "General Activity"] as const
-export type HomeworkActivity = (typeof HOMEWORK_ACTIVITIES)[number]
+export type HomeworkActivity = string
 
 export const HOMEWORK_BATCHES = ["Play Group", "Nursery - A", "LKG - A", "LKG - B", "UKG - A"] as const
 
@@ -27,6 +29,8 @@ export type HomeworkItem = {
   assignedDate: string
   dueDate: string
   visibility: ParentVisibility
+  /** When visibility is "scheduled": date (YYYY-MM-DD) parents start seeing this homework. */
+  visibleFrom?: string
   status: HomeworkStatus
   createdBy: string
   attachment?: HomeworkAttachment
@@ -77,6 +81,7 @@ export function rosterForBatch(batch: string) {
 }
 
 export function isVisibleToParent(item: HomeworkItem, today = todayIso()) {
+  if (item.visibility === "scheduled" && item.visibleFrom && item.visibleFrom > today) return false
   if (item.visibility === "scheduled" && item.assignedDate > today) return false
   return item.assignedDate <= today
 }
@@ -151,8 +156,14 @@ export const DEFAULT_HOMEWORK: HomeworkState = {
   ],
 }
 
-export function homeworkStats(item: HomeworkItem, completions: HomeworkCompletion[]) {
-  const roster = rosterForBatch(item.batch)
+export type RosterFn = (batch: string) => { id: string }[]
+
+export function homeworkStats(
+  item: HomeworkItem,
+  completions: HomeworkCompletion[],
+  rosterFn: RosterFn = rosterForBatch
+) {
+  const roster = rosterFn(item.batch)
   const doneIds = new Set(
     completions.filter((row) => row.homeworkId === item.id).map((row) => row.childId)
   )
@@ -162,7 +173,7 @@ export function homeworkStats(item: HomeworkItem, completions: HomeworkCompletio
   return { total, completed, pending }
 }
 
-export function dashboardCounts(state: HomeworkState, today = todayIso()) {
+export function dashboardCounts(state: HomeworkState, today = todayIso(), rosterFn: RosterFn = rosterForBatch) {
   const todayItems = state.items.filter((item) => item.assignedDate === today)
   const upcoming = state.items.filter(
     (item) => item.assignedDate > today || (item.visibility === "scheduled" && item.assignedDate > today)
@@ -170,12 +181,12 @@ export function dashboardCounts(state: HomeworkState, today = todayIso()) {
   const pending = state.items.filter((item) => {
     if (item.assignedDate > today) return false
     if (item.status === "completed") return false
-    const stats = homeworkStats(item, state.completions)
+    const stats = homeworkStats(item, state.completions, rosterFn)
     return stats.pending > 0
   })
   const completed = state.items.filter((item) => {
     if (item.status === "completed") return true
-    const stats = homeworkStats(item, state.completions)
+    const stats = homeworkStats(item, state.completions, rosterFn)
     return stats.total > 0 && stats.pending === 0 && item.assignedDate <= today
   })
   return {
@@ -197,42 +208,54 @@ export function parentHomework(state: HomeworkState, childId = PARENT_CHILD_ID, 
     .sort((a, b) => b.assignedDate.localeCompare(a.assignedDate) || a.dueDate.localeCompare(b.dueDate))
 }
 
-export function loadHomework(): HomeworkState {
-  if (typeof window === "undefined") return DEFAULT_HOMEWORK
-  try {
-    const raw = localStorage.getItem(HOMEWORK_KEY)
-    if (!raw) return DEFAULT_HOMEWORK
-    const parsed = JSON.parse(raw) as HomeworkState
-    return {
-      items: Array.isArray(parsed.items) ? parsed.items : DEFAULT_HOMEWORK.items,
-      completions: Array.isArray(parsed.completions) ? parsed.completions : DEFAULT_HOMEWORK.completions,
-    }
-  } catch {
-    return DEFAULT_HOMEWORK
-  }
-}
-
-export function saveHomework(state: HomeworkState) {
-  if (typeof window === "undefined") return
-  localStorage.setItem(HOMEWORK_KEY, JSON.stringify(state))
-}
-
 export function usePreschoolHomework() {
-  const [state, setState] = useState<HomeworkState>(DEFAULT_HOMEWORK)
+  const [state, setState] = useState<HomeworkState>({ items: [], completions: [] })
   const [ready, setReady] = useState(false)
 
-  useEffect(() => {
-    setState(loadHomework())
-    setReady(true)
+  const fetchHomeworks = useCallback(async () => {
+    try {
+      const data = await api.getHomeworks()
+      const items: HomeworkItem[] = data.map((d: any) => ({
+        id: d._id,
+        batch: d.batch || d.className || "",
+        activity: d.activity || d.subject || "",
+        title: d.title || "",
+        instructions: d.instructions || d.description || "",
+        assignedDate: d.assignedDate || (d.createdAt ? d.createdAt.split('T')[0] : ""),
+        dueDate: d.dueDate || "",
+        visibility: d.visibility || "immediate",
+        visibleFrom: d.visibleFrom,
+        status: d.status || "active",
+        createdBy: d.createdBy || "",
+        attachment: d.attachment
+      }))
+      
+      const completions: HomeworkCompletion[] = data.flatMap((d: any) => {
+        return (d.submissions || []).map((sub: any) => ({
+          id: `sub-${d._id}-${sub.studentId}`,
+          homeworkId: d._id,
+          childId: sub.studentId,
+          completedAt: sub.submittedAt,
+          photoSrc: sub.fileUrl
+        }))
+      })
+
+      setState({ items, completions })
+    } catch (e) {
+      console.error("Failed to load homework", e)
+    } finally {
+      setReady(true)
+    }
   }, [])
+
+  useEffect(() => {
+    fetchHomeworks()
+  }, [fetchHomeworks])
 
   const update = useCallback((patch: Partial<HomeworkState> | ((prev: HomeworkState) => HomeworkState)) => {
-    setState((prev) => {
-      const next = typeof patch === "function" ? patch(prev) : { ...prev, ...patch }
-      saveHomework(next)
-      return next
-    })
+    setState((prev) => typeof patch === "function" ? patch(prev) : { ...prev, ...patch })
   }, [])
 
-  return { state, update, ready }
+  return { state, update, ready, refetch: fetchHomeworks }
 }
+

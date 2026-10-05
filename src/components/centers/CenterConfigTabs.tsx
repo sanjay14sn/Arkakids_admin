@@ -160,21 +160,27 @@ export function CenterConfigTabs({ activeTab, setActiveTab, config, updateConfig
         <div className="p-6 space-y-6 max-h-none overflow-y-auto">
           {activeTab === "general" && (
             <>
-              <SettingsSection title="Center profile" description="Identity and operational status for this training hub.">
+              <SettingsSection title="Institute & Franchise Details" description="Franchise identifiers, operational status, and academic setup.">
                 <div className="grid gap-5 sm:grid-cols-2">
-                  <SettingsField label="Center name" required>
-                    <Input required value={config.name} onChange={(e) => updateConfig({ name: e.target.value })} className={fieldInputClass} />
+                  <SettingsField label="Institute Name" required>
+                    <Input required value={config.name} onChange={(e) => updateConfig({ name: e.target.value, tenantName: config.tenantName || e.target.value })} className={fieldInputClass} />
                   </SettingsField>
-                  <SettingsField label="Institute / tenant" required>
+                  <SettingsField label="Franchise / Tenant Name" required>
                     <Input required value={config.tenantName} onChange={(e) => updateConfig({ tenantName: e.target.value })} className={fieldInputClass} />
                   </SettingsField>
-                  <SettingsField label="Branch model">
+                  <SettingsField label="Institute / Center Code">
+                    <Input value={config.centerCode} onChange={(e) => updateConfig({ centerCode: e.target.value.toUpperCase() })} className={cn(fieldInputClass, "font-mono")} placeholder="IPA-BLR-001" />
+                  </SettingsField>
+                  <SettingsField label="Academic Year Start Date">
+                    <Input type="date" value={config.academicYear} onChange={(e) => updateConfig({ academicYear: e.target.value })} className={fieldInputClass} />
+                  </SettingsField>
+                  <SettingsField label="Branch Model">
                     <Select value={config.branchType} onChange={(e) => updateConfig({ branchType: e.target.value as CenterConfig["branchType"] })} className={fieldInputClass}>
                       <option value="single">Single branch</option>
                       <option value="multiple">Multi-branch / franchise</option>
                     </Select>
                   </SettingsField>
-                  <SettingsField label="Operational status">
+                  <SettingsField label="Operational Status">
                     <Select value={config.status} onChange={(e) => updateConfig({ status: e.target.value as CenterConfig["status"] })} className={fieldInputClass}>
                       <option value="active">Active</option>
                       <option value="inactive">Inactive</option>
@@ -184,18 +190,47 @@ export function CenterConfigTabs({ activeTab, setActiveTab, config, updateConfig
                 </div>
               </SettingsSection>
 
-              <SettingsSection title="Location" description="Physical address shown on invoices and public pages.">
+              <SettingsSection title="Owner / Franchisee Details" description="Personal profile and verification data of the franchisee owner.">
                 <div className="grid gap-5 sm:grid-cols-2">
-                  <SettingsField label="Street address" required className="sm:col-span-2">
-                    <Input required value={config.location} onChange={(e) => updateConfig({ location: e.target.value })} className={fieldInputClass} />
+                  <SettingsField label="Owner / Franchisee Name" required>
+                    <Input required value={config.ownerName || config.manager} onChange={(e) => updateConfig({ ownerName: e.target.value, manager: e.target.value })} className={fieldInputClass} />
+                  </SettingsField>
+                  <SettingsField label="Mobile Number" required>
+                    <Input required type="tel" value={config.ownerMobile || config.phone} onChange={(e) => updateConfig({ ownerMobile: e.target.value, phone: e.target.value })} className={fieldInputClass} placeholder="+91 98765 43210" />
+                  </SettingsField>
+                  <SettingsField label="Email Address" required>
+                    <Input required type="email" value={config.ownerEmail || config.email} onChange={(e) => updateConfig({ ownerEmail: e.target.value, email: e.target.value })} className={fieldInputClass} />
+                  </SettingsField>
+                  <SettingsField label="Alternate Mobile">
+                    <Input type="tel" value={config.ownerAltMobile} onChange={(e) => updateConfig({ ownerAltMobile: e.target.value })} className={fieldInputClass} placeholder="+91 98765 43211" />
+                  </SettingsField>
+                  <SettingsField label="Date of Birth">
+                    <Input type="date" value={config.ownerDob} onChange={(e) => updateConfig({ ownerDob: e.target.value })} className={fieldInputClass} />
+                  </SettingsField>
+                  <SettingsField label="PAN Number">
+                    <Input value={config.ownerPan} onChange={(e) => updateConfig({ ownerPan: e.target.value.toUpperCase() })} className={cn(fieldInputClass, "font-mono")} placeholder="ABCDE1234F" />
+                  </SettingsField>
+                  <SettingsField label="Aadhaar Number" className="sm:col-span-2">
+                    <Input value={config.ownerAadhaar} onChange={(e) => updateConfig({ ownerAadhaar: e.target.value })} className={fieldInputClass} placeholder="1234 5678 9012" />
+                  </SettingsField>
+                </div>
+              </SettingsSection>
+
+              <SettingsSection title="Institute Address" description="Physical location configurations for invoices and maps.">
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <SettingsField label="Address Line 1" required className="sm:col-span-2">
+                    <Input required value={config.address1 || config.location} onChange={(e) => updateConfig({ address1: e.target.value, location: e.target.value })} className={fieldInputClass} placeholder="Street address, building, floor" />
+                  </SettingsField>
+                  <SettingsField label="Address Line 2" className="sm:col-span-2">
+                    <Input value={config.address2} onChange={(e) => updateConfig({ address2: e.target.value })} className={fieldInputClass} placeholder="Apartment, suite, unit, area" />
                   </SettingsField>
                   <SettingsField label="City">
                     <Input value={config.city} onChange={(e) => updateConfig({ city: e.target.value })} className={fieldInputClass} />
                   </SettingsField>
-                  <SettingsField label="State / province">
+                  <SettingsField label="State / Province">
                     <Input value={config.state} onChange={(e) => updateConfig({ state: e.target.value })} className={fieldInputClass} />
                   </SettingsField>
-                  <SettingsField label="Postal / PIN code">
+                  <SettingsField label="Postal / PIN Code">
                     <Input value={config.pincode} onChange={(e) => updateConfig({ pincode: e.target.value })} className={fieldInputClass} />
                   </SettingsField>
                   <SettingsField label="Country">
@@ -207,19 +242,28 @@ export function CenterConfigTabs({ activeTab, setActiveTab, config, updateConfig
                       <option value="Singapore">Singapore</option>
                     </Select>
                   </SettingsField>
+                  <SettingsField label="Google Maps Link" className="sm:col-span-2">
+                    <Input value={config.gmapsUrl || config.googleMaps} onChange={(e) => updateConfig({ gmapsUrl: e.target.value, googleMaps: e.target.value })} className={fieldInputClass} placeholder="https://maps.google.com/..." />
+                  </SettingsField>
                 </div>
               </SettingsSection>
 
-              <SettingsSection title="Primary contact" description="Center manager and administrative email.">
+              <SettingsSection title="Primary Admin & Contact Details" description="Administrative account and official communication numbers.">
                 <div className="grid gap-5 sm:grid-cols-2">
-                  <SettingsField label="Head manager" required>
-                    <Input required value={config.manager} onChange={(e) => updateConfig({ manager: e.target.value })} className={fieldInputClass} />
+                  <SettingsField label="Primary Admin / Manager Name" required>
+                    <Input required value={config.manager || config.adminName} onChange={(e) => updateConfig({ manager: e.target.value, adminName: e.target.value })} className={fieldInputClass} />
                   </SettingsField>
-                  <SettingsField label="Contact email" required>
-                    <Input required type="email" value={config.email} onChange={(e) => updateConfig({ email: e.target.value })} className={fieldInputClass} />
+                  <SettingsField label="Official / Admin Email" required>
+                    <Input required type="email" value={config.officialEmail || config.email} onChange={(e) => updateConfig({ officialEmail: e.target.value, email: e.target.value, adminEmail: e.target.value })} className={fieldInputClass} />
                   </SettingsField>
-                  <SettingsField label="Mobile number" hint="Include country code for international SMS.">
-                    <Input type="tel" value={config.phone} onChange={(e) => updateConfig({ phone: e.target.value })} className={fieldInputClass} placeholder="+91 98765 43210" />
+                  <SettingsField label="Official Mobile">
+                    <Input type="tel" value={config.officialMobile || config.phone} onChange={(e) => updateConfig({ officialMobile: e.target.value, phone: e.target.value, adminMobile: e.target.value })} className={fieldInputClass} placeholder="+91 98765 43210" />
+                  </SettingsField>
+                  <SettingsField label="WhatsApp Number">
+                    <Input type="tel" value={config.whatsappNumber || config.whatsapp} onChange={(e) => updateConfig({ whatsappNumber: e.target.value, whatsapp: e.target.value })} className={fieldInputClass} placeholder="+91 98765 43210" />
+                  </SettingsField>
+                  <SettingsField label="Website Link" className="sm:col-span-2">
+                    <Input value={config.website} onChange={(e) => updateConfig({ website: e.target.value })} className={fieldInputClass} placeholder="https://www.yourinstitute.com" />
                   </SettingsField>
                 </div>
               </SettingsSection>
@@ -439,7 +483,7 @@ export function CenterConfigTabs({ activeTab, setActiveTab, config, updateConfig
             <>
               <SettingsSection title="Tax & invoicing">
                 <div className="grid gap-5 sm:grid-cols-2">
-                  <SettingsField label="GST / VAT number"><Input value={config.gstVatNumber} onChange={(e) => updateConfig({ gstVatNumber: e.target.value })} className={fieldInputClass} /></SettingsField>
+                  <SettingsField label="GST / VAT number"><Input value={config.gstVatNumber || config.gstNumber} onChange={(e) => updateConfig({ gstVatNumber: e.target.value, gstNumber: e.target.value })} className={fieldInputClass} /></SettingsField>
                   <SettingsField label="Invoice prefix"><Input value={config.invoicePrefix} onChange={(e) => updateConfig({ invoicePrefix: e.target.value })} className={cn(fieldInputClass, "font-mono")} /></SettingsField>
                   <SettingsField label="Currency">
                     <Select value={config.currency} onChange={(e) => updateConfig({ currency: e.target.value })} className={fieldInputClass}>
@@ -467,6 +511,59 @@ export function CenterConfigTabs({ activeTab, setActiveTab, config, updateConfig
                   <textarea value={config.invoiceFooterNote} onChange={(e) => updateConfig({ invoiceFooterNote: e.target.value })} className={fieldTextareaClass} rows={2} />
                 </SettingsField>
               </SettingsSection>
+
+              <SettingsSection title="Contract & Franchise Agreement" description="Agreement dates, renewal periods, and franchise fees.">
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <SettingsField label="Agreement Start Date">
+                    <Input type="date" value={config.agreementStartDate} onChange={(e) => updateConfig({ agreementStartDate: e.target.value })} className={fieldInputClass} />
+                  </SettingsField>
+                  <SettingsField label="Agreement End Date">
+                    <Input type="date" value={config.agreementEndDate} onChange={(e) => updateConfig({ agreementEndDate: e.target.value })} className={fieldInputClass} />
+                  </SettingsField>
+                  <SettingsField label="Renewal Date">
+                    <Input type="date" value={config.renewalDate} onChange={(e) => updateConfig({ renewalDate: e.target.value })} className={fieldInputClass} />
+                  </SettingsField>
+                  <SettingsField label="Franchise Fee (INR)">
+                    <Input value={config.franchiseFee} onChange={(e) => updateConfig({ franchiseFee: e.target.value })} className={fieldInputClass} placeholder="e.g. 5,00,000" />
+                  </SettingsField>
+                  <SettingsField label="Agreement Document Name" className="sm:col-span-2">
+                    <Input value={config.agreementDocName} onChange={(e) => updateConfig({ agreementDocName: e.target.value })} className={fieldInputClass} placeholder="Franchise_Agreement.pdf" />
+                  </SettingsField>
+                </div>
+              </SettingsSection>
+
+              <SettingsSection title="Subscription & Package Plan" description="Institute subscription tier and capacity limits.">
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <SettingsField label="Subscription Plan">
+                    <Select value={config.subPlan || "Standard"} onChange={(e) => updateConfig({ subPlan: e.target.value })} className={fieldInputClass}>
+                      <option value="Basic">Basic Plan</option>
+                      <option value="Standard">Standard Plan</option>
+                      <option value="Premium">Premium Plan</option>
+                      <option value="Enterprise">Enterprise Plan</option>
+                    </Select>
+                  </SettingsField>
+                  <SettingsField label="Payment Status">
+                    <Select value={config.paymentStatus || "Pending"} onChange={(e) => updateConfig({ paymentStatus: e.target.value })} className={fieldInputClass}>
+                      <option value="Paid">Paid</option>
+                      <option value="Pending">Pending</option>
+                      <option value="Overdue">Overdue</option>
+                    </Select>
+                  </SettingsField>
+                  <SettingsField label="Subscription Start Date">
+                    <Input type="date" value={config.subStartDate} onChange={(e) => updateConfig({ subStartDate: e.target.value })} className={fieldInputClass} />
+                  </SettingsField>
+                  <SettingsField label="Subscription End Date">
+                    <Input type="date" value={config.subEndDate} onChange={(e) => updateConfig({ subEndDate: e.target.value })} className={fieldInputClass} />
+                  </SettingsField>
+                  <SettingsField label="Student Limit">
+                    <Input value={config.studentLimit} onChange={(e) => updateConfig({ studentLimit: e.target.value })} className={fieldInputClass} placeholder="200" />
+                  </SettingsField>
+                  <SettingsField label="Staff Limit">
+                    <Input value={config.staffLimit} onChange={(e) => updateConfig({ staffLimit: e.target.value })} className={fieldInputClass} placeholder="15" />
+                  </SettingsField>
+                </div>
+              </SettingsSection>
+
               <SettingsSection title="Payment options">
                 <SettingsSwitch label="Allow partial payments" checked={config.allowPartialPayments} onChange={(v) => updateConfig({ allowPartialPayments: v })} />
                 <SettingsSwitch label="Auto-generate receipts" checked={config.autoGenerateReceipts} onChange={(v) => updateConfig({ autoGenerateReceipts: v })} />
@@ -489,7 +586,7 @@ export function CenterConfigTabs({ activeTab, setActiveTab, config, updateConfig
           )}
 
           {activeTab === "security" && (
-            <SettingsSection title="Security controls">
+            <SettingsSection title="Security & Document Verification">
               <div className="grid gap-5 sm:grid-cols-2 mb-2">
                 <SettingsField label="Session timeout (minutes)"><Input type="number" value={config.sessionTimeoutMinutes} onChange={(e) => updateConfig({ sessionTimeoutMinutes: Number(e.target.value) || 480 })} className={fieldInputClass} /></SettingsField>
                 <SettingsField label="Minimum password length"><Input type="number" value={config.passwordMinLength} onChange={(e) => updateConfig({ passwordMinLength: Number(e.target.value) || 6 })} className={fieldInputClass} /></SettingsField>
@@ -500,6 +597,23 @@ export function CenterConfigTabs({ activeTab, setActiveTab, config, updateConfig
               </SettingsField>
               <SettingsDivider />
               <SettingsSwitch label="Require 2FA for owners" checked={config.requireOwnerTwoFactor} onChange={(v) => updateConfig({ requireOwnerTwoFactor: v })} />
+
+              {config.uploadedDocs && Object.keys(config.uploadedDocs).length > 0 && (
+                <>
+                  <SettingsDivider />
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Uploaded Registration Documents</h4>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {Object.entries(config.uploadedDocs).map(([key, name]) => (
+                        <div key={key} className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/20 text-xs">
+                          <span className="font-semibold capitalize text-foreground">{key.replace(/([A-Z])/g, ' $1')}</span>
+                          <span className="font-mono text-muted-foreground truncate max-w-[150px]">{name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
             </SettingsSection>
           )}
 
@@ -627,23 +741,45 @@ export function CenterConfigTabs({ activeTab, setActiveTab, config, updateConfig
           )}
 
           {activeTab === "operations" && (
-            <SettingsSection title="Regional & scheduling">
-              <div className="grid gap-5 sm:grid-cols-2">
-                <SettingsField label="Center code"><Input value={config.centerCode} onChange={(e) => updateConfig({ centerCode: e.target.value.toUpperCase() })} className={cn(fieldInputClass, "font-mono")} placeholder="IMS-SALEM" /></SettingsField>
-                <SettingsField label="Timezone">
-                  <Select value={config.timezone} onChange={(e) => updateConfig({ timezone: e.target.value })} className={fieldInputClass}>
-                    <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
-                    <option value="Asia/Dubai">Asia/Dubai (GST)</option>
-                    <option value="Europe/London">Europe/London (GMT)</option>
-                    <option value="America/New_York">America/New_York (EST)</option>
-                    <option value="America/Los_Angeles">America/Los_Angeles (PST)</option>
-                    <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
-                  </Select>
-                </SettingsField>
-                <SettingsField label="Opens at"><Input type="time" value={config.operatingHoursStart} onChange={(e) => updateConfig({ operatingHoursStart: e.target.value })} className={fieldInputClass} /></SettingsField>
-                <SettingsField label="Closes at"><Input type="time" value={config.operatingHoursEnd} onChange={(e) => updateConfig({ operatingHoursEnd: e.target.value })} className={fieldInputClass} /></SettingsField>
-              </div>
-            </SettingsSection>
+            <>
+              <SettingsSection title="Regional & scheduling">
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <SettingsField label="Center code"><Input value={config.centerCode} onChange={(e) => updateConfig({ centerCode: e.target.value.toUpperCase() })} className={cn(fieldInputClass, "font-mono")} placeholder="IMS-SALEM" /></SettingsField>
+                  <SettingsField label="Timezone">
+                    <Select value={config.timezone} onChange={(e) => updateConfig({ timezone: e.target.value })} className={fieldInputClass}>
+                      <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
+                      <option value="Asia/Dubai">Asia/Dubai (GST)</option>
+                      <option value="Europe/London">Europe/London (GMT)</option>
+                      <option value="America/New_York">America/New_York (EST)</option>
+                      <option value="America/Los_Angeles">America/Los_Angeles (PST)</option>
+                      <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
+                    </Select>
+                  </SettingsField>
+                  <SettingsField label="Opens at"><Input type="time" value={config.operatingHoursStart} onChange={(e) => updateConfig({ operatingHoursStart: e.target.value })} className={fieldInputClass} /></SettingsField>
+                  <SettingsField label="Closes at"><Input type="time" value={config.operatingHoursEnd} onChange={(e) => updateConfig({ operatingHoursEnd: e.target.value })} className={fieldInputClass} /></SettingsField>
+                </div>
+              </SettingsSection>
+
+              <SettingsSection title="Play School & Class Setup" description="Classroom configurations, student capacity, and opening schedules.">
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <SettingsField label="Total Student Capacity">
+                    <Input value={config.totalCapacity || String(config.maxStudentCapacity)} onChange={(e) => updateConfig({ totalCapacity: e.target.value, maxStudentCapacity: Number(e.target.value) || config.maxStudentCapacity })} className={fieldInputClass} placeholder="120" />
+                  </SettingsField>
+                  <SettingsField label="Classrooms Count">
+                    <Input type="number" value={config.classroomsCount} onChange={(e) => updateConfig({ classroomsCount: Number(e.target.value) || 1 })} className={fieldInputClass} placeholder="6" />
+                  </SettingsField>
+                  <SettingsField label="Institute Opening Date">
+                    <Input type="date" value={config.openingDate} onChange={(e) => updateConfig({ openingDate: e.target.value })} className={fieldInputClass} />
+                  </SettingsField>
+                  <SettingsField label="Selected Classes">
+                    <Input value={Array.isArray(config.selectedClasses) ? config.selectedClasses.join(", ") : config.selectedClasses || ""} onChange={(e) => updateConfig({ selectedClasses: e.target.value.split(",").map(s => s.trim()) })} className={fieldInputClass} placeholder="Toddler, Nursery, Jr. KG, Sr. KG" />
+                  </SettingsField>
+                  <SettingsField label="Working Days" className="sm:col-span-2">
+                    <Input value={Array.isArray(config.workingDays) ? config.workingDays.join(", ") : config.workingDays || ""} onChange={(e) => updateConfig({ workingDays: e.target.value.split(",").map(s => s.trim()) })} className={fieldInputClass} placeholder="Mon, Tue, Wed, Thu, Fri, Sat" />
+                  </SettingsField>
+                </div>
+              </SettingsSection>
+            </>
           )}
         </div>
       </div>

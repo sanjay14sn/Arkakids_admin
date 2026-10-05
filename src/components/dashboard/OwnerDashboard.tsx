@@ -311,7 +311,107 @@ export function OwnerDashboard() {
   }
 
   if (isLoading) {
-    return <div className="flex items-center justify-center py-20 text-muted-foreground text-sm">Loading Franchise Owner Dashboard...</div>
+    return (
+      <div className="space-y-6 animate-pulse">
+        {/* Header Skeleton */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-56 bg-muted/60 rounded-md" />
+              <div className="h-6 w-24 bg-emerald-500/10 rounded-full" />
+            </div>
+            <div className="h-4 w-72 bg-muted/40 rounded-md" />
+          </div>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="h-9 w-48 bg-muted/30 rounded-md border border-border/30" />
+            <div className="h-9 w-28 bg-muted/50 rounded-md" />
+          </div>
+        </div>
+
+        {/* KPI Row Skeleton */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="flex flex-col justify-between h-[104px] p-5 bg-card border border-border/50 rounded-xl shadow-xs">
+              <div className="flex justify-between items-start">
+                <div className="h-4 w-24 bg-muted/50 rounded" />
+                <div className="h-8 w-8 rounded-lg bg-muted/30" />
+              </div>
+              <div className="h-7 w-20 bg-muted/60 rounded mt-2" />
+            </div>
+          ))}
+        </div>
+
+        {/* Widget Skeleton */}
+        <div className="h-28 bg-card border border-border/50 rounded-xl flex items-center p-6 gap-4 shadow-xs">
+          <div className="h-12 w-12 rounded-full bg-muted/30 shrink-0" />
+          <div className="space-y-3 flex-1">
+            <div className="h-5 w-48 bg-muted/60 rounded" />
+            <div className="h-4 w-3/4 max-w-md bg-muted/40 rounded" />
+          </div>
+          <div className="h-10 w-32 bg-muted/40 rounded-md shrink-0" />
+        </div>
+
+        {/* Charts Row Skeleton */}
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="bg-card border border-border/50 rounded-xl lg:col-span-2 shadow-xs p-6">
+            <div className="flex flex-col gap-2 mb-6">
+              <div className="h-6 w-48 bg-muted/60 rounded" />
+              <div className="h-4 w-64 bg-muted/40 rounded" />
+            </div>
+            <div className="h-[256px] w-full bg-muted/20 rounded-lg" />
+          </div>
+          <div className="bg-card border border-border/50 rounded-xl shadow-xs p-6">
+            <div className="flex flex-col gap-2 mb-6">
+              <div className="h-6 w-32 bg-muted/60 rounded" />
+              <div className="h-4 w-48 bg-muted/40 rounded" />
+            </div>
+            <div className="h-[256px] w-full bg-muted/20 rounded-lg flex items-end justify-between px-4 pb-2 gap-2">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="w-full bg-muted/40 rounded-t-sm" style={{ height: `${Math.max(20, Math.random() * 80)}%` }} />
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Feed Row Skeleton */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          <div className="bg-card border border-border/50 rounded-xl shadow-xs p-6">
+            <div className="flex flex-col gap-2 mb-6">
+              <div className="h-6 w-32 bg-muted/60 rounded" />
+              <div className="h-4 w-48 bg-muted/40 rounded" />
+            </div>
+            <div className="space-y-5">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="flex gap-4">
+                  <div className="h-8 w-8 rounded-full bg-muted/30 shrink-0" />
+                  <div className="space-y-2 flex-1">
+                    <div className="h-4 w-3/4 bg-muted/50 rounded" />
+                    <div className="h-3 w-24 bg-muted/30 rounded" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="bg-card border border-border/50 rounded-xl shadow-xs p-6">
+            <div className="flex flex-col gap-2 mb-6">
+              <div className="h-6 w-40 bg-muted/60 rounded" />
+              <div className="h-4 w-56 bg-muted/40 rounded" />
+            </div>
+            <div className="space-y-4">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="flex gap-4 p-3 rounded-lg border border-muted/30 bg-muted/5">
+                  <div className="h-6 w-6 rounded-full bg-muted/30 shrink-0" />
+                  <div className="space-y-2 flex-1 mt-0.5">
+                    <div className="h-4 w-48 bg-muted/50 rounded" />
+                    <div className="h-3 w-5/6 bg-muted/40 rounded" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
 

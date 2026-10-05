@@ -23,6 +23,23 @@ export async function POST(req: NextRequest) {
   try {
     await connectDB()
     const data = await req.json()
+    
+    // Check for duplicate email
+    if (data.email) {
+      const existingEmail = await Staff.findOne({ email: data.email.toLowerCase().trim() })
+      if (existingEmail) {
+        return NextResponse.json({ message: "A staff member with this email address already exists in the system." }, { status: 400 })
+      }
+    }
+    
+    // Check for duplicate phone
+    if (data.phone) {
+      const existingPhone = await Staff.findOne({ phone: data.phone.trim() })
+      if (existingPhone) {
+        return NextResponse.json({ message: "A staff member with this mobile number already exists in the system." }, { status: 400 })
+      }
+    }
+
     const staff = await Staff.create({ ...data, tenantId: user.tenantId || data.tenantId })
     return NextResponse.json(staff, { status: 201 })
   } catch (err: any) {

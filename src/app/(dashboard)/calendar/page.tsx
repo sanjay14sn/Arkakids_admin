@@ -30,11 +30,13 @@ import { Dialog } from "@/components/ui/Dialog"
 import { useStore } from "@/store/useStore"
 import { formatDate, cn } from "@/lib/utils"
 import {
-  BRANCHES,
   usePreschoolOps,
   type CalendarEvent,
   type CalendarKind,
+  weeklyOffDays,
+  localIsoDate,
 } from "@/lib/preschoolOps"
+import { useBranches } from "@/hooks/useBranches"
 
 const KIND_LABEL: Record<CalendarKind, string> = {
   holiday: "Holiday",
@@ -75,6 +77,7 @@ export default function SchoolCalendarPage() {
   const { user, addNotification } = useStore()
   const canEdit = user?.role !== "student"
   const { state, update, ready } = usePreschoolOps()
+  const { branches, isMultiBranch, myBranchName } = useBranches()
   
   const today = new Date()
   const [cursor, setCursor] = React.useState({ year: today.getFullYear(), month: today.getMonth() })
@@ -84,12 +87,16 @@ export default function SchoolCalendarPage() {
   // Filters
   const [filterKind, setFilterKind] = React.useState<string>("all")
   const [filterBranch, setFilterBranch] = React.useState<string>("all")
+  
+  // Settings (persisted in shared store so Attendance honours it)
+  const weeklyOffRule = state.weeklyOffRule ?? "sun"
+  const setWeeklyOffRule = (rule: "sun" | "sat_sun" | "none") =>
+    update((prev) => ({ ...prev, weeklyOffRule: rule }))
 
   // Add Event Form State
   const [title, setTitle] = React.useState("")
   const [date, setDate] = React.useState("")
   const [kind, setKind] = React.useState<CalendarKind>("event")
-  const [branch, setBranch] = React.useState("All branches")
   const [detail, setDetail] = React.useState("")
 
   const { startPad, count } = monthDays(cursor.year, cursor.month)
@@ -99,11 +106,13 @@ export default function SchoolCalendarPage() {
 
   const filteredEvents = allEvents.filter((e) => {
     if (filterKind !== "all" && e.kind !== filterKind) return false
+    // Branch-scoped users only see their own branch's events (plus all-branch ones)
+    if (!isMultiBranch && myBranchName && e.branch !== "All branches" && e.branch !== myBranchName) return false
     if (filterBranch !== "all" && e.branch !== "All branches" && e.branch !== filterBranch) return false
     return true
   })
   
-  const todayISO = today.toISOString().slice(0, 10)
+  const todayISO = localIsoDate(today)
   const upcomingFilteredEvents = filteredEvents.filter(e => e.date >= todayISO)
 
   const eventsOn = (day: number) => {
@@ -119,7 +128,7 @@ export default function SchoolCalendarPage() {
       date,
       title: title.trim(),
       kind,
-      branch,
+      branch: myBranchName || "All branches",
       detail: detail.trim() || KIND_LABEL[kind],
     }
     update((prev) => ({ ...prev, events: [...prev.events, event] }))
@@ -258,14 +267,25 @@ export default function SchoolCalendarPage() {
         {/* Month View (4 cols) */}
         <Card className="lg:col-span-4 bg-card">
           <CardHeader className="pb-3 border-b border-border/40 flex flex-row items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-primary" />
-              <div>
-                <CardTitle className="text-sm font-bold text-foreground">{monthLabel}</CardTitle>
-                <CardDescription className="text-[11px]">Click any date to view or add events.</CardDescription>
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 rounded-lg bg-primary/10 p-2 flex items-center justify-center shrink-0 border border-primary/20">
+                <Calendar className="h-4 w-4 text-primary" />
+              </div>
+              <div className="space-y-1">
+                <CardTitle className="text-base font-bold text-foreground leading-none">{monthLabel}</CardTitle>
+                <CardDescription className="text-xs leading-none">Click any date to view or add events.</CardDescription>
               </div>
             </div>
-            <div className="flex gap-1.5">
+            <div className="flex items-center gap-1.5">
+              <Select 
+                value={weeklyOffRule} 
+                onChange={e => setWeeklyOffRule(e.target.value as any)}
+                className="h-8 text-[10px] w-auto bg-muted/20 mr-1"
+              >
+                <option value="none">No Weekly Off</option>
+                <option value="sun">Sunday Off</option>
+                <option value="sat_sun">Sat & Sun Off</option>
+              </Select>
               <Button
                 variant="outline"
                 size="sm"
@@ -309,7 +329,15 @@ export default function SchoolCalendarPage() {
                 const day = i + 1
                 const iso = `${cursor.year}-${String(cursor.month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`
                 const isToday = iso === todayISO
-                const dayEvents = eventsOn(day)
+                const realDayEvents = eventsOn(day)
+                
+                const dayOfWeek = new Date(cursor.year, cursor.month, day).getDay()
+                const offDays = weeklyOffDays(weeklyOffRule)
+                const isWeeklyOff = offDays.includes(dayOfWeek)
+                
+                const dayEvents = isWeeklyOff && !realDayEvents.some((e: any) => e.kind === "holiday")
+                  ? [{ id: `off-${day}`, title: "Weekly Off", date: iso, kind: "holiday" as CalendarKind, branch: "All branches", detail: "" }, ...realDayEvents]
+                  : realDayEvents
 
                 return (
                   <button
@@ -400,7 +428,7 @@ export default function SchoolCalendarPage() {
                 className="h-8 text-xs"
               >
                 <option value="all">All Branches</option>
-                {BRANCHES.map((b) => (
+                {branches.map((b) => (
                   <option key={b} value={b}>{b.replace("ARKA KIDS ", "")}</option>
                 ))}
               </Select>
@@ -550,19 +578,6 @@ export default function SchoolCalendarPage() {
             </div>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-foreground">Target Branch</label>
-            <Select
-              value={branch}
-              onChange={(e) => setBranch(e.target.value)}
-              className="h-9 text-xs"
-            >
-              <option value="All branches">All branches</option>
-              {BRANCHES.map((item) => (
-                <option key={item} value={item}>{item}</option>
-              ))}
-            </Select>
-          </div>
 
           <div className="space-y-1">
             <label className="text-xs font-semibold text-foreground">Details & Notes</label>
