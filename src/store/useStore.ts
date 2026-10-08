@@ -15,6 +15,9 @@ export interface User {
   roleName?: string
   avatar?: string
   tenantId?: string
+  childName?: string
+  className?: string
+  rollNumber?: string
   permissions?: RolePermissions | null
 }
 

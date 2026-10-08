@@ -37,6 +37,7 @@ const PREVIEW_USERS: Record<UserRole, User> = {
     email: "parent@arkakids.local",
     role: "student",
     tenantId: "ARKA KIDS",
+    childName: "Aanya Sharma",
   },
 }
 
