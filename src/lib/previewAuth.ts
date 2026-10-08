@@ -17,10 +17,17 @@ const PREVIEW_USERS: Record<UserRole, User> = {
     role: "owner",
     tenantId: "ARKA KIDS",
   },
-  trainer: {
+  coordinator: {
     id: "preview-coordinator",
     name: "Classroom Coordinator",
     email: "coordinator@arkakids.local",
+    role: "coordinator",
+    tenantId: "ARKA KIDS",
+  },
+  trainer: {
+    id: "preview-trainer",
+    name: "Classroom Coordinator",
+    email: "trainer@arkakids.local",
     role: "trainer",
     tenantId: "ARKA KIDS",
   },

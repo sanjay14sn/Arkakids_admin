@@ -353,7 +353,8 @@ interface AppState {
   fetchNotifications: () => Promise<void>
   setNotifications: (notifications: Notification[]) => void
   addNotification: (
-    notification: Omit<Notification, "id" | "read" | "timestamp" | "source"> & {
+    notification: Omit<Notification, "id" | "read" | "timestamp" | "source" | "description"> & {
+      description?: string
       targetRoles?: UserRole[]
       targetUserId?: string
     }
@@ -744,13 +745,14 @@ export const useStore = create<AppState>()(
       },
       setNotifications: (notifications) => set({ notifications }),
       addNotification: (notification) => {
+        const payload = { ...notification, description: notification.description ?? "" }
         void (async () => {
           try {
-            await api.createNotification(notification)
+            await api.createNotification(payload)
             await get().fetchNotifications()
           } catch {
             const fallback: Notification = {
-              ...notification,
+              ...payload,
               id: `local-${Date.now()}`,
               read: false,
               timestamp: new Date().toISOString(),

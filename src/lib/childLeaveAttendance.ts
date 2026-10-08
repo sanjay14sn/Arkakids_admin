@@ -128,7 +128,7 @@ export async function applyLeaveToAttendanceDocs(leave: any, tenantIds: string[]
       records[i].note = leave.reason || records[i].note
       changed = true
     }
-    if (!records.some((row) => sameStudent(row, leave)) && (leave.childId || leave.childName)) {
+    if (!records.some((row: { entityId?: unknown; name?: unknown }) => sameStudent(row, leave)) && (leave.childId || leave.childName)) {
       records.push({
         entityId: String(leave.childId || ""),
         name: String(leave.childName || "Student"),

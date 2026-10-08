@@ -252,15 +252,27 @@ export default function HomeworkPage() {
   const assignHomework = async () => {
     if (!batch || !activity.trim() || !title.trim()) return
     if (!assignedDate || !dueDate) {
-      addNotification({ title: "Date and Due Date are required", type: "system" })
+      addNotification({
+        title: "Date and Due Date are required",
+        description: "Set both the assigned date and due date before saving.",
+        type: "system",
+      })
       return
     }
     if (!editingId && assignedDate < liveToday) {
-      addNotification({ title: "Date cannot be in the past", type: "system" })
+      addNotification({
+        title: "Date cannot be in the past",
+        description: "Choose today or a later date for new homework.",
+        type: "system",
+      })
       return
     }
     if (dueDate < assignedDate) {
-      addNotification({ title: "Due Date cannot be before Date", type: "system" })
+      addNotification({
+        title: "Due Date cannot be before Date",
+        description: "The due date must be on or after the assigned date.",
+        type: "system",
+      })
       return
     }
     if (visibility === "scheduled" && !visibleFrom) return
