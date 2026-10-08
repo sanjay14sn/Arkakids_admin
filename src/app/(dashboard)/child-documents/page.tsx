@@ -711,6 +711,7 @@ export default function ChildDocumentsPage() {
       addNotification({
         title: "Could not upload document",
         type: "system",
+        description: "An error occurred while uploading the document.",
       })
     }
   }
