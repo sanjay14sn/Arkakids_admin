@@ -10,7 +10,10 @@ class AppTheme {
   static const Color brightRed = Color(0xFFFF0000); // Bright Red CTA
   static const Color warmBrown = Color(0xFF7A4F2A);
   static const Color secondary = Color(0xFF7A4F2A);
-  static const Color accent = Color(0xFF06B6D4);
+  static const Color gold = Color(0xFFE8A317); // Third brand colour
+  static const Color goldLight = Color(0xFFFFF6E5);
+  static const Color goldDark = Color(0xFFB45309);
+  static const Color accent = Color(0xFFE8A317);
   static const Color success = Color(0xFF10B981); // Emerald Green
   static const Color warning = Color(0xFFF59E0B);
   static const Color danger = Color(0xFFEF4444);

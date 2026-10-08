@@ -93,6 +93,7 @@ const PREVIEW_LIST_PATHS = new Set([
   "/trainers",
   "/courses",
   "/notifications",
+  "/notices",
   "/roles",
   "/support/tickets",
   "/support/announcements",
@@ -170,6 +171,14 @@ export function previewApiResponse(endpoint: string, options: RequestInit = {}) 
 
   if (path.startsWith("/centers/policy")) {
     return { tenantId: "ARKA KIDS", centerName: "ARKA KIDS" }
+  }
+
+  if (path === "/campaigns/stats") {
+    return { totalCampaigns: 0, totalReached: 0, avgOpenRate: 0, scheduled: 0 }
+  }
+
+  if (path === "/campaigns/audience-estimate") {
+    return { count: 0, audience: "all_leads" }
   }
 
   if (PREVIEW_LIST_PATHS.has(path)) return []

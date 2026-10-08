@@ -15,6 +15,7 @@ const PAGE_LOADING_MESSAGES: Array<{ prefix: string; message: string }> = [
   { prefix: "/calendar", message: "Loading school calendar..." },
   { prefix: "/child-documents", message: "Loading child documents..." },
   { prefix: "/transfers", message: "Loading branch transfers..." },
+  { prefix: "/notices", message: "Loading school notices..." },
   { prefix: "/parent-communication", message: "Loading parent communication..." },
   { prefix: "/messages", message: "Loading messages..." },
   { prefix: "/feedback", message: "Loading feedback..." },

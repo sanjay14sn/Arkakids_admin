@@ -171,17 +171,13 @@ export default function LoginPage() {
         {/* Login Card */}
         <div className="w-full max-w-[390px] bg-white border border-slate-200/80 rounded-2xl shadow-xl shadow-slate-200/30 p-8 space-y-6">
           
-          {/* Mobile logo (visible on mobile only) */}
-          <div className="flex items-center gap-2.5 lg:hidden mb-2">
+          {/* Branding header for the login form */}
+          <div className="flex items-center justify-center mb-6">
             <img
               src="/logo.png"
               alt="ARKA KIDS Logo"
-              className="h-10 w-10 rounded-full object-contain bg-white p-0.5 shadow-xs border border-primary/20"
+              className="h-20 w-20 rounded-full object-contain bg-white p-1.5 shadow-sm border border-primary/20"
             />
-            <div>
-              <span className="text-base font-bold text-slate-900 tracking-wider">ARKA KIDS</span>
-              <span className="block text-[8px] text-primary font-bold tracking-widest uppercase">Head Office</span>
-            </div>
           </div>
 
           <AnimatePresence mode="wait">

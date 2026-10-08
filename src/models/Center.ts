@@ -1,6 +1,7 @@
 import { Schema, Document, model, models } from "mongoose"
 
 export interface ICenter extends Document {
+  [key: string]: any
   name: string
   tenantName: string
   location: string
@@ -40,7 +41,12 @@ const CenterSchema = new Schema<ICenter>(
     whatsappAlerts: { type: Boolean, default: false },
     emailSender: { type: String },
   },
-  { timestamps: true }
+  { timestamps: true, strict: false }
 )
+
+// Fix Next.js hot-reload caching for schemas
+if (process.env.NODE_ENV !== "production") {
+  delete models.Center
+}
 
 export const Center = models.Center || model<ICenter>("Center", CenterSchema)

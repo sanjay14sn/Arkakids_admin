@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shimmer/shimmer.dart';
+import 'package:provider/provider.dart';
+import '../../services/api_service.dart';
+import '../../providers/auth_provider.dart';
 
 class ChildProfileScreen extends StatefulWidget {
   const ChildProfileScreen({super.key});
@@ -9,6 +13,26 @@ class ChildProfileScreen extends StatefulWidget {
 }
 
 class _ChildProfileScreenState extends State<ChildProfileScreen> {
+  Map<String, dynamic>? _profile;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchProfile();
+  }
+
+  Future<void> _fetchProfile() async {
+    final token = Provider.of<AuthProvider>(context, listen: false).token ?? '';
+    final profile = await ApiService.getChildProfile(token);
+    if (mounted) {
+      setState(() {
+        _profile = profile;
+        _isLoading = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -43,8 +67,10 @@ class _ChildProfileScreenState extends State<ChildProfileScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
+      body: _isLoading
+          ? _buildShimmerProfile()
+          : SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
         child: Column(
           children: [
             // 1. Top Child Avatar & Basic Info
@@ -72,6 +98,10 @@ class _ChildProfileScreenState extends State<ChildProfileScreen> {
   // 1. CHILD HEADER (AVATAR, NAME, TAG & LOCATION)
   // ----------------------------------------------------
   Widget _buildChildHeader() {
+    final name = _profile?['name'] ?? 'Student';
+    final className = _profile?['className'] ?? '';
+    final location = _profile?['location'] ?? '';
+
     return Column(
       children: [
         // Circular Avatar Image
@@ -104,7 +134,7 @@ class _ChildProfileScreenState extends State<ChildProfileScreen> {
 
         // Child Name
         Text(
-          'Arjun',
+          name,
           style: GoogleFonts.outfit(
             fontSize: 28,
             fontWeight: FontWeight.bold,
@@ -126,7 +156,7 @@ class _ChildProfileScreenState extends State<ChildProfileScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
-                'KG-1',
+                className,
                 style: GoogleFonts.inter(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
@@ -146,7 +176,7 @@ class _ChildProfileScreenState extends State<ChildProfileScreen> {
                 ),
                 const SizedBox(width: 2),
                 Text(
-                  'Indiranagar',
+                  location,
                   style: GoogleFonts.inter(
                     fontSize: 13.5,
                     fontWeight: FontWeight.w500,
@@ -165,6 +195,11 @@ class _ChildProfileScreenState extends State<ChildProfileScreen> {
   // 2. PERSONAL INFORMATION CARD
   // ----------------------------------------------------
   Widget _buildPersonalInformationCard() {
+    final dob = _profile?['dob'] ?? '';
+    final age = _profile?['age'] ?? '';
+    final bg = _profile?['bloodGroup'] ?? '';
+    final sid = _profile?['studentId'] ?? '';
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -209,10 +244,10 @@ class _ChildProfileScreenState extends State<ChildProfileScreen> {
           Row(
             children: [
               Expanded(
-                child: _buildInfoItem('DATE OF BIRTH', '14 Oct 2018'),
+                child: _buildInfoItem('DATE OF BIRTH', dob),
               ),
               Expanded(
-                child: _buildInfoItem('AGE', '5 yrs 4 mos'),
+                child: _buildInfoItem('AGE', age),
               ),
             ],
           ),
@@ -220,10 +255,10 @@ class _ChildProfileScreenState extends State<ChildProfileScreen> {
           Row(
             children: [
               Expanded(
-                child: _buildInfoItemWithIcon('BLOOD GROUP', 'O+', '🩸'),
+                child: _buildInfoItemWithIcon('BLOOD GROUP', bg, '🩸'),
               ),
               Expanded(
-                child: _buildInfoItem('STUDENT ID', 'LS-2023-0142'),
+                child: _buildInfoItem('STUDENT ID', sid),
               ),
             ],
           ),
@@ -294,6 +329,9 @@ class _ChildProfileScreenState extends State<ChildProfileScreen> {
   // 3. MEDICAL INFO CARD
   // ----------------------------------------------------
   Widget _buildMedicalInfoCard() {
+    final allergies = (_profile?['allergies'] as List<dynamic>?) ?? [];
+    final meds = (_profile?['medications'] as List<dynamic>?) ?? [];
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -353,49 +391,33 @@ class _ChildProfileScreenState extends State<ChildProfileScreen> {
           ),
           const SizedBox(height: 8),
           Row(
-            children: [
-              // Peanuts Pill (Warning Red)
-              Container(
+            children: allergies.map((allergy) {
+              final isWarning = allergy.toString().toLowerCase().contains('peanut');
+              return Container(
+                margin: const EdgeInsets.only(right: 8),
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFEE2E2), // Light red tint
+                  color: isWarning ? const Color(0xFFFEE2E2) : const Color(0xFFE5E7EB),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.warning_amber_rounded, size: 15, color: Color(0xFF991B1B)),
-                    const SizedBox(width: 4),
+                    if (isWarning)
+                      const Icon(Icons.warning_amber_rounded, size: 15, color: Color(0xFF991B1B)),
+                    if (isWarning) const SizedBox(width: 4),
                     Text(
-                      'Peanuts',
+                      allergy.toString(),
                       style: GoogleFonts.inter(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
-                        color: const Color(0xFF991B1B),
+                        color: isWarning ? const Color(0xFF991B1B) : const Color(0xFF374151),
                       ),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(width: 8),
-
-              // Dust Mites Pill (Light Grey)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE5E7EB), // Soft grey tint
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Text(
-                  'Dust Mites',
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFF374151),
-                  ),
-                ),
-              ),
-            ],
+              );
+            }).toList(),
           ),
           const SizedBox(height: 18),
 
@@ -411,7 +433,8 @@ class _ChildProfileScreenState extends State<ChildProfileScreen> {
           ),
           const SizedBox(height: 8),
 
-          Container(
+          ...meds.map((med) => Container(
+            margin: const EdgeInsets.only(bottom: 8),
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: const Color(0xFFF3F4F6),
@@ -431,7 +454,7 @@ class _ChildProfileScreenState extends State<ChildProfileScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Inhaler (Asthma)',
+                        med['name'].toString(),
                         style: GoogleFonts.inter(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
@@ -440,7 +463,7 @@ class _ChildProfileScreenState extends State<ChildProfileScreen> {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        'As needed before sports activities. Stored in nurse’s office.',
+                        med['desc'].toString(),
                         style: GoogleFonts.inter(
                           fontSize: 12.5,
                           color: const Color(0xFF6B7280),
@@ -452,7 +475,7 @@ class _ChildProfileScreenState extends State<ChildProfileScreen> {
                 ),
               ],
             ),
-          ),
+          )).toList(),
         ],
       ),
     );
@@ -462,6 +485,8 @@ class _ChildProfileScreenState extends State<ChildProfileScreen> {
   // 4. EMERGENCY CONTACTS CARD
   // ----------------------------------------------------
   Widget _buildEmergencyContactsCard() {
+    final contacts = (_profile?['contacts'] as List<dynamic>?) ?? [];
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -502,24 +527,20 @@ class _ChildProfileScreenState extends State<ChildProfileScreen> {
           Divider(color: Colors.grey.shade200, height: 1),
           const SizedBox(height: 16),
 
-          // Contact 1: Meera Sharma (Mother)
-          _buildEmergencyContactTile(
-            initial: 'M',
-            initialBg: const Color(0xFF7A0000), // Dark Burgundy Red
-            name: 'Meera Sharma',
-            relation: 'Mother • Primary',
-            phone: '+91 98765 43210',
-          ),
-          const SizedBox(height: 12),
-
-          // Contact 2: Rahul Sharma (Father)
-          _buildEmergencyContactTile(
-            initial: 'R',
-            initialBg: const Color(0xFF7A4F2A), // Warm Brown
-            name: 'Rahul Sharma',
-            relation: 'Father',
-            phone: '+91 98765 12345',
-          ),
+          ...contacts.map((contact) {
+            return Column(
+              children: [
+                _buildEmergencyContactTile(
+                  initial: contact['initial'].toString(),
+                  initialBg: Color(contact['initialBg'] as int),
+                  name: contact['name'].toString(),
+                  relation: contact['relation'].toString(),
+                  phone: contact['phone'].toString(),
+                ),
+                const SizedBox(height: 12),
+              ],
+            );
+          }).toList(),
         ],
       ),
     );
@@ -614,6 +635,46 @@ class _ChildProfileScreenState extends State<ChildProfileScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildShimmerProfile() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[300]!,
+      highlightColor: Colors.grey[100]!,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
+        child: Column(
+          children: [
+            Container(
+              width: 110,
+              height: 110,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Container(width: 150, height: 28, color: Colors.white),
+            const SizedBox(height: 24),
+            Container(
+              height: 180,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Container(
+              height: 180,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -71,5 +71,6 @@ export function requireSuperAdmin(req: NextRequest): { user: JwtPayload; error: 
  */
 export function tenantFilter(user: JwtPayload): Record<string, string> {
   if (user.role === "super_admin") return {}
-  return { tenantId: user.tenantId || "" }
+  if (!user.tenantId) return {}
+  return { tenantId: user.tenantId }
 }

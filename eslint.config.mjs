@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "arka_kids_backend/**",
+    "arka_kids_mobile/**",
   ]),
 ]);
 

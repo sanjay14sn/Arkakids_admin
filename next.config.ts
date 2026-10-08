@@ -1,8 +1,16 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from "next"
+
+const BACKEND_URL = process.env.ARKA_BACKEND_URL || "http://13.205.189.169:4000"
 
 const nextConfig: NextConfig = {
-  // API routes are now handled by Next.js route handlers at src/app/api/
-  // No proxy rewrite needed — MongoDB Atlas is connected directly
-};
+  async rewrites() {
+    return [
+      {
+        source: "/api/:path*",
+        destination: `${BACKEND_URL}/api/:path*`,
+      },
+    ]
+  },
+}
 
-export default nextConfig;
+export default nextConfig

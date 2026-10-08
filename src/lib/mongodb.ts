@@ -1,4 +1,8 @@
+import dns from "dns"
 import mongoose from "mongoose"
+
+// macOS / Node often fail Atlas lookups on IPv6 first (ENOTFOUND on shard hosts).
+dns.setDefaultResultOrder("ipv4first")
 
 const MONGODB_URI = process.env.MONGODB_URI!
 
@@ -22,22 +26,45 @@ if (!cached) {
   cached = global._mongooseGlobal = { conn: null, promise: null }
 }
 
+const connectOpts = {
+  bufferCommands: false,
+  family: 4 as const,
+  serverSelectionTimeoutMS: 15000,
+  socketTimeoutMS: 45000,
+}
+
+async function connectWithRetry(): Promise<typeof mongoose> {
+  let lastError: unknown
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      return await mongoose.connect(MONGODB_URI, connectOpts)
+    } catch (error) {
+      lastError = error
+      cached.promise = null
+      if (attempt < 3) {
+        await new Promise((resolve) => setTimeout(resolve, 400 * attempt))
+      }
+    }
+  }
+  throw lastError
+}
+
 async function connectDB(): Promise<typeof mongoose> {
-  if (cached.conn) {
+  if (cached.conn && cached.conn.connection.readyState === 1) {
     return cached.conn
   }
 
+  cached.conn = null
+
   if (!cached.promise) {
-    const opts = {
-      bufferCommands: false,
-    }
-    cached.promise = mongoose.connect(MONGODB_URI, opts)
+    cached.promise = connectWithRetry()
   }
 
   try {
     cached.conn = await cached.promise
   } catch (e) {
     cached.promise = null
+    cached.conn = null
     throw e
   }
 

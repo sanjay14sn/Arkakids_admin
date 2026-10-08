@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../theme/app_theme.dart';
 import '../login_screen.dart';
 import 'parent_messages.dart';
 import 'child_profile_screen.dart';
@@ -10,6 +9,7 @@ import 'parent_documents_screen.dart';
 import 'parent_calendar_screen.dart';
 import 'parent_gallery_screen.dart';
 import 'parent_transport_screen.dart';
+import 'child_leave_screen.dart';
 
 class ParentMoreScreen extends StatefulWidget {
   const ParentMoreScreen({super.key});
@@ -122,7 +122,12 @@ class _ParentMoreScreenState extends State<ParentMoreScreen> {
                 _MenuItemData(
                   icon: Icons.event_busy_outlined,
                   label: 'Leave Request',
-                  onTap: () => _showLeaveRequestDialog(context),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ChildLeaveScreen()),
+                    );
+                  },
                 ),
                 _MenuItemData(
                   icon: Icons.headset_mic_outlined,
@@ -198,6 +203,7 @@ class _ParentMoreScreenState extends State<ParentMoreScreen> {
           ),
           child: ListView.separated(
             shrinkWrap: true,
+            padding: EdgeInsets.zero,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: items.length,
             separatorBuilder: (_, __) => Divider(
@@ -267,52 +273,6 @@ class _ParentMoreScreenState extends State<ParentMoreScreen> {
   // ----------------------------------------------------
   // INTERACTIVE ACTION MODALS & DIALOGS
   // ----------------------------------------------------
-
-  void _showLeaveRequestDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Apply for Leave', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: const [
-            TextField(
-              decoration: InputDecoration(
-                labelText: 'Leave Reason',
-                hintText: 'e.g., Doctor appointment / Family function',
-              ),
-            ),
-            SizedBox(height: 12),
-            TextField(
-              decoration: InputDecoration(
-                labelText: 'Date(s)',
-                hintText: 'e.g., 30 Aug 2026',
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Leave application submitted to class teacher!'),
-                  backgroundColor: AppTheme.primary,
-                ),
-              );
-            },
-            child: const Text('Submit'),
-          ),
-        ],
-      ),
-    );
-  }
 
   void _showSupportSheet(BuildContext context) {
     _showSimpleBottomSheet(

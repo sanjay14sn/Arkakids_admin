@@ -90,16 +90,15 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]["id"]
 
-export function FeesModule() {
+export function FeesModule({ superAdminCenter }: { superAdminCenter?: string }) {
   const { user, addNotification } = useStore()
   const { state, update, ready, refetch } = usePreschoolFees()
   const router = useRouter()
   const pathname = usePathname()
   const params = useSearchParams()
-  const tab = (TABS.some((item) => item.id === params.get("tab")) ? params.get("tab") : "overview") as TabId
+  const tab = superAdminCenter ? "overview" : ((TABS.some((item) => item.id === params.get("tab")) ? params.get("tab") : "overview") as TabId)
   const searchFromUrl = params.get("search") || ""
   const actor = user?.name || "Franchise Owner"
-
   const [studentId, setStudentId] = React.useState("")
   const [invoiceId, setInvoiceId] = React.useState("")
   const [amount, setAmount] = React.useState("")
@@ -111,7 +110,7 @@ export function FeesModule() {
   const [detailId, setDetailId] = React.useState<string | null>(null)
   const [cancelId, setCancelId] = React.useState<string | null>(null)
   const [query, setQuery] = React.useState(searchFromUrl)
-  const [branch, setBranch] = React.useState("all")
+  const [branch, setBranch] = React.useState(superAdminCenter || "all")
   const [klass, setKlass] = React.useState("all")
   const [status, setStatus] = React.useState("all")
   const [methodFilter, setMethodFilter] = React.useState("all")
@@ -266,32 +265,34 @@ export function FeesModule() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2 text-foreground">
             <CreditCard className="h-6 w-6 text-primary" />
-            Fees & Payments
+            {superAdminCenter ? `${superAdminCenter} · Fee History` : "Fees & Payments"}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Fee structure → assign → generate dues → collect → receipt → parent notice
+            {superAdminCenter ? "Complete fee history and overview for this center." : "Fee structure → assign → generate dues → collect → receipt → parent notice"}
           </p>
         </div>
-        <Button size="sm" onClick={() => setTab("collect")}>Collect payment</Button>
+        {!superAdminCenter && <Button size="sm" onClick={() => setTab("collect")}>Collect payment</Button>}
       </div>
 
-      <div className="overflow-x-auto -mx-1 px-1">
-        <div className="inline-flex items-center gap-1 rounded-lg bg-secondary p-1 border border-border/40 min-w-max">
-          {TABS.map((item) => (
-            <button
-              key={`fee-tab-${item.id}`}
-              type="button"
-              onClick={() => setTab(item.id)}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium cursor-pointer ${tab === item.id ? "bg-card text-primary shadow-xs border border-border" : "text-muted-foreground hover:text-primary hover:bg-accent/70"
-                }`}
-            >
-              {item.label}
-            </button>
-          ))}
+      {!superAdminCenter && (
+        <div className="overflow-x-auto -mx-1 px-1">
+          <div className="inline-flex items-center gap-1 rounded-lg bg-secondary p-1 border border-border/40 min-w-max">
+            {TABS.map((item) => (
+              <button
+                key={`fee-tab-${item.id}`}
+                type="button"
+                onClick={() => setTab(item.id)}
+                className={`rounded-md px-3 py-1.5 text-xs font-medium cursor-pointer ${tab === item.id ? "bg-card text-primary shadow-xs border border-border" : "text-muted-foreground hover:text-primary hover:bg-accent/70"
+                  }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {tab === "overview" && (
         <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
@@ -327,29 +328,76 @@ export function FeesModule() {
               Today's Collection <span className="text-muted-foreground ml-1 font-medium">({formatFeeDate(FEE_TODAY)})</span> <span className="mx-2 text-border">|</span> <strong className="text-foreground text-sm tracking-tight">{formatCurrency(stats.todayCollection)}</strong>
             </p>
           </div>
-          <div className="grid gap-6 lg:grid-cols-3">
-            <OverviewList
-              title="Recent payments"
-              rows={livePayments.slice(0, 6).map((item) => {
-                const student = studentById(state, item.studentId)
-                return { id: item.id, title: student?.name || item.studentId, meta: `${item.receiptNo} · ${formatFeeDate(item.date)}`, amount: item.amount }
-              })}
-            />
-            <OverviewList
-              title="Upcoming dues"
-              rows={upcoming.slice(0, 6).map((item) => {
-                const student = studentById(state, item.studentId)
-                return { id: item.id, title: student?.name || item.studentId, meta: `${item.label} · ${formatFeeDate(item.dueDate)}`, amount: invoiceRemaining(item) }
-              })}
-            />
-            <OverviewList
-              title="Overdue payments"
-              rows={overdue.slice(0, 6).map((item) => {
-                const student = studentById(state, item.studentId)
-                return { id: item.id, title: student?.name || item.studentId, meta: `${item.label} · ${daysOverdue(item.dueDate)} days`, amount: invoiceRemaining(item) }
-              })}
-            />
-          </div>
+          {superAdminCenter ? (
+            <div className="mt-8 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-t border-border/50 pt-8">
+                <h3 className="text-lg font-bold tracking-tight text-foreground whitespace-nowrap">Students in {superAdminCenter}</h3>
+                <div className="w-full sm:w-auto flex-1 max-w-2xl">
+                  <FilterRow
+                    query={query} setQuery={setQuery}
+                    branch={branch} setBranch={setBranch}
+                    klass={klass} setKlass={setKlass} classes={classes}
+                    status={status} setStatus={setStatus}
+                    hideBranch={true}
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col gap-3 mt-4">
+                {filteredStudents.map((item) => (
+                  <div
+                    key={item.student.id}
+                    onClick={() => setDetailId(item.student.id)}
+                    className="p-4 rounded-xl border border-border bg-card shadow-xs cursor-pointer hover:border-primary/50 hover:shadow-md transition-all group flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="h-10 w-10 shrink-0 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-base uppercase">
+                        {item.student.name.charAt(0)}
+                      </div>
+                      <div>
+                        <p className="font-bold text-base text-foreground group-hover:text-primary transition-colors">{item.student.name}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{item.student.className} · {item.student.studentCode}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Outstanding</p>
+                      <p className={`font-bold mt-0.5 ${item.outstanding > 0 ? "text-amber-600 dark:text-amber-500" : "text-emerald-600 dark:text-emerald-500"}`}>
+                        {formatCurrency(item.outstanding)}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+                {filteredStudents.length === 0 && (
+                  <div className="py-12 text-center border border-dashed border-border rounded-xl">
+                    <p className="text-sm text-muted-foreground">No students found in this center.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="grid gap-6 lg:grid-cols-3">
+              <OverviewList
+                title="Recent payments"
+                rows={livePayments.slice(0, 6).map((item) => {
+                  const student = studentById(state, item.studentId)
+                  return { id: item.id, title: student?.name || item.studentId, meta: `${item.receiptNo} · ${formatFeeDate(item.date)}`, amount: item.amount }
+                })}
+              />
+              <OverviewList
+                title="Upcoming dues"
+                rows={upcoming.slice(0, 6).map((item) => {
+                  const student = studentById(state, item.studentId)
+                  return { id: item.id, title: student?.name || item.studentId, meta: `${item.label} · ${formatFeeDate(item.dueDate)}`, amount: invoiceRemaining(item) }
+                })}
+              />
+              <OverviewList
+                title="Overdue payments"
+                rows={overdue.slice(0, 6).map((item) => {
+                  const student = studentById(state, item.studentId)
+                  return { id: item.id, title: student?.name || item.studentId, meta: `${item.label} · ${daysOverdue(item.dueDate)} days`, amount: invoiceRemaining(item) }
+                })}
+              />
+            </div>
+          )}
         </div>
       )}
 
@@ -768,7 +816,7 @@ export function FeesModule() {
 }
 
 function FilterRow({
-  query, setQuery, branch, setBranch, klass, setKlass, classes, status, setStatus,
+  query, setQuery, branch, setBranch, klass, setKlass, classes, status, setStatus, hideBranch,
 }: {
   query: string
   setQuery: (v: string) => void
@@ -779,14 +827,17 @@ function FilterRow({
   classes: string[]
   status: string
   setStatus: (v: string) => void
+  hideBranch?: boolean
 }) {
   return (
-    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+    <div className={`grid gap-2 ${hideBranch ? 'sm:grid-cols-3' : 'sm:grid-cols-2 lg:grid-cols-4'}`}>
       <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search student" className="h-9 text-xs" />
-      <Select value={branch} onChange={(e) => setBranch(e.target.value)} className="h-9 text-xs">
-        <option value="all">All branches</option>
-        {BRANCHES.map((item) => <option key={`br-${item}`} value={item}>{item}</option>)}
-      </Select>
+      {!hideBranch && (
+        <Select value={branch} onChange={(e) => setBranch(e.target.value)} className="h-9 text-xs">
+          <option value="all">All branches</option>
+          {BRANCHES.map((item) => <option key={`br-${item}`} value={item}>{item}</option>)}
+        </Select>
+      )}
       <Select value={klass} onChange={(e) => setKlass(e.target.value)} className="h-9 text-xs">
         <option value="all">All classes</option>
         {classes.map((item) => <option key={`cl-${item}`} value={item}>{item}</option>)}

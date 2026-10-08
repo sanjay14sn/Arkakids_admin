@@ -4,11 +4,22 @@ import * as React from "react"
 import {
   HeartPulse, Utensils, Moon, Cake, Phone, AlertTriangle,
   Plus, X, Search, ChevronDown, Check, Printer, Download,
-  User, Syringe, ShieldAlert, Clock, CalendarDays, Baby, Activity,
+  User, Syringe, ShieldAlert, Clock, CalendarDays, Baby, Activity, ChevronRight, ChevronLeft
 } from "lucide-react"
 import { CHILDREN, type ChildRecord } from "@/lib/preschoolOps"
 import { cn } from "@/lib/utils"
 import { api } from "@/lib/api"
+import { useRouter } from "next/navigation"
+
+const authFetch = async (url: string, options: RequestInit = {}) => {
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
+  const headers: any = { ...options.headers }
+  if (token) headers["Authorization"] = `Bearer ${token}`
+  if (!headers["Content-Type"] && (options.method === "POST" || options.method === "PUT")) {
+    headers["Content-Type"] = "application/json"
+  }
+  return fetch(url, { ...options, headers })
+}
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type MedicalRecord = {
@@ -168,7 +179,7 @@ function HealthTab({ child }: { child: ChildRecord }) {
   const [vaxName, setVaxName] = React.useState(""); const [vaxDate, setVaxDate] = React.useState(""); const [vaxDue, setVaxDue] = React.useState("")
 
   React.useEffect(() => {
-    fetch(`/api/childcare?studentId=${child.id}&type=medical_profile`)
+    authFetch(`/api/childcare?studentId=${child.id}&type=medical_profile`)
       .then(res => res.json())
       .then(data => {
         if (data.length > 0) {
@@ -199,9 +210,9 @@ function HealthTab({ child }: { child: ChildRecord }) {
       vaccinations: updates.vaccinations ?? rec.vaccinations
     }
     if (docId) {
-      await fetch(`/api/childcare/${docId}`, { method: "PUT", body: JSON.stringify(payload) })
+      await authFetch(`/api/childcare/${docId}`, { method: "PUT", body: JSON.stringify(payload) })
     } else {
-      const res = await fetch("/api/childcare", { method: "POST", body: JSON.stringify(payload) })
+      const res = await authFetch("/api/childcare", { method: "POST", body: JSON.stringify(payload) })
       const data = await res.json()
       setDocId(data._id)
     }
@@ -386,9 +397,9 @@ function MealTab({ child }: { child: ChildRecord }) {
   const [items, setItems] = React.useState(""); const [eaten, setEaten] = React.useState("Full"); const [note, setNote] = React.useState("")
 
   React.useEffect(() => {
-    fetch(`/api/childcare?studentId=${child.id}&type=meal`)
+    authFetch(`/api/childcare?studentId=${child.id}&type=meal`)
       .then(res => res.json())
-      .then(data => setMeals(Array.isArray(data) ? data : []))
+      .then(data => setMeals(Array.isArray(data) ? data.reverse() : []))
   }, [child.id])
 
   const dayMeals = meals.filter(m => m.date === date)
@@ -398,17 +409,18 @@ function MealTab({ child }: { child: ChildRecord }) {
     const payload = {
       studentId: child.id,
       studentName: child.name,
+      tenantId: child.branch || "default",
       type: "meal",
       date, meal, items: items.trim(), eaten, note
     }
-    const res = await fetch("/api/childcare", { method: "POST", body: JSON.stringify(payload) })
+    const res = await authFetch("/api/childcare", { method: "POST", body: JSON.stringify(payload) })
     const data = await res.json()
     setMeals(prev => [data, ...prev])
     setItems(""); setNote(""); setShowForm(false)
   }
 
   const deleteMeal = async (id: string) => {
-    await fetch(`/api/childcare/${id}`, { method: "DELETE" })
+    await authFetch(`/api/childcare/${id}`, { method: "DELETE" })
     setMeals(prev => prev.filter(m => m._id !== id))
   }
 
@@ -478,9 +490,9 @@ function NapTab({ child }: { child: ChildRecord }) {
   const [quality, setQuality] = React.useState("Good"); const [note, setNote] = React.useState("")
 
   React.useEffect(() => {
-    fetch(`/api/childcare?studentId=${child.id}&type=nap`)
+    authFetch(`/api/childcare?studentId=${child.id}&type=nap`)
       .then(res => res.json())
-      .then(data => setNaps(Array.isArray(data) ? data : []))
+      .then(data => setNaps(Array.isArray(data) ? data.reverse() : []))
   }, [child.id])
 
   const dayNaps = naps.filter(n => n.date === date)
@@ -494,17 +506,18 @@ function NapTab({ child }: { child: ChildRecord }) {
     const payload = {
       studentId: child.id,
       studentName: child.name,
+      tenantId: child.branch || "default",
       type: "nap",
       date, start, end, quality, note
     }
-    const res = await fetch("/api/childcare", { method: "POST", body: JSON.stringify(payload) })
+    const res = await authFetch("/api/childcare", { method: "POST", body: JSON.stringify(payload) })
     const data = await res.json()
     setNaps(prev => [data, ...prev])
     setNote(""); setShowForm(false)
   }
 
   const deleteNap = async (id: string) => {
-    await fetch(`/api/childcare/${id}`, { method: "DELETE" })
+    await authFetch(`/api/childcare/${id}`, { method: "DELETE" })
     setNaps(prev => prev.filter(n => n._id !== id))
   }
 
@@ -570,7 +583,7 @@ function EmergencyTab({ child }: { child: ChildRecord }) {
   const [cName, setCName] = React.useState(""); const [cRel, setCRel] = React.useState(""); const [cPhone, setCPhone] = React.useState("")
 
   React.useEffect(() => {
-    fetch(`/api/childcare?studentId=${child.id}&type=emergency`)
+    authFetch(`/api/childcare?studentId=${child.id}&type=emergency`)
       .then(res => res.json())
       .then(data => {
         if (data.length > 0) {
@@ -599,9 +612,9 @@ function EmergencyTab({ child }: { child: ChildRecord }) {
       hospital: updates.hospital ?? ec.hospital,
     }
     if (docId) {
-      await fetch(`/api/childcare/${docId}`, { method: "PUT", body: JSON.stringify(payload) })
+      await authFetch(`/api/childcare/${docId}`, { method: "PUT", body: JSON.stringify(payload) })
     } else {
-      const res = await fetch("/api/childcare", { method: "POST", body: JSON.stringify(payload) })
+      const res = await authFetch("/api/childcare", { method: "POST", body: JSON.stringify(payload) })
       const data = await res.json()
       setDocId(data._id)
     }
@@ -706,9 +719,9 @@ function IncidentTab({ child }: { child: ChildRecord }) {
   const [iAction, setIAction] = React.useState(""); const [iNotified, setINotified] = React.useState(true)
 
   React.useEffect(() => {
-    fetch(`/api/childcare?studentId=${child.id}&type=incident`)
+    authFetch(`/api/childcare?studentId=${child.id}&type=incident`)
       .then(res => res.json())
-      .then(data => setIncidents(Array.isArray(data) ? data : []))
+      .then(data => setIncidents(Array.isArray(data) ? data.reverse() : []))
   }, [child.id])
 
   const addIncident = async () => {
@@ -724,14 +737,14 @@ function IncidentTab({ child }: { child: ChildRecord }) {
       action: iAction.trim(),
       notifiedParent: iNotified
     }
-    const res = await fetch("/api/childcare", { method: "POST", body: JSON.stringify(payload) })
+    const res = await authFetch("/api/childcare", { method: "POST", body: JSON.stringify(payload) })
     const data = await res.json()
     setIncidents(p => [data, ...p])
     setIDesc(""); setIAction(""); setShowForm(false)
   }
 
   const deleteIncident = async (id: string) => {
-    await fetch(`/api/childcare/${id}`, { method: "DELETE" })
+    await authFetch(`/api/childcare/${id}`, { method: "DELETE" })
     setIncidents(p => p.filter(i => i._id !== id))
   }
 
@@ -885,6 +898,7 @@ const MAIN_TABS = [
 type MainTab = typeof MAIN_TABS[number]["id"]
 
 export default function ChildCarePage() {
+  const router = useRouter()
   const [activeTab, setActiveTab] = React.useState<MainTab>("health")
   const [allChildren, setAllChildren] = React.useState<any[]>([])
   const [selectedChildId, setSelectedChildId] = React.useState("")
@@ -893,6 +907,12 @@ export default function ChildCarePage() {
   const [studentDropdownOpen, setStudentDropdownOpen] = React.useState(false)
   const [batchSearch, setBatchSearch] = React.useState("")
   const [batchDropdownOpen, setBatchDropdownOpen] = React.useState(false)
+
+  // Directory state
+  const [dirSearch, setDirSearch] = React.useState("")
+  const [dirFilter, setDirFilter] = React.useState("All")
+  const [dirPage, setDirPage] = React.useState(1)
+  const dirItemsPerPage = 10
 
   React.useEffect(() => {
     async function loadData() {
@@ -908,15 +928,14 @@ export default function ChildCarePage() {
           const batchInfo = rawBatches.find((b: any) => b.studentNames?.includes(s.name))
           return {
             id: s.id || s._id,
-            name: s.name,
-            parentName: s.parentName,
+            name: s.name || "Unknown",
+            parentName: s.parentName || "",
             className: batchInfo ? `${batchInfo.courseName || "Batch"} — ${batchInfo.section || batchInfo.code || "A"}` : "Unassigned",
             branch: s.tenantId || "Main",
           }
         }).sort((a: any, b: any) => a.name.localeCompare(b.name))
         
         setAllChildren(studentOpts)
-        if (studentOpts.length > 0) setSelectedChildId(studentOpts[0].id)
       } catch (err) {
         console.error(err)
       } finally {
@@ -926,15 +945,53 @@ export default function ChildCarePage() {
     loadData()
   }, [])
 
-  const selectedChild = allChildren.find(c => c.id === selectedChildId) ?? allChildren[0]
+  const selectedChild = allChildren.find(c => c.id === selectedChildId)
   const isBirthdayTab = activeTab === "birthdays"
+
+  const filteredDirectory = React.useMemo(() => {
+    let list = allChildren
+    if (dirFilter !== "All") {
+      list = list.filter(c => c.className.includes(dirFilter) || (dirFilter === "Unassigned" && c.className === "Unassigned"))
+    }
+    if (dirSearch) {
+      list = list.filter(c => 
+        c.name.toLowerCase().includes(dirSearch.toLowerCase()) || 
+        c.parentName?.toLowerCase().includes(dirSearch.toLowerCase())
+      )
+    }
+    return list
+  }, [allChildren, dirFilter, dirSearch])
+
+  const totalDirPages = Math.max(1, Math.ceil(filteredDirectory.length / dirItemsPerPage))
+  const paginatedDirectory = filteredDirectory.slice((dirPage - 1) * dirItemsPerPage, dirPage * dirItemsPerPage)
+  const filterOptions = ["All", ...Array.from(new Set(allChildren.map(c => c.className.split(" — ")[0]))).filter(Boolean)]
 
   if (loading) {
     return <div className="p-8 text-center text-muted-foreground animate-pulse text-sm">Loading records...</div>
   }
 
   if (allChildren.length === 0) {
-    return <div className="p-8 text-center text-muted-foreground text-sm">No children found.</div>
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6">
+        <div className="h-20 w-20 rounded-full bg-primary/10 text-primary flex items-center justify-center shadow-sm">
+          <Baby className="h-10 w-10" />
+        </div>
+        <div className="text-center space-y-2 max-w-md">
+          <h2 className="text-2xl font-bold tracking-tight text-foreground">No children enrolled yet</h2>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Child care records require enrolled students. Once you add students to your center, you can track their health, meals, naps, and incidents here.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => router.push("/students")}
+          className="h-10 px-6 rounded-xl bg-primary text-white text-sm font-semibold flex items-center gap-2 hover:bg-primary/90 transition-colors shadow-sm hover:shadow-md"
+        >
+          <Plus className="h-4 w-4" />
+          Add Student
+        </button>
+      </div>
+    )
   }
 
   return (
@@ -974,9 +1031,144 @@ export default function ChildCarePage() {
       {/* Per-child tabs — show child selector */}
       {!isBirthdayTab && (
         <div className="space-y-4">
-          {/* Child selector top bar */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4 p-3 bg-muted/30 border border-border/60 rounded-2xl shadow-sm">
-            <div className="flex items-center gap-3 flex-1 max-w-xl">
+          {!selectedChild ? (
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-muted/30 border border-border/60 rounded-2xl shadow-sm">
+                <div className="flex-1 max-w-sm relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Search students..."
+                    value={dirSearch}
+                    onChange={(e) => {
+                      setDirSearch(e.target.value)
+                      setDirPage(1)
+                    }}
+                    className="w-full h-10 pl-9 pr-4 bg-card border border-border rounded-xl text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all shadow-xs"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <select
+                    value={dirFilter}
+                    onChange={(e) => {
+                      setDirFilter(e.target.value)
+                      setDirPage(1)
+                    }}
+                    className="h-10 bg-card border border-border rounded-xl text-sm font-semibold shadow-xs px-3 focus:outline-none focus:border-primary"
+                  >
+                    {filterOptions.map(opt => (
+                      <option key={`opt-${opt}`} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="bg-card border border-border/60 rounded-2xl overflow-hidden shadow-sm">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-left">
+                    <thead>
+                      <tr className="border-b border-border/60 text-muted-foreground uppercase font-semibold">
+                        <th className="p-4 w-12 text-center">#</th>
+                        <th className="p-4">Student</th>
+                        <th className="p-4">Course & Batch</th>
+                        <th className="p-4">Branch</th>
+                        <th className="p-4 text-center">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/60">
+                      {paginatedDirectory.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="py-12 text-center text-muted-foreground text-sm">
+                            No students match your search.
+                          </td>
+                        </tr>
+                      ) : (
+                        paginatedDirectory.map((child, idx) => (
+                          <tr
+                            key={child.id}
+                            onClick={() => setSelectedChildId(child.id)}
+                            className="hover:bg-muted/40 transition-colors cursor-pointer"
+                          >
+                            <td className="p-4 text-center font-semibold text-muted-foreground">
+                              {(dirPage - 1) * dirItemsPerPage + idx + 1}
+                            </td>
+                            <td className="p-4">
+                              <div className="flex items-center gap-3">
+                                <div className="h-8 w-8 rounded-full bg-primary/10 text-primary font-bold text-[10px] flex items-center justify-center shrink-0 border border-primary/20">
+                                  {child.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
+                                </div>
+                                <p className="font-bold text-foreground text-sm">{child.name}</p>
+                              </div>
+                            </td>
+                            <td className="p-4">
+                              <span className="inline-flex items-center rounded-md bg-muted px-2 py-1 text-xs font-semibold text-foreground border border-border/50">
+                                {child.className}
+                              </span>
+                            </td>
+                            <td className="p-4 font-medium text-muted-foreground">
+                              {child.branch.replace("ARKA KIDS ", "")}
+                            </td>
+                            <td className="p-4 text-center">
+                              <button className="text-primary hover:text-primary/80 font-semibold flex items-center justify-center mx-auto gap-1">
+                                View
+                                <ChevronRight className="h-3 w-3" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                
+                {filteredDirectory.length > 0 && (
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-4 py-3 border-t border-border bg-secondary/10">
+                    <div className="text-[11px] text-muted-foreground">
+                      Showing <span className="font-semibold text-foreground">{(dirPage - 1) * dirItemsPerPage + 1}</span> to{" "}
+                      <span className="font-semibold text-foreground">{Math.min(dirPage * dirItemsPerPage, filteredDirectory.length)}</span> of{" "}
+                      <span className="font-semibold text-foreground">{filteredDirectory.length}</span> students
+                      <span className="text-muted-foreground/80"> · {dirItemsPerPage} per page</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setDirPage(p => Math.max(1, p - 1))}
+                        disabled={dirPage === 1}
+                        className="h-8 rounded-lg bg-card border border-border text-xs font-bold px-3 hover:bg-muted/50 disabled:opacity-50 disabled:pointer-events-none transition-colors shadow-xs flex items-center"
+                      >
+                        <ChevronLeft className="h-3.5 w-3.5 mr-1" />
+                        Previous
+                      </button>
+                      <span className="text-xs font-medium text-foreground px-1">
+                        Page {dirPage} of {totalDirPages}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setDirPage(p => Math.min(totalDirPages, p + 1))}
+                        disabled={dirPage === totalDirPages}
+                        className="h-8 rounded-lg bg-card border border-border text-xs font-bold px-3 hover:bg-muted/50 disabled:opacity-50 disabled:pointer-events-none transition-colors shadow-xs flex items-center"
+                      >
+                        Next
+                        <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Child selector top bar */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4 p-3 bg-muted/30 border border-border/60 rounded-2xl shadow-sm">
+                <div className="flex items-center gap-2 sm:gap-3 flex-1 max-w-xl">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedChildId("")}
+                    className="h-10 px-3 rounded-xl bg-card border border-border text-muted-foreground hover:text-foreground shadow-xs flex items-center justify-center transition-colors"
+                    title="Back to all students"
+                  >
+                    <span className="font-bold text-lg leading-none">&larr;</span>
+                  </button>
               <div className="relative flex-1">
                 <button
                   type="button"
@@ -1101,6 +1293,8 @@ export default function ChildCarePage() {
             {activeTab === "emergency" && <EmergencyTab child={selectedChild} />}
             {activeTab === "incidents" && <IncidentTab child={selectedChild} />}
           </div>
+            </>
+          )}
         </div>
       )}
     </div>

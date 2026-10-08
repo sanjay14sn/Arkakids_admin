@@ -101,37 +101,41 @@ export function DailyJournalDashboardWidget() {
         </div>
       </CardHeader>
       <CardContent className="pt-4 space-y-4">
-        {todayEntries.slice(0, 2).map((entry) => (
-          <div key={entry.id} className="p-3.5 rounded-xl border border-border/60 bg-muted/20 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-foreground">{entry.className}</span>
-              <span className="text-[10px] text-muted-foreground">{entry.branch}</span>
-            </div>
-            <p className="text-xs text-foreground/90 line-clamp-2 leading-relaxed">{entry.note}</p>
-            {entry.media.length > 0 && (
-              <div className="flex items-center gap-2 pt-1">
-                {entry.media.map((item) => (
-                  <div key={item.id} className="relative h-12 w-16 rounded-lg overflow-hidden border border-border bg-black">
-                    {item.src ? (
-                      item.kind === "video" ? (
-                        <video src={item.src} className="h-full w-full object-cover" />
-                      ) : (
-                        <img src={item.src} alt={item.label} className="h-full w-full object-cover" />
-                      )
+        <div className="grid grid-cols-3 gap-3">
+          {todayEntries.slice(0, 6).map((entry) => {
+            const cover = entry.media[0]
+            return (
+              <div
+                key={entry.id}
+                className="rounded-xl border border-border/60 bg-muted/20 overflow-hidden"
+              >
+                <div className="relative h-20 bg-black">
+                  {cover?.src ? (
+                    cover.kind === "video" ? (
+                      <video src={cover.src} className="h-full w-full object-cover" />
                     ) : (
-                      <div className={`h-full w-full bg-gradient-to-br ${item.tone}`} />
-                    )}
-                    {item.kind === "video" && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                        <Play className="h-3.5 w-3.5 text-white fill-white" />
-                      </div>
-                    )}
-                  </div>
-                ))}
+                      <img src={cover.src} alt={cover.label || entry.className} className="h-full w-full object-cover" />
+                    )
+                  ) : (
+                    <div className={`h-full w-full bg-gradient-to-br ${cover?.tone || "from-muted to-muted-foreground/20"}`} />
+                  )}
+                  {cover?.kind === "video" && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                      <Play className="h-3.5 w-3.5 text-white fill-white" />
+                    </div>
+                  )}
+                </div>
+                <div className="p-2.5 space-y-1">
+                  <p className="text-[11px] font-bold text-foreground truncate">{entry.className}</p>
+                  {entry.branch && (
+                    <p className="text-[10px] text-muted-foreground truncate">{entry.branch}</p>
+                  )}
+                  <p className="text-[11px] text-foreground/90 line-clamp-2 leading-relaxed">{entry.note}</p>
+                </div>
               </div>
-            )}
-          </div>
-        ))}
+            )
+          })}
+        </div>
 
         <div className="flex justify-end pt-1">
           <Link href="/journal" className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline">

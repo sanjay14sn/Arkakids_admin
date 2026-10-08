@@ -40,6 +40,7 @@ export default function DashboardPage() {
       return <SuperAdminDashboard />
     case "owner":
       return <OwnerDashboard />
+    case "coordinator":
     case "trainer":
     case "bde":
       return <CoordinatorDashboard />

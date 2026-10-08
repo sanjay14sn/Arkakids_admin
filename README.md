@@ -2,19 +2,17 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
-First, run the development server:
+Run the API and the web app in two terminals:
 
 ```bash
+# 1. Backend (http://127.0.0.1:4000)
+cd arka_kids_backend
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+# 2. Web portal (http://localhost:3000) — proxies /api to the backend
+npm run dev
+```
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 

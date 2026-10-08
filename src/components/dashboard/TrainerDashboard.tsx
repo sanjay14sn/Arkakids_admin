@@ -64,44 +64,39 @@ function DashboardChart({
 export function TrainerDashboard() {
   const { user } = useStore()
   const [isLoading, setIsLoading] = React.useState(true)
+  const [metrics, setMetrics] = React.useState({
+    activeStudents: 0,
+    todayPresent: 0,
+    activeStaff: 0,
+    todayJournals: 0
+  })
 
-  // Chart Datasets
-  const sectionAttendanceData = [
-    { section: "Playgroup", Enrolled: 18, Present: 16 },
-    { section: "Nursery A", Enrolled: 16, Present: 15 },
-    { section: "Nursery B", Enrolled: 17, Present: 16 },
-    { section: "LKG", Enrolled: 16, Present: 16 },
-    { section: "UKG", Enrolled: 17, Present: 16 },
-  ]
-
-  const routineTimelineData = [
-    { time: "09:00 AM", Children: 79, Completion: 100 },
-    { time: "10:00 AM", Children: 45, Completion: 85 },
-    { time: "11:00 AM", Children: 79, Completion: 60 },
-    { time: "12:00 PM", Children: 36, Completion: 30 },
-    { time: "01:00 PM", Children: 40, Completion: 15 },
-    { time: "02:00 PM", Children: 79, Completion: 0 },
-  ]
-
-  const journalUpdatesData = [
-    { name: "Meal Photos", value: 35, color: "#8B0000" },
-    { name: "Nap Logs", value: 28, color: "#D97706" },
-    { name: "Activity Videos", value: 25, color: "#10B981" },
-    { name: "Pending Logs", value: 12, color: "#6B7280" },
-  ]
-
-  const safetyWatchlistData = [
-    { category: "Absenteeism", count: 2, fill: "#F59E0B" },
-    { category: "Food Allergy", count: 1, fill: "#EF4444" },
-    { category: "Early Pickup", count: 1, fill: "#3B82F6" },
-    { category: "Special Care", count: 0, fill: "#10B981" },
-  ]
+  const [chartData, setChartData] = React.useState({
+    sectionAttendanceData: [] as any[],
+    routineTimelineData: [] as any[],
+    journalUpdatesData: [] as any[],
+    safetyWatchlistData: [] as any[]
+  })
 
   React.useEffect(() => {
     let cancelled = false
     const loadDashboard = async () => {
       try {
-        await api.getDashboardMetrics().catch(() => null)
+        const data = await api.getDashboardMetrics().catch(() => null)
+        if (data && !cancelled) {
+          setMetrics({
+            activeStudents: data.activeStudents || 0,
+            todayPresent: data.todayPresent || 0,
+            activeStaff: data.activeStaff || 0,
+            todayJournals: data.todayJournals || 0
+          })
+          setChartData({
+            sectionAttendanceData: data.sectionAttendanceData || [],
+            routineTimelineData: data.routineTimelineData || [],
+            journalUpdatesData: data.journalUpdatesData || [],
+            safetyWatchlistData: data.safetyWatchlistData || []
+          })
+        }
       } catch (err) {
         console.error("Failed to load coordinator dashboard:", err)
       } finally {
@@ -168,10 +163,8 @@ export function TrainerDashboard() {
             </div>
           </div>
           <div className="mt-2">
-            <span className="text-2xl font-bold text-foreground tracking-tight">84</span>
-            <span className="text-xs text-muted-foreground ml-1.5 font-normal">Toddlers</span>
+            <span className="text-2xl font-bold text-foreground tracking-tight">{metrics.activeStudents}</span>
           </div>
-          <p className="text-[11px] text-muted-foreground mt-1">5 Sections (Playgroup - UKG)</p>
         </div>
 
         <div className="p-4 rounded-xl bg-card border border-border/80 shadow-2xs hover:border-emerald-500/20 transition-colors">
@@ -182,10 +175,11 @@ export function TrainerDashboard() {
             </div>
           </div>
           <div className="mt-2">
-            <span className="text-2xl font-bold text-emerald-600 tracking-tight">94%</span>
+            <span className="text-2xl font-bold text-emerald-600 tracking-tight">
+              {metrics.activeStudents > 0 ? Math.round((metrics.todayPresent / metrics.activeStudents) * 100) : 0}%
+            </span>
             <span className="text-xs text-muted-foreground ml-1.5 font-normal">Present</span>
           </div>
-          <p className="text-[11px] text-muted-foreground mt-1">79 of 84 Toddlers Checked In</p>
         </div>
 
         <div className="p-4 rounded-xl bg-card border border-border/80 shadow-2xs hover:border-primary/20 transition-colors">
@@ -196,10 +190,10 @@ export function TrainerDashboard() {
             </div>
           </div>
           <div className="mt-2">
-            <span className="text-2xl font-bold text-foreground tracking-tight">9</span>
+            <span className="text-2xl font-bold text-foreground tracking-tight">{metrics.activeStaff}</span>
             <span className="text-xs text-muted-foreground ml-1.5 font-normal">Personnel</span>
           </div>
-          <p className="text-[11px] text-muted-foreground mt-1">6 Lead Educators · 3 Caregivers</p>
+          <p className="text-[11px] text-muted-foreground mt-1">Currently active educators</p>
         </div>
 
         <div className="p-4 rounded-xl bg-card border border-border/80 shadow-2xs hover:border-primary/20 transition-colors">
@@ -210,7 +204,9 @@ export function TrainerDashboard() {
             </div>
           </div>
           <div className="mt-2">
-            <span className="text-2xl font-bold text-primary tracking-tight">88%</span>
+            <span className="text-2xl font-bold text-primary tracking-tight">
+              {metrics.activeStudents > 0 ? Math.round((metrics.todayJournals / metrics.activeStudents) * 100) : 0}%
+            </span>
             <span className="text-xs text-muted-foreground ml-1.5 font-normal">Logged</span>
           </div>
           <p className="text-[11px] text-muted-foreground mt-1">Meals, Naps & Photos shared</p>
@@ -235,13 +231,13 @@ export function TrainerDashboard() {
           </CardHeader>
           <CardContent className="pt-2">
             <DashboardChart height={230}>
-              <BarChart data={sectionAttendanceData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <BarChart data={chartData.sectionAttendanceData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
                 <XAxis dataKey="section" stroke="var(--muted-foreground)" fontSize={11} />
                 <YAxis stroke="var(--muted-foreground)" fontSize={11} domain={[0, 20]} />
                 <Tooltip contentStyle={{ backgroundColor: "var(--card)", borderColor: "var(--border)", borderRadius: "8px", fontSize: "12px" }} />
                 <Legend iconSize={8} wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="Enrolled" fill="var(--border-strong)" radius={[4, 4, 0, 0]} name="Enrolled Total" />
+                <Bar dataKey="Enrolled" fill="#9CA3AF" radius={[4, 4, 0, 0]} name="Enrolled Total" />
                 <Bar dataKey="Present" fill="#8B0000" radius={[4, 4, 0, 0]} name="Checked In" />
               </BarChart>
             </DashboardChart>
@@ -261,7 +257,7 @@ export function TrainerDashboard() {
           </CardHeader>
           <CardContent className="pt-2">
             <DashboardChart height={230}>
-              <AreaChart data={routineTimelineData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <AreaChart data={chartData.routineTimelineData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="childrenGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#8B0000" stopOpacity={0.3}/>
@@ -294,7 +290,7 @@ export function TrainerDashboard() {
             <DashboardChart height={210}>
               <PieChart>
                 <Pie
-                  data={journalUpdatesData}
+                  data={chartData.journalUpdatesData}
                   cx="50%"
                   cy="50%"
                   innerRadius={55}
@@ -302,7 +298,7 @@ export function TrainerDashboard() {
                   paddingAngle={4}
                   dataKey="value"
                 >
-                  {journalUpdatesData.map((entry, index) => (
+                  {chartData.journalUpdatesData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
@@ -311,7 +307,7 @@ export function TrainerDashboard() {
             </DashboardChart>
 
             <div className="space-y-2 w-full sm:w-44 shrink-0 text-xs">
-              {journalUpdatesData.map((item) => (
+              {chartData.journalUpdatesData.map((item) => (
                 <div key={item.name} className="flex items-center justify-between p-1.5 rounded-md bg-muted/30">
                   <div className="flex items-center gap-2">
                     <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
@@ -337,13 +333,13 @@ export function TrainerDashboard() {
           </CardHeader>
           <CardContent className="pt-2">
             <DashboardChart height={210}>
-              <BarChart data={safetyWatchlistData} layout="vertical" margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
+              <BarChart data={chartData.safetyWatchlistData} layout="vertical" margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" />
                 <XAxis type="number" stroke="var(--muted-foreground)" fontSize={11} domain={[0, 4]} />
                 <YAxis dataKey="category" type="category" stroke="var(--muted-foreground)" fontSize={11} width={90} />
                 <Tooltip contentStyle={{ backgroundColor: "var(--card)", borderColor: "var(--border)", borderRadius: "8px", fontSize: "12px" }} />
                 <Bar dataKey="count" radius={[0, 6, 6, 0]} name="Cases Today">
-                  {safetyWatchlistData.map((entry, index) => (
+                  {chartData.safetyWatchlistData.map((entry, index) => (
                     <Cell key={`cell-safety-${index}`} fill={entry.fill} />
                   ))}
                 </Bar>

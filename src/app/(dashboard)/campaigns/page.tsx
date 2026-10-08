@@ -82,12 +82,22 @@ export default function CampaignsPage() {
     setLoading(true)
     setError("")
     try {
-      const [list, summary] = await Promise.all([
-        api.getCampaigns(),
-        api.getCampaignStats(),
-      ])
-      setCampaigns(list || [])
-      setStats(summary || { totalCampaigns: 0, totalReached: 0, avgOpenRate: 0, scheduled: 0 })
+      const list = await api.getCampaigns()
+      const rows: Campaign[] = Array.isArray(list) ? list : []
+      setCampaigns(rows)
+      try {
+        const summary = await api.getCampaignStats()
+        setStats(summary || { totalCampaigns: 0, totalReached: 0, avgOpenRate: 0, scheduled: 0 })
+      } catch {
+        setStats({
+          totalCampaigns: rows.length,
+          totalReached: rows
+            .filter((c) => c.status === "Active" || c.status === "Completed")
+            .reduce((sum, c) => sum + (c.recipientCount || 0), 0),
+          avgOpenRate: 0,
+          scheduled: rows.filter((c) => c.status === "Scheduled").length,
+        })
+      }
     } catch (err: any) {
       setError(err.message || "Failed to load campaigns")
       setCampaigns([])
@@ -104,9 +114,9 @@ export default function CampaignsPage() {
     const q = searchTerm.trim().toLowerCase()
     if (!q) return campaigns
     return campaigns.filter(c =>
-      c.name.toLowerCase().includes(q) ||
-      c.status.toLowerCase().includes(q) ||
-      c.channel.toLowerCase().includes(q)
+      (c.name || "").toLowerCase().includes(q) ||
+      (c.status || "").toLowerCase().includes(q) ||
+      (c.channel || "").toLowerCase().includes(q)
     )
   }, [campaigns, searchTerm])
 

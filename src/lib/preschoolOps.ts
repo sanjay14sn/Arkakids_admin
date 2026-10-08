@@ -94,7 +94,9 @@ export type ChildDocument = {
   childId: string
   type: DocumentTypeKey
   fileName?: string
+  fileUrl?: string
   uploadedAt?: string
+  studentName?: string
   status: "missing" | "uploaded" | "verified"
 }
 

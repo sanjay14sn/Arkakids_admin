@@ -65,13 +65,7 @@ export function Navbar() {
             <Menu className="h-5 w-5" />
           </button>
 
-          <Link href="/dashboard" className="flex items-center gap-2 shrink-0">
-            <img
-              src="/logo.png"
-              alt="ARKA KIDS Logo"
-              className="h-8 w-8 rounded-full object-contain bg-white p-0.5 shadow-xs border border-primary/20"
-            />
-          </Link>
+
 
           <span className="sm:hidden truncate text-sm font-semibold text-foreground capitalize">
             {breadcrumbs[breadcrumbs.length - 1]?.label || "Dashboard"}

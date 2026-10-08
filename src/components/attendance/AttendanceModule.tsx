@@ -122,6 +122,25 @@ function statusStyle(status: AttendanceStatus, active: boolean) {
 
 const VISIBLE_STATUSES: AttendanceStatus[] = ["present", "absent", "leave"]
 
+function dateKey(value?: string) {
+  return String(value || "").slice(0, 10)
+}
+
+function findApprovedLeave(leaves: any[], student: { id?: string; entityId?: string; name?: string }, date: string) {
+  const day = dateKey(date)
+  const studentId = String(student.id || student.entityId || "")
+  const studentName = String(student.name || "").trim().toLowerCase()
+  return leaves.find((l) => {
+    if (String(l.status || "").toLowerCase() !== "approved") return false
+    const from = dateKey(l.fromDate)
+    const to = dateKey(l.toDate || l.fromDate)
+    if (!from || day < from || day > to) return false
+    if (studentId && String(l.childId || "") === studentId) return true
+    const leaveName = String(l.childName || l.studentName || "").trim().toLowerCase()
+    return Boolean(studentName && leaveName && studentName === leaveName)
+  })
+}
+
 // ─── Main Module ──────────────────────────────────────────────────────────────
 export function AttendanceModule() {
   const { user, activeTenant, addNotification } = useStore()
@@ -266,23 +285,24 @@ export function AttendanceModule() {
 
   React.useEffect(() => {
     if (!selectedBatch) return
+    const withLeave = (row: { entityId: string; name: string; status?: AttendanceStatus; note?: string; absenceReason?: string; parentInformed?: boolean; arrivalTime?: string }) => {
+      const approvedLeave = findApprovedLeave(leaves, { id: row.entityId, name: row.name }, takeDate)
+      if (!approvedLeave) return { ...row, status: (row.status || "present") as AttendanceStatus }
+      return {
+        ...row,
+        status: "leave" as AttendanceStatus,
+        absenceReason: approvedLeave.reason || row.absenceReason,
+        note: approvedLeave.reason || row.note,
+      }
+    }
     if (currentSession) {
-      setMarks(currentSession.records.map(r => ({ ...r })))
+      setMarks(currentSession.records.map((r) => withLeave({ ...r })))
     } else {
-      setMarks(selectedBatch.students.map(st => {
-        const approvedLeave = leaves.find(l => 
-          l.childId === st.id && 
-          l.status === "approved" && 
-          l.fromDate <= takeDate && 
-          l.toDate >= takeDate
-        )
-        return {
-          entityId: st.id,
-          name: st.name,
-          status: (approvedLeave ? "leave" : "present") as AttendanceStatus,
-          absenceReason: approvedLeave ? approvedLeave.reason : undefined,
-        }
-      }))
+      setMarks(selectedBatch.students.map((st) => withLeave({
+        entityId: st.id,
+        name: st.name,
+        status: "present",
+      })))
     }
   }, [selectedBatchId, takeDate, sessions, leaves])
 
@@ -341,7 +361,16 @@ export function AttendanceModule() {
         submitted,
         submittedBy: user?.name || "Coordinator",
         submittedAt: new Date().toISOString(),
-        records: marks,
+        records: marks.map((mark) => {
+          const approvedLeave = findApprovedLeave(leaves, mark, takeDate)
+          if (!approvedLeave) return mark
+          return {
+            ...mark,
+            status: "leave" as AttendanceStatus,
+            absenceReason: approvedLeave.reason || mark.absenceReason,
+            note: approvedLeave.reason || mark.note,
+          }
+        }),
       }
       const saved = await api.saveAttendance(payload)
       // Update local sessions
@@ -569,6 +598,13 @@ export function AttendanceModule() {
 
               {successMsg && <p className="text-sm font-medium text-emerald-600">{successMsg}</p>}
 
+              {marks.some((mark) => findApprovedLeave(leaves, mark, takeDate)) && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-medium text-amber-900 flex items-center gap-2">
+                  <CalendarOff className="h-4 w-4 shrink-0" />
+                  Approved parent leave is auto-marked as Leave for this date. Those rows stay locked to Leave.
+                </div>
+              )}
+
               {marks.length === 0 ? (
                 <Card>
                   <CardContent className="py-12 text-center text-muted-foreground text-sm">
@@ -577,7 +613,10 @@ export function AttendanceModule() {
                 </Card>
               ) : (
                 <div className="space-y-2">
-                  {marks.map(mark => (
+                  {marks.map(mark => {
+                    const approvedLeave = findApprovedLeave(leaves, mark, takeDate)
+                    const rowLocked = !canTake || isClosed || (locked && !canCorrect) || Boolean(approvedLeave)
+                    return (
                     <div key={`take-row-${mark.entityId}`} className="rounded-xl border border-border bg-card p-3 sm:p-4">
                       <div className="flex flex-col lg:flex-row lg:items-center gap-3">
                         <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -587,6 +626,12 @@ export function AttendanceModule() {
                           <div className="min-w-0">
                             <p className="font-semibold truncate">{mark.name}</p>
                             <p className="text-[11px] text-muted-foreground">{selectedBatch.name}</p>
+                            {approvedLeave && (
+                              <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                                <CalendarOff className="h-3 w-3" />
+                                Approved leave{approvedLeave.reason ? ` · ${approvedLeave.reason}` : ""}
+                              </p>
+                            )}
                           </div>
                         </div>
                         <div className="flex bg-muted/40 p-1 rounded-xl border border-border/80 gap-1 w-full lg:w-auto">
@@ -594,12 +639,12 @@ export function AttendanceModule() {
                             <button
                               key={`st-${mark.entityId}-${status}`}
                               type="button"
-                              disabled={!canTake || isClosed || (locked && !canCorrect)}
+                              disabled={rowLocked}
                               onClick={() => setMark(mark.entityId, { status })}
                               className={cn(
                                 "flex items-center justify-center flex-1 h-10 px-3 rounded-lg border text-[13px] font-semibold capitalize transition-all duration-200",
                                 statusStyle(status, mark.status === status),
-                                (!canTake || isClosed || (locked && !canCorrect)) && "opacity-60 cursor-not-allowed"
+                                rowLocked && "opacity-60 cursor-not-allowed"
                               )}
                             >
                               {statusIcon(status)}
@@ -635,7 +680,8 @@ export function AttendanceModule() {
                         </div>
                       )}
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
 

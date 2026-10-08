@@ -1,8 +1,8 @@
 import { isPreviewSession, previewApiResponse } from "@/lib/previewAuth"
 
-const DEFAULT_BACKEND_API = "https://erpapi.erphubtechnologies.in/api"
+const DEFAULT_BACKEND_API = "http://13.205.189.169:4000/api"
 
-/** Browser uses same-origin `/api` (proxied by Next.js). SSR / uploads use full backend URL. */
+/** Browser uses same-origin `/api` (rewritten to arka_kids_backend). SSR hits the backend directly. */
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   (typeof window !== "undefined" ? "/api" : DEFAULT_BACKEND_API)
@@ -139,7 +139,7 @@ export async function fetchAPI(endpoint: string, options: RequestInit = {}) {
       }
       if (isNetworkError(error)) {
         throw new Error(
-          `Cannot reach API at ${API_URL}. Ensure the backend is running (npm run dev in edu-crm-backend).`
+          `Cannot reach API at ${API_URL}. Start arka_kids_backend with npm run dev.`
         )
       }
       throw error
@@ -431,7 +431,7 @@ export const api = {
     reason: string
     requestedBy?: string
   }) => fetchAPI('/attendance/child-leave', { method: 'POST', body: JSON.stringify(data) }),
-  reviewChildLeave: (id: string, status: 'approved' | 'rejected', decidedBy?: string) =>
+  reviewChildLeave: (id: string, status: 'approved' | 'rejected' | 'cancelled', decidedBy?: string) =>
     fetchAPI(`/attendance/child-leave/${id}/review`, { method: 'PUT', body: JSON.stringify({ status, decidedBy }) }),
   deleteChildLeave: (id: string) => fetchAPI(`/attendance/child-leave/${id}`, { method: 'DELETE' }),
   // Staff
@@ -501,6 +501,7 @@ export const api = {
 
   // Notifications
   getNotifications: () => fetchAPI('/notifications'),
+  getSchoolNotices: () => fetchAPI('/notifications?school=1'),
   createNotification: (data: {
     title: string
     description: string
@@ -508,13 +509,28 @@ export const api = {
     targetRoles?: string[]
     targetUserId?: string
     link?: string
+    isSchoolNotice?: boolean
+    targetBatchIds?: string[]
+    targetBatchNames?: string[]
+    noticeDate?: string
   }) => fetchAPI('/notifications', { method: 'POST', body: JSON.stringify(data) }),
+  updateNotification: (id: string, data: {
+    title: string
+    description: string
+    type?: string
+    isSchoolNotice?: boolean
+    targetBatchIds?: string[]
+    targetBatchNames?: string[]
+    noticeDate?: string
+  }) => fetchAPI(`/notifications/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   markNotificationRead: (id: string) =>
     fetchAPI(`/notifications/${id}/read`, { method: 'PATCH' }),
   markAllNotificationsRead: () =>
     fetchAPI('/notifications/read-all', { method: 'PATCH' }),
   clearNotifications: () =>
     fetchAPI('/notifications/clear', { method: 'DELETE' }),
+  deleteNotification: (id: string) =>
+    fetchAPI(`/notifications/${id}`, { method: 'DELETE' }),
 
   // Roles & permissions (institute-scoped)
   getRoles: (tenantId?: string) =>
@@ -581,6 +597,10 @@ export const api = {
   updateSupportTicket: (id: string, data: { status?: string; response?: string }) =>
     fetchAPI(`/support/tickets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   getAnnouncements: () => fetchAPI('/support/announcements'),
+
+  getChildDocuments: () => fetchAPI('/child-documents'),
+  createChildDocument: (data: any) => fetchAPI('/child-documents', { method: 'POST', body: JSON.stringify(data) }),
+  updateChildDocument: (id: string, data: any) => fetchAPI(`/child-documents/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 
   // Classroom Daily Journal
   getJournals: () => fetchAPI('/journal'),

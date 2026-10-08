@@ -25,25 +25,55 @@ import { Badge } from "@/components/ui/Badge"
 import { useStore } from "@/store/useStore"
 import { formatDate, cn } from "@/lib/utils"
 import {
-  CHILDREN,
-  CLASSES,
   DOCUMENT_TYPES,
-  PARENT_CHILD_ID,
-  childById,
-  usePreschoolOps,
   type ChildRecord,
   type ChildDocument,
+  type DocumentTypeKey,
 } from "@/lib/preschoolOps"
 import { useBranches } from "@/hooks/useBranches"
 import { api } from "@/lib/api"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+function sameChild(doc: { childId?: string; studentId?: string; studentName?: string }, child: { id?: string; name?: string }) {
+  const childId = String(child.id || "")
+  const docId = String(doc.childId || doc.studentId || "")
+  if (childId && docId && childId === docId) return true
+  const childName = String(child.name || "").trim().toLowerCase()
+  const docName = String(doc.studentName || "").trim().toLowerCase()
+  return Boolean(childName && docName && childName === docName)
+}
+
+function checklistForChild(child: { id?: string; name?: string }, allDocs: ChildDocument[]): ChildDocument[] {
+  const mine = allDocs.filter((d) => sameChild(d, child))
+  return DOCUMENT_TYPES.map((type) => {
+    const hit = mine.find(
+      (d) =>
+        d.type === type.key ||
+        String(d.fileName || "").trim().toLowerCase() === type.label.toLowerCase()
+    )
+    if (!hit) {
+      return {
+        id: `missing-${child.id}-${type.key}`,
+        childId: String(child.id || ""),
+        type: type.key,
+        status: "missing",
+      }
+    }
+    return {
+      ...hit,
+      childId: String(child.id || hit.childId),
+      type: type.key,
+      status: hit.status || (hit.fileUrl ? "uploaded" : "missing"),
+    }
+  })
+}
+
 function getCompletionStats(docs: ChildDocument[]) {
   const verified = docs.filter((d) => d.status === "verified").length
   const uploaded = docs.filter((d) => d.status === "uploaded").length
   const missing = docs.filter((d) => d.status === "missing").length
-  return { verified, uploaded, missing, total: docs.length }
+  return { verified, uploaded, missing, total: docs.length || DOCUMENT_TYPES.length }
 }
 
 function statusBadge(status: ChildDocument["status"]) {
@@ -83,7 +113,7 @@ interface StudentListProps {
   onSelect: (child: any) => void
 }
 
-const PAGE_SIZE = 5
+const PAGE_SIZE = 10
 
 function StudentList({ isParent, allDocs, childrenList, onSelect }: StudentListProps) {
   const [search, setSearch] = React.useState("")
@@ -103,7 +133,7 @@ function StudentList({ isParent, allDocs, childrenList, onSelect }: StudentListP
     if (branchFilter !== "all" && child.branch !== branchFilter) return false
     if (classFilter !== "all" && child.className !== classFilter) return false
     if (statusFilter !== "all") {
-      const docs = allDocs.filter((d) => d.childId === child.id)
+      const docs = checklistForChild(child, allDocs)
       const stats = getCompletionStats(docs)
       if (statusFilter === "complete" && !(stats.missing === 0 && stats.uploaded === 0)) return false
       if (statusFilter === "pending" && stats.uploaded === 0) return false
@@ -255,7 +285,7 @@ function StudentList({ isParent, allDocs, childrenList, onSelect }: StudentListP
       ) : (
         <div className="space-y-2">
           {paginated.map((child) => {
-            const docs = allDocs.filter((d) => d.childId === child.id)
+            const docs = checklistForChild(child, allDocs)
             const stats = getCompletionStats(docs)
 
             return (
@@ -419,7 +449,7 @@ interface DocumentDetailProps {
   docs: ChildDocument[]
   canVerify: boolean
   onBack: () => void
-  onUpload: (type: ChildDocument["type"], fileName: string) => void
+  onUpload: (type: DocumentTypeKey, file: File) => void
   onVerify: (id: string) => void
 }
 
@@ -473,12 +503,12 @@ function DocumentDetail({ child, docs, canVerify, onBack, onUpload, onVerify }: 
         <div className="mt-4 space-y-1.5">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>Document completeness</span>
-            <span className="font-semibold text-foreground">{stats.verified + stats.uploaded}/{stats.total} on file</span>
+            <span className="font-semibold text-foreground">{stats.verified + stats.uploaded}/{DOCUMENT_TYPES.length} on file</span>
           </div>
           <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
             <div
               className="h-full bg-primary rounded-full transition-all duration-700"
-              style={{ width: `${((stats.verified + stats.uploaded) / stats.total) * 100}%` }}
+              style={{ width: `${((stats.verified + stats.uploaded) / DOCUMENT_TYPES.length) * 100}%` }}
             />
           </div>
           {stats.missing > 0 && (
@@ -513,13 +543,23 @@ function DocumentDetail({ child, docs, canVerify, onBack, onUpload, onVerify }: 
 
               {/* Card body */}
               <div className="px-4 py-3.5 space-y-3">
-                {doc?.fileName ? (
+                {doc?.fileName && status !== "missing" ? (
                   <div>
                     <p className="text-xs font-medium text-foreground truncate">{doc.fileName}</p>
                     {doc.uploadedAt && (
                       <p className="text-[10px] text-muted-foreground mt-0.5">
                         Received {formatDate(doc.uploadedAt)}
                       </p>
+                    )}
+                    {doc.fileUrl && (
+                      <a
+                        href={doc.fileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[11px] font-semibold text-primary hover:underline"
+                      >
+                        View file
+                      </a>
                     )}
                   </div>
                 ) : (
@@ -534,7 +574,7 @@ function DocumentDetail({ child, docs, canVerify, onBack, onUpload, onVerify }: 
                       className="hidden"
                       onChange={(e) => {
                         const file = e.target.files?.[0]
-                        if (file) onUpload(type.key, file.name)
+                        if (file) onUpload(type.key, file)
                         e.target.value = ""
                       }}
                     />
@@ -582,25 +622,43 @@ export default function ChildDocumentsPage() {
     user?.role === "super_admin" ||
     user?.role === "trainer"
 
-  const { state, update, ready } = usePreschoolOps()
   const [selectedChild, setSelectedChild] = React.useState<any | null>(null)
   const [allChildren, setAllChildren] = React.useState<any[]>([])
+  const [liveDocs, setLiveDocs] = React.useState<ChildDocument[]>([])
   const [loadingChildren, setLoadingChildren] = React.useState(true)
+
+  const loadDocuments = React.useCallback(async () => {
+    const docsRes = await api.getChildDocuments().catch(() => [])
+    const rows = Array.isArray(docsRes) ? docsRes : []
+    setLiveDocs(
+      rows.map((d: any) => ({
+        id: String(d.id || d._id || ""),
+        childId: String(d.childId || d.studentId || ""),
+        type: d.type,
+        fileName: d.fileName || d.name,
+        fileUrl: d.fileUrl || d.url,
+        uploadedAt: d.uploadedAt,
+        studentName: d.studentName,
+        status: d.status || (d.url || d.fileUrl ? "uploaded" : "missing"),
+      }))
+    )
+  }, [])
 
   React.useEffect(() => {
     async function loadData() {
       try {
         const [batchesRes, studentsRes] = await Promise.all([
           api.getBatches(),
-          api.getStudents()
+          api.getStudents(),
         ])
+        await loadDocuments()
         const rawBatches = Array.isArray(batchesRes) ? batchesRes : []
         const rawStudents = Array.isArray(studentsRes) ? studentsRes : (studentsRes?.students ?? studentsRes?.data ?? [])
         
         const studentOpts = rawStudents.map((s: any) => {
           const batchInfo = rawBatches.find((b: any) => b.studentNames?.includes(s.name))
           return {
-            id: s.id || s._id,
+            id: String(s.id || s._id),
             name: s.name,
             parentName: s.parentName,
             className: batchInfo ? `${batchInfo.courseName || "Batch"} — ${batchInfo.section || batchInfo.code || "A"}` : "Unassigned",
@@ -609,7 +667,7 @@ export default function ChildDocumentsPage() {
         }).sort((a: any, b: any) => a.name.localeCompare(b.name))
         
         if (isParent) {
-          setAllChildren(studentOpts.filter((c: any) => c.id === PARENT_CHILD_ID))
+          setAllChildren(studentOpts.filter((c: any) => c.id === user?.id || c.name === user?.childName))
         } else {
           setAllChildren(studentOpts)
         }
@@ -620,7 +678,7 @@ export default function ChildDocumentsPage() {
       }
     }
     loadData()
-  }, [isParent])
+  }, [isParent, loadDocuments, user?.id, user?.childName])
 
   // Auto-select for parent
   React.useEffect(() => {
@@ -629,33 +687,45 @@ export default function ChildDocumentsPage() {
     }
   }, [isParent, allChildren])
 
-  const markUploaded = (type: ChildDocument["type"], fileName: string) => {
+  const markUploaded = async (type: DocumentTypeKey, file: File) => {
     if (!selectedChild) return
-    update((prev) => ({
-      ...prev,
-      documents: prev.documents.map((doc) =>
-        doc.childId === selectedChild.id && doc.type === type
-          ? { ...doc, status: "uploaded", fileName, uploadedAt: new Date().toISOString() }
-          : doc
-      ),
-    }))
-    addNotification({
-      title: "Document received",
-      description: `${fileName} added to ${selectedChild.name}'s file.`,
-      type: "system",
-    })
+    try {
+      const uploaded = await api.uploadFile(file, "documents")
+      const url = uploaded?.secure_url || uploaded?.url
+      if (!url) throw new Error("Upload did not return a file URL")
+      await api.createChildDocument({
+        studentId: selectedChild.id,
+        studentName: selectedChild.name,
+        name: DOCUMENT_TYPES.find((t) => t.key === type)?.label || file.name,
+        type,
+        url,
+      })
+      await loadDocuments()
+      addNotification({
+        title: "Document received",
+        description: `${file.name} added to ${selectedChild.name}'s file.`,
+        type: "system",
+      })
+    } catch (err) {
+      console.error(err)
+      addNotification({
+        title: "Could not upload document",
+        type: "system",
+      })
+    }
   }
 
-  const verify = (id: string) => {
-    update((prev) => ({
-      ...prev,
-      documents: prev.documents.map((doc) =>
-        doc.id === id ? { ...doc, status: "verified" } : doc
-      ),
-    }))
+  const verify = async (id: string) => {
+    if (!id || id.startsWith("missing-")) return
+    try {
+      await api.updateChildDocument(id, { status: "verified" })
+      await loadDocuments()
+    } catch (err) {
+      console.error(err)
+    }
   }
 
-  if (!ready || loadingChildren) {
+  if (loadingChildren) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -668,7 +738,7 @@ export default function ChildDocumentsPage() {
 
   // Detail view
   if (selectedChild) {
-    const docs = state.documents.filter((d) => d.childId === selectedChild.id)
+    const docs = checklistForChild(selectedChild, liveDocs)
     return (
       <DocumentDetail
         child={selectedChild}
@@ -685,7 +755,7 @@ export default function ChildDocumentsPage() {
   return (
     <StudentList
       isParent={isParent}
-      allDocs={state.documents}
+      allDocs={liveDocs}
       childrenList={allChildren}
       onSelect={setSelectedChild}
     />

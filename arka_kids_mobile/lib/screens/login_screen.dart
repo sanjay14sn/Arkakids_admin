@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../theme/app_theme.dart';
 import '../main.dart';
+import '../services/api_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -16,6 +17,7 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   // Step state: false = Phone Login, true = OTP Verification
   bool _isOtpStep = false;
+  bool _isCheckingPhone = false;
 
   // Controllers & Focus Nodes
   final _phoneController = TextEditingController(text: '9876543210');
@@ -28,8 +30,9 @@ class _LoginScreenState extends State<LoginScreen> {
   int _secondsRemaining = 30;
   bool _canResend = false;
 
-  // Selected Demo Role for quick role testing
-  String _selectedDemoRole = 'student'; // 'student' (Parent), 'trainer' (Teacher), 'super_admin', 'bde'
+  // Role Toggle State
+  bool _isTeacherLogin = false;
+  String get _selectedDemoRole => _isTeacherLogin ? 'trainer' : 'student';
 
   @override
   void dispose() {
@@ -64,7 +67,7 @@ class _LoginScreenState extends State<LoginScreen> {
     });
   }
 
-  void _handleSendOtp() {
+  void _handleSendOtp() async {
     final phone = _phoneController.text.trim();
     if (phone.length < 10) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -77,12 +80,41 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     setState(() {
+      _isCheckingPhone = true;
+    });
+
+    FocusScope.of(context).unfocus(); // Dismiss keyboard first
+
+    try {
+      await ApiService.checkPhone(phone);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isCheckingPhone = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e is PhoneCheckException
+                ? e.message
+                : 'Cannot reach the school server. Check your connection and try again.',
+          ),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _isCheckingPhone = false;
       _isOtpStep = true;
     });
     _startTimer();
 
     // Focus on first OTP input
-    Future.delayed(const Duration(milliseconds: 300), () {
+    Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) {
         _otpFocusNodes[0].requestFocus();
       }
@@ -148,11 +180,40 @@ class _LoginScreenState extends State<LoginScreen> {
         child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
-            child: AnimatedCrossFade(
-              duration: const Duration(milliseconds: 350),
-              crossFadeState: _isOtpStep ? CrossFadeState.showSecond : CrossFadeState.showFirst,
-              firstChild: _buildPhoneLoginStep(context),
-              secondChild: _buildVerificationStep(context),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 400),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              transitionBuilder: (Widget child, Animation<double> animation) {
+                final inAnimation = Tween<Offset>(begin: const Offset(0.05, 0), end: Offset.zero).animate(animation);
+                final outAnimation = Tween<Offset>(begin: const Offset(-0.05, 0), end: Offset.zero).animate(animation);
+                
+                return FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position: child.key == const ValueKey('otp_step') ? inAnimation : outAnimation,
+                    child: child,
+                  ),
+                );
+              },
+              layoutBuilder: (Widget? currentChild, List<Widget> previousChildren) {
+                return Stack(
+                  alignment: Alignment.topCenter,
+                  children: <Widget>[
+                    ...previousChildren,
+                    if (currentChild != null) currentChild,
+                  ],
+                );
+              },
+              child: _isOtpStep
+                  ? KeyedSubtree(
+                      key: const ValueKey('otp_step'),
+                      child: _buildVerificationStep(context),
+                    )
+                  : KeyedSubtree(
+                      key: const ValueKey('phone_step'),
+                      child: _buildPhoneLoginStep(context),
+                    ),
             ),
           ),
         ),
@@ -177,7 +238,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
         // Welcome Header
         Text(
-          'Welcome Back,\nParent!',
+          _isTeacherLogin ? 'Welcome Back,\nTeacher!' : 'Welcome Back,\nParent!',
           textAlign: TextAlign.center,
           style: GoogleFonts.outfit(
             fontSize: 32,
@@ -193,7 +254,9 @@ class _LoginScreenState extends State<LoginScreen> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0),
           child: Text(
-            'Enter your mobile number to securely access your child’s journey.',
+            _isTeacherLogin
+                ? 'Enter your mobile number to securely access your classroom dashboard.'
+                : 'Enter your mobile number to securely access your child’s journey.',
             textAlign: TextAlign.center,
             style: GoogleFonts.inter(
               fontSize: 14.5,
@@ -249,6 +312,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         controller: _phoneController,
                         keyboardType: TextInputType.phone,
                         maxLength: 10,
+                        onChanged: (val) {
+                          if (val.length == 10) {
+                            FocusScope.of(context).unfocus();
+                          }
+                        },
                         style: GoogleFonts.inter(
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
@@ -302,7 +370,7 @@ class _LoginScreenState extends State<LoginScreen> {
           width: double.infinity,
           height: 54,
           child: ElevatedButton(
-            onPressed: authProvider.isLoading ? null : _handleSendOtp,
+            onPressed: (_isCheckingPhone || authProvider.isLoading) ? null : _handleSendOtp,
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF5B0202),
               foregroundColor: Colors.white,
@@ -311,23 +379,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 borderRadius: BorderRadius.circular(27),
               ),
             ),
-            child: authProvider.isLoading
-                ? const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(
-                      color: Colors.white,
-                      strokeWidth: 2.5,
-                    ),
-                  )
-                : Text(
-                    'Send OTP',
-                    style: GoogleFonts.inter(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.2,
-                    ),
-                  ),
+            child: Text(
+              (_isCheckingPhone || authProvider.isLoading) ? 'Sending OTP...' : 'Send OTP',
+              style: GoogleFonts.inter(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.2,
+              ),
+            ),
           ),
         ),
         const SizedBox(height: 36),
@@ -348,8 +407,24 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         const SizedBox(height: 32),
 
-        // Quick Role Selector for Demo Preview
-        _buildDemoRoleSwitcher(),
+        // Role Switcher Link
+        GestureDetector(
+          onTap: () {
+            setState(() {
+              _isTeacherLogin = !_isTeacherLogin;
+            });
+          },
+          child: Text(
+            _isTeacherLogin ? 'Login as Parent' : 'Login as Teacher',
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF5B0202),
+              decoration: TextDecoration.underline,
+              decorationColor: const Color(0xFF5B0202),
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -472,30 +547,23 @@ class _LoginScreenState extends State<LoginScreen> {
                 borderRadius: BorderRadius.circular(27),
               ),
             ),
-            child: authProvider.isLoading
-                ? const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(
-                      color: Colors.white,
-                      strokeWidth: 2.5,
-                    ),
-                  )
-                : Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Verify & Continue',
-                        style: GoogleFonts.inter(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.2,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      const Icon(Icons.arrow_forward_rounded, size: 20),
-                    ],
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  authProvider.isLoading ? 'Verifying...' : 'Verify & Continue',
+                  style: GoogleFonts.inter(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.2,
                   ),
+                ),
+                if (!authProvider.isLoading) ...[
+                  const SizedBox(width: 8),
+                  const Icon(Icons.arrow_forward_rounded, size: 20),
+                ],
+              ],
+            ),
           ),
         ),
       ],
@@ -569,42 +637,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-
-                // Miniature Smartphone Graphic
-                Container(
-                  width: 32,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(7),
-                    border: Border.all(color: const Color(0xFFE5E5E5), width: 1.5),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.08),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(width: 18, height: 3, color: const Color(0xFFE0E0E0)),
-                      const SizedBox(height: 3),
-                      Container(width: 18, height: 3, color: const Color(0xFFE0E0E0)),
-                      const SizedBox(height: 5),
-                      Container(
-                        width: 20,
-                        height: 6,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF5B0202),
-                          borderRadius: BorderRadius.circular(3),
-                        ),
-                      ),
-                    ],
                   ),
                 ),
               ],
@@ -689,7 +721,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 if (index < 5) {
                   _otpFocusNodes[index + 1].requestFocus();
                 } else {
-                  _otpFocusNodes[index].unfocus();
+                  FocusScope.of(context).unfocus();
+                  _handleVerifyAndContinue(); // Auto verify!
                 }
               } else if (value.isEmpty && index > 0) {
                 _otpFocusNodes[index - 1].requestFocus();
@@ -701,86 +734,5 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // Quick Role Selector for testing different app roles (Parent / Teacher / Admin)
-  Widget _buildDemoRoleSwitcher() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFEEEEEE)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.touch_app_rounded, size: 16, color: Color(0xFF5B0202)),
-              const SizedBox(width: 6),
-              Text(
-                'Demo Role Preview Selector:',
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: const Color(0xFF756E68),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              _buildRoleChip('student', 'Parent', Icons.family_restroom_rounded),
-              _buildRoleChip('trainer', 'Teacher', Icons.school_rounded),
-              _buildRoleChip('super_admin', 'Admin', Icons.admin_panel_settings_rounded),
-              _buildRoleChip('bde', 'Staff', Icons.badge_rounded),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildRoleChip(String roleKey, String label, IconData icon) {
-    final isSelected = _selectedDemoRole == roleKey;
-
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedDemoRole = roleKey;
-        });
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF5B0202) : const Color(0xFFF5F5F5),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: isSelected ? const Color(0xFF5B0202) : const Color(0xFFE0E0E0),
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 14,
-              color: isSelected ? Colors.white : const Color(0xFF5B0202),
-            ),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                color: isSelected ? Colors.white : const Color(0xFF4A4A4A),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }

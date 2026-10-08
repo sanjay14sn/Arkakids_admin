@@ -360,12 +360,12 @@ function StaffFormDialog({
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-muted-foreground">Mobile Number *</label>
-                  <input value={phone} onChange={e => setPhone(e.target.value)} required placeholder="10-digit number"
+                  <input type="tel" value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} required placeholder="10-digit number" pattern="[0-9]{10}" maxLength={10} title="Please enter exactly 10 digits"
                     className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary" />
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-muted-foreground">Email Address *</label>
-                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="Email address"
+                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="Email address" pattern="[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}" title="Please enter a valid email address (e.g. name@example.com)"
                     className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary" />
                 </div>
               </div>
@@ -379,7 +379,7 @@ function StaffFormDialog({
 
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-muted-foreground">Date of Joining *</label>
-                  <input type="date" value={joiningDate} onChange={e => setJoiningDate(e.target.value)} required
+                  <input type="date" value={joiningDate} onChange={e => setJoiningDate(e.target.value)} required min={new Date().toISOString().split("T")[0]}
                     className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary" />
                 </div>
                 <div className="space-y-1">
@@ -471,12 +471,12 @@ function StaffFormDialog({
 
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Mobile Number *</label>
-              <input value={phone} onChange={e => setPhone(e.target.value)} required placeholder="10-digit number"
+              <input type="tel" value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} required placeholder="10-digit number" pattern="[0-9]{10}" maxLength={10} title="Please enter exactly 10 digits"
                 className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary" />
             </div>
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Email Address *</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="Email address"
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="Email address" pattern="[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}" title="Please enter a valid email address (e.g. name@example.com)"
                 className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary" />
             </div>
             <div className="space-y-1">
@@ -525,7 +525,7 @@ function StaffFormDialog({
             </div>
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Date of Joining *</label>
-              <input type="date" value={joiningDate} onChange={e => setJoiningDate(e.target.value)} required
+              <input type="date" value={joiningDate} onChange={e => setJoiningDate(e.target.value)} required min={new Date().toISOString().split("T")[0]}
                 className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary" />
             </div>
             <div className="space-y-1">
@@ -809,9 +809,6 @@ function StaffPageInner() {
             {isTeachers ? <GraduationCap className="h-6 w-6 text-primary" /> : <UserCog className="h-6 w-6 text-primary" />}
             {pageTitle}
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {loading && staff.length === 0 ? "Loading..." : `${active} active · ${onLeave} on leave · ${currentList.length} total`}
-          </p>
         </div>
         <div className="flex items-center gap-2">
           <button

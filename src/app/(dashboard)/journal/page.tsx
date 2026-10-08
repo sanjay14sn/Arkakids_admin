@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import {
   Camera,
   Plus,
@@ -24,6 +25,7 @@ import { Input } from "@/components/ui/Input"
 import { Select } from "@/components/ui/Select"
 import { Dialog } from "@/components/ui/Dialog"
 import { useStore } from "@/store/useStore"
+import { cn } from "@/lib/utils"
 import { api } from "@/lib/api"
 import {
   BRANCHES,
@@ -68,7 +70,7 @@ function JournalMediaTile({
   return (
     <div
       onClick={onClick}
-      className="group relative aspect-[4/3] rounded-xl overflow-hidden border border-border bg-muted cursor-pointer transition-all duration-200 hover:shadow-lg hover:border-primary/50"
+      className="group relative aspect-square rounded-xl overflow-hidden border border-border bg-muted cursor-pointer transition-all duration-200 hover:shadow-lg hover:border-primary/50"
     >
       {item.src ? (
         item.kind === "video" ? (
@@ -115,6 +117,7 @@ const TONES = [
 ]
 
 export default function DailyJournalPage() {
+  const router = useRouter()
   const { user, addNotification, activeTenant } = useStore()
   const isParent = user?.role === "student"
   const canManage = !isParent
@@ -202,6 +205,9 @@ export default function DailyJournalPage() {
           const mergedClasses = Array.from(new Set([...namesClasses]))
           setClassesList(mergedClasses)
           setClassName((prev) => (mergedClasses.includes(prev) ? prev : mergedClasses[0]))
+        } else {
+          setClassesList([])
+          setClassName("")
         }
 
         // Merge DB Journal entries into state if present
@@ -634,68 +640,76 @@ export default function DailyJournalPage() {
                   </span>
                 </div>
 
-                {/* Journal Cards for this Date */}
-                <div className="space-y-4">
-                  {dateEntries.map((entry) => (
-                    <Card key={entry.id} className="overflow-hidden border-border/80 shadow-xs hover:shadow-md transition-shadow">
-                      <CardHeader className="pb-3 border-b border-border/40 bg-muted/20">
-                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
-                          <div>
-                            <CardTitle className="text-base font-bold text-foreground flex items-center gap-2">
-                              {entry.className}
-                              <span className="text-xs font-normal text-muted-foreground">({entry.branch})</span>
-                            </CardTitle>
-                            <CardDescription className="text-xs mt-0.5">
-                              Posted by <span className="font-semibold text-foreground">{entry.author}</span>
-                            </CardDescription>
+                {/* Journal Cards for this Date — 3-up photo grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {dateEntries.map((entry) => {
+                    const media = entry.media || []
+                    const mediaCols = media.length >= 3 ? "grid-cols-3" : media.length === 2 ? "grid-cols-2" : "grid-cols-1"
+                    return (
+                    <Card key={entry.id} className="overflow-hidden border-border/80 shadow-xs hover:shadow-md transition-shadow flex flex-col">
+                      <div className={cn("grid gap-0.5 bg-muted", mediaCols)}>
+                        {media.length === 0 ? (
+                          <div className="aspect-square flex items-center justify-center text-muted-foreground bg-muted">
+                            <ImageIcon className="h-8 w-8 opacity-40" />
                           </div>
-
-                          <div className="flex items-center gap-2">
-                            <div className="flex flex-wrap gap-1.5">
-                              {(entry.tags || []).map((tag) => (
-                                <Badge key={`${entry.id}-${tag}`} variant="secondary" className="text-[11px] font-medium">
-                                  #{tag}
-                                </Badge>
-                              ))}
-                            </div>
-
-                            {/* Edit & Delete Controls for Staff */}
-                            {canManage && (
-                              <div className="flex items-center gap-1 ml-2 border-l border-border pl-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
-                                  onClick={() => handleOpenEdit(entry)}
-                                  title="Edit Update"
-                                >
-                                  <Edit3 className="h-3.5 w-3.5" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                                  onClick={() => handleDelete(entry)}
-                                  title="Delete Update"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="p-5 space-y-4">
-                        <p className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">{entry.note}</p>
-
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                          {(entry.media || []).map((item) => (
+                        ) : (
+                          media.map((item) => (
                             <JournalMediaTile key={item.id} item={item} onClick={() => setSelectedMedia(item)} />
-                          ))}
+                          ))
+                        )}
+                      </div>
+                      <CardContent className="p-3.5 space-y-2 flex-1 flex flex-col">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-foreground truncate">
+                              {entry.className}
+                              {entry.branch ? (
+                                <span className="text-xs font-normal text-muted-foreground"> · {entry.branch}</span>
+                              ) : null}
+                            </p>
+                            <p className="text-[11px] text-muted-foreground truncate">
+                              Posted by <span className="font-semibold text-foreground">{entry.author}</span>
+                            </p>
+                          </div>
+                          {canManage && (
+                            <div className="flex items-center gap-0.5 shrink-0">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
+                                onClick={() => handleOpenEdit(entry)}
+                                title="Edit Update"
+                              >
+                                <Edit3 className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => handleDelete(entry)}
+                                title="Delete Update"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          )}
                         </div>
+                        {entry.note ? (
+                          <p className="text-xs leading-relaxed text-foreground/90 line-clamp-3 whitespace-pre-wrap">{entry.note}</p>
+                        ) : null}
+                        {(entry.tags || []).length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-auto pt-1">
+                            {(entry.tags || []).map((tag) => (
+                              <Badge key={`${entry.id}-${tag}`} variant="secondary" className="text-[10px] font-medium">
+                                #{tag}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             )
@@ -745,13 +759,24 @@ export default function DailyJournalPage() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-semibold text-muted-foreground block mb-1">Class Batches</label>
-              <Select value={className} onChange={(e) => setClassName(e.target.value)} className="h-9 text-xs">
-                {classesList.map((item) => (
-                  <option key={`modal-class-${item}`} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </Select>
+              {classesList.length > 0 ? (
+                <Select value={className} onChange={(e) => setClassName(e.target.value)} className="h-9 text-xs">
+                  {classesList.map((item) => (
+                    <option key={`modal-class-${item}`} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </Select>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => router.push("/batches")}
+                  className="w-full h-9 flex items-center justify-center gap-2 text-xs font-semibold text-primary border border-primary/40 bg-primary/10 hover:bg-primary/20 rounded-md transition-colors"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Add batch
+                </button>
+              )}
             </div>
             <div>
               <label className="text-xs font-semibold text-muted-foreground block mb-1">Franchise / Branch</label>
@@ -839,7 +864,7 @@ export default function DailyJournalPage() {
             <Button variant="outline" size="sm" onClick={() => setOpen(false)} disabled={uploading}>
               Cancel
             </Button>
-            <Button size="sm" onClick={publish} disabled={!note.trim() || uploading} className="gap-2">
+            <Button size="sm" onClick={publish} disabled={classesList.length === 0 || !note.trim() || uploading} className="gap-2">
               {uploading ? (
                 <>
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />

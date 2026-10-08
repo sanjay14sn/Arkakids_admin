@@ -42,6 +42,15 @@ const STATUS_STYLES: Record<CenterConfig["status"], string> = {
   maintenance: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20",
 }
 
+const INDIAN_STATES = [
+  "Andaman and Nicobar Islands", "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", 
+  "Chandigarh", "Chhattisgarh", "Dadra and Nagar Haveli and Daman and Diu", "Delhi", "Goa", 
+  "Gujarat", "Haryana", "Himachal Pradesh", "Jammu and Kashmir", "Jharkhand", "Karnataka", 
+  "Kerala", "Ladakh", "Lakshadweep", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", 
+  "Mizoram", "Nagaland", "Odisha", "Puducherry", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", 
+  "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal"
+]
+
 export default function EditCenterPage() {
   const router = useRouter()
   const params = useParams()
@@ -406,12 +415,15 @@ export default function EditCenterPage() {
 
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-muted-foreground">State *</label>
-                <Input
+                <Select
                   required
                   value={config.state}
                   onChange={(e) => updateConfig({ state: e.target.value })}
                   className="text-xs h-10"
-                />
+                >
+                  <option value="">Select State</option>
+                  {INDIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                </Select>
               </div>
 
               <div className="space-y-1.5">

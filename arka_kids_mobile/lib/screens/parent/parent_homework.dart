@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../services/api_service.dart';
 import '../../models/homework_model.dart';
 import '../../theme/app_theme.dart';
+import '../../providers/auth_provider.dart';
 
 class ParentHomeworkScreen extends StatefulWidget {
   const ParentHomeworkScreen({super.key});
@@ -16,7 +18,12 @@ class _ParentHomeworkScreenState extends State<ParentHomeworkScreen> {
   @override
   void initState() {
     super.initState();
-    _homeworkFuture = ApiService.getHomework();
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    _homeworkFuture = ApiService.getHomework(
+      auth.token ?? '',
+      className: auth.user?.className,
+      studentId: auth.user?.id,
+    );
   }
 
   @override

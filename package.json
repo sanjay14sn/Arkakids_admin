@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -H 0.0.0.0 -p 3000",
+    "dev:backend": "npm run dev --prefix arka_kids_backend",
     "dev:clean": "rm -rf .next && next dev",
     "dev:webpack": "next dev --webpack",
     "build": "next build",

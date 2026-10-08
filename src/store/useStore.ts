@@ -5,7 +5,7 @@ import { type CenterPolicy, DEFAULT_CENTER_POLICY } from "@/lib/centerPolicyClie
 
 import type { RolePermissions } from "@/lib/rolePermissions"
 
-export type UserRole = "super_admin" | "owner" | "trainer" | "student" | "bde"
+export type UserRole = "super_admin" | "owner" | "coordinator" | "trainer" | "student" | "bde"
 
 export interface User {
   id: string
@@ -409,6 +409,14 @@ const mockUsers: Record<UserRole, User> = {
     email: "alex@eduadmin.com",
     role: "super_admin",
     avatar: "AR"
+  },
+  coordinator: {
+    id: "u-c1",
+    name: "Emma Stone",
+    email: "emma@apexacademy.com",
+    role: "coordinator",
+    tenantId: "t-1",
+    avatar: "ES"
   },
   owner: {
     id: "u-2",

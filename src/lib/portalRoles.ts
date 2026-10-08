@@ -8,12 +8,12 @@ export const BRAND_TAGLINE = "Preschool Management"
 export function getPortal(role?: UserRole | null): PortalId {
   if (role === "super_admin") return "super_admin"
   if (role === "owner") return "franchise_owner"
-  if (role === "trainer" || role === "bde") return "coordinator"
+  if (role === "coordinator" || role === "trainer" || role === "bde") return "coordinator"
   return "student"
 }
 
 export function isCoordinator(role?: UserRole | null): boolean {
-  return role === "trainer" || role === "bde"
+  return role === "coordinator" || role === "trainer" || role === "bde"
 }
 
 export function isFranchiseOwner(role?: UserRole | null): boolean {
@@ -82,6 +82,7 @@ export const ROUTE_LABELS: Record<string, string> = {
   profile: "Profile",
   messages: "Messages",
   "parent-communication": "Parent Communication",
+  notices: "School Notices",
   feedback: "Feedback",
   gallery: "Gallery",
   apply: "Admission",

@@ -18,6 +18,7 @@ export interface IHomework extends Document {
   visibility?: "immediate" | "scheduled"
   visibleFrom?: string
   status?: "active" | "completed"
+  submittable?: boolean
   attachment?: {
     name: string
     kind: string
@@ -46,6 +47,7 @@ const HomeworkSchema = new Schema<IHomework>(
     visibility: { type: String, enum: ["immediate", "scheduled"], default: "immediate" },
     visibleFrom: { type: String },
     status: { type: String, enum: ["active", "completed"], default: "active" },
+    submittable: { type: Boolean, default: false },
     attachment: {
       type: {
         name: String,
@@ -59,6 +61,9 @@ const HomeworkSchema = new Schema<IHomework>(
 )
 
 export const Homework = models.Homework || model<IHomework>("Homework", HomeworkSchema)
+if (!Homework.schema.path("submittable")) {
+  Homework.schema.add({ submittable: { type: Boolean, default: false } })
+}
 
 // ─── Journal ─────────────────────────────────────────────────────────────────
 export interface IJournal extends Document {
@@ -69,6 +74,9 @@ export interface IJournal extends Document {
   photos?: string[]
   className?: string
   postedBy?: string
+  tags?: string[]
+  media?: Array<{ id?: string; kind?: string; label?: string; src?: string; tone?: string }>
+  branch?: string
   reactions?: Array<{ userId: string; emoji: string }>
 }
 
@@ -81,6 +89,9 @@ const JournalSchema = new Schema<IJournal>(
     photos: { type: [String], default: [] },
     className: { type: String },
     postedBy: { type: String },
+    tags: { type: [String], default: [] },
+    media: { type: [Schema.Types.Mixed], default: [] },
+    branch: { type: String },
     reactions: { type: [{ userId: String, emoji: String }], default: [] },
   },
   { timestamps: true }
@@ -204,6 +215,7 @@ export interface IChildDocument extends Document {
   type?: string
   url?: string
   uploadedBy?: string
+  status?: "missing" | "uploaded" | "verified"
 }
 
 const ChildDocumentSchema = new Schema<IChildDocument>(
@@ -215,11 +227,17 @@ const ChildDocumentSchema = new Schema<IChildDocument>(
     type: { type: String },
     url: { type: String },
     uploadedBy: { type: String },
+    status: { type: String, enum: ["missing", "uploaded", "verified"], default: "uploaded" },
   },
   { timestamps: true }
 )
 
 export const ChildDocument = models.ChildDocument || model<IChildDocument>("ChildDocument", ChildDocumentSchema)
+if (!ChildDocument.schema.path("status")) {
+  ChildDocument.schema.add({
+    status: { type: String, enum: ["missing", "uploaded", "verified"], default: "uploaded" },
+  })
+}
 
 // ─── Message ──────────────────────────────────────────────────────────────────
 export interface IMessage extends Document {
@@ -323,6 +341,11 @@ export interface INotification extends Document {
   targetUserId?: string
   read?: boolean
   link?: string
+  isSchoolNotice?: boolean
+  targetBatchIds?: string[]
+  targetBatchNames?: string[]
+  noticeDate?: string
+  createdBy?: string
 }
 
 const NotificationSchema = new Schema<INotification>(
@@ -335,9 +358,18 @@ const NotificationSchema = new Schema<INotification>(
     targetUserId: { type: String },
     read: { type: Boolean, default: false },
     link: { type: String },
+    isSchoolNotice: { type: Boolean, default: false, index: true },
+    targetBatchIds: { type: [String], default: [] },
+    targetBatchNames: { type: [String], default: [] },
+    noticeDate: { type: String },
+    createdBy: { type: String },
   },
   { timestamps: true }
 )
+
+if (process.env.NODE_ENV !== "production") {
+  delete models.Notification
+}
 
 export const Notification = models.Notification || model<INotification>("Notification", NotificationSchema)
 
@@ -481,31 +513,76 @@ export const FeeRecord = models.FeeRecord || model<IFeeRecord>("FeeRecord", FeeR
 export interface ICampaign extends Document {
   tenantId: string
   title: string
+  name?: string
   type?: string
+  channel?: string
   audience?: string
-  status: "draft" | "scheduled" | "sent" | "cancelled"
+  status: string
+  subject?: string
   message?: string
+  body?: string
   scheduledAt?: string
   sentAt?: string
   createdBy?: string
+  recipientCount?: number
+  openRate?: number
+  clickRate?: number
 }
 
 const CampaignSchema = new Schema<ICampaign>(
   {
     tenantId: { type: String, required: true, index: true },
     title: { type: String, required: true },
+    name: { type: String },
     type: { type: String },
+    channel: { type: String },
     audience: { type: String },
-    status: { type: String, enum: ["draft", "scheduled", "sent", "cancelled"], default: "draft" },
+    status: {
+      type: String,
+      enum: ["draft", "scheduled", "sent", "cancelled", "Draft", "Scheduled", "Active", "Completed"],
+      default: "Draft",
+    },
+    subject: { type: String },
     message: { type: String },
+    body: { type: String },
     scheduledAt: { type: String },
     sentAt: { type: String },
     createdBy: { type: String },
+    recipientCount: { type: Number, default: 0 },
+    openRate: { type: Number, default: 0 },
+    clickRate: { type: Number, default: 0 },
   },
   { timestamps: true }
 )
 
+if (process.env.NODE_ENV !== "production") {
+  delete models.Campaign
+  delete models.CampaignTemplate
+}
+
 export const Campaign = models.Campaign || model<ICampaign>("Campaign", CampaignSchema)
+
+export interface ICampaignTemplate extends Document {
+  tenantId: string
+  name: string
+  category: string
+  subject: string
+  body?: string
+}
+
+const CampaignTemplateSchema = new Schema<ICampaignTemplate>(
+  {
+    tenantId: { type: String, required: true, index: true },
+    name: { type: String, required: true },
+    category: { type: String, default: "General" },
+    subject: { type: String, default: "" },
+    body: { type: String },
+  },
+  { timestamps: true }
+)
+
+export const CampaignTemplate =
+  models.CampaignTemplate || model<ICampaignTemplate>("CampaignTemplate", CampaignTemplateSchema)
 
 // ─── Follow-up ────────────────────────────────────────────────────────────────
 export interface IFollowUp extends Document {
@@ -587,4 +664,5 @@ export const FeeStructure = models.FeeStructure || model<IFeeStructure>("FeeStru
 export { AdminUser } from "./AdminUser"
 export { RoleModel } from "./Role"
 export { PanelAssociate } from "./PanelAssociate"
+export { ChildLeave } from "./ChildLeave"
 

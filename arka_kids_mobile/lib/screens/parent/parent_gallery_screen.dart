@@ -1,5 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import '../../models/journal_model.dart';
+import '../../providers/auth_provider.dart';
+import '../../services/api_service.dart';
+import '../../theme/app_theme.dart';
+
+class _GalleryPhoto {
+  final String url;
+  final String caption;
+  final String dateLabel;
+  final String category;
+  final String author;
+
+  const _GalleryPhoto({
+    required this.url,
+    required this.caption,
+    required this.dateLabel,
+    required this.category,
+    required this.author,
+  });
+}
 
 class ParentGalleryScreen extends StatefulWidget {
   const ParentGalleryScreen({super.key});
@@ -9,669 +30,337 @@ class ParentGalleryScreen extends StatefulWidget {
 }
 
 class _ParentGalleryScreenState extends State<ParentGalleryScreen> {
+  bool _loading = true;
   String _selectedCategory = 'All';
+  List<_GalleryPhoto> _photos = [];
 
-  final List<String> _categories = [
-    'All',
-    'Class Activities',
-    'Festivals & Events',
-    'Art & Craft',
-    'Outdoor & Sports',
+  static const _months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
   ];
 
-  final List<Map<String, dynamic>> _albums = [
-    {
-      'title': 'Montessori Water Bead & Color Sorting Activity',
-      'category': 'Class Activities',
-      'date': '24 Aug 2026',
-      'count': '12 Photos',
-      'uploader': 'Ms. Anitha (Class Teacher)',
-      'coverIcon': Icons.water_drop_rounded,
-      'coverColor': const Color(0xFF0284C7),
-      'coverBg': const Color(0xFFE0F2FE),
-      'assetPath': 'assets/icons/story_playtime.png',
-      'likes': 18,
-      'isLiked': true,
-      'photos': [
-        {
-          'caption': 'Arjun sorting primary blue & yellow water beads',
-          'date': '24 Aug 2026, 10:15 AM',
-        },
-        {
-          'caption': 'Group water play table sensory exploration',
-          'date': '24 Aug 2026, 10:30 AM',
-        },
-        {
-          'caption': 'Fine motor pincher grasp exercise with scoops',
-          'date': '24 Aug 2026, 10:45 AM',
-        },
-      ],
-    },
-    {
-      'title': 'Independence Day Grand Flag Hoisting & Parade',
-      'category': 'Festivals & Events',
-      'date': '15 Aug 2026',
-      'count': '28 Photos • 2 Videos',
-      'uploader': 'School Admin',
-      'coverIcon': Icons.flag_rounded,
-      'coverColor': const Color(0xFF16A34A),
-      'coverBg': const Color(0xFFDCFCE7),
-      'assetPath': 'assets/icons/story_playtime.png',
-      'likes': 34,
-      'isLiked': false,
-      'photos': [
-        {
-          'caption': 'Playgroup kids performing tricolor flag song',
-          'date': '15 Aug 2026, 09:30 AM',
-        },
-        {
-          'caption': 'Arjun dressed as Little Freedom Fighter',
-          'date': '15 Aug 2026, 09:50 AM',
-        },
-      ],
-    },
-    {
-      'title': 'Clay Modeling & Diya Painting Workshop',
-      'category': 'Art & Craft',
-      'date': '10 Aug 2026',
-      'count': '16 Photos',
-      'uploader': 'Art Teacher Ms. Divya',
-      'coverIcon': Icons.palette_rounded,
-      'coverColor': const Color(0xFFD97706),
-      'coverBg': const Color(0xFFFEF3C7),
-      'assetPath': 'assets/icons/story_playtime.png',
-      'likes': 25,
-      'isLiked': true,
-      'photos': [
-        {
-          'caption': 'Creative hands painting terracotta pots with sparkles',
-          'date': '10 Aug 2026, 11:00 AM',
-        },
-      ],
-    },
-    {
-      'title': 'Outdoor Nature Exploration & Garden Picnic',
-      'category': 'Outdoor & Sports',
-      'date': '02 Aug 2026',
-      'count': '20 Photos',
-      'uploader': 'Physical Educator Coach Raj',
-      'coverIcon': Icons.park_rounded,
-      'coverColor': const Color(0xFF059669),
-      'coverBg': const Color(0xFFD1FAE5),
-      'assetPath': 'assets/icons/story_playtime.png',
-      'likes': 22,
-      'isLiked': false,
-      'photos': [
-        {
-          'caption': 'Collecting autumn leaves and identifying colors',
-          'date': '02 Aug 2026, 11:45 AM',
-        },
-      ],
-    },
-    {
-      'title': 'Friendship Day Craft & Hug Bear Activity',
-      'category': 'Class Activities',
-      'date': '28 Jul 2026',
-      'count': '14 Photos',
-      'uploader': 'Ms. Anitha',
-      'coverIcon': Icons.favorite_rounded,
-      'coverColor': const Color(0xFFDC2626),
-      'coverBg': const Color(0xFFFEE2E2),
-      'assetPath': 'assets/icons/story_playtime.png',
-      'likes': 40,
-      'isLiked': true,
-      'photos': [
-        {
-          'caption': 'Exchanging handmade friendship bands with peers',
-          'date': '28 Jul 2026, 10:00 AM',
-        },
-      ],
-    },
-  ];
-
-  List<Map<String, dynamic>> get _filteredAlbums {
-    if (_selectedCategory == 'All') return _albums;
-    return _albums
-        .where((album) => album['category'] == _selectedCategory)
-        .toList();
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
 
-  void _openPhotoLightbox(Map<String, dynamic> album, int initialIndex) {
-    final photos = album['photos'] as List;
+  String _dateLabel(JournalModel journal) {
+    final local = journal.createdAt.toLocal();
+    return '${local.day} ${_months[local.month - 1]} ${local.year}';
+  }
 
+  Future<void> _load() async {
+    final auth = context.read<AuthProvider>();
+    final token = auth.token;
+    final user = auth.user;
+    if (token == null || token.isEmpty) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
+    final journals = await ApiService.getJournalFeed(
+      token,
+      className: user?.className,
+    );
+    final photos = <_GalleryPhoto>[];
+    for (final journal in journals) {
+      final urls = journal.photos.isNotEmpty
+          ? journal.photos
+          : (journal.imageUrl.isNotEmpty ? [journal.imageUrl] : <String>[]);
+      final caption = journal.title.isNotEmpty && journal.title != 'Classroom Update'
+          ? journal.title
+          : (journal.description.isNotEmpty ? journal.description : 'Class moment');
+      final category = journal.tags.isNotEmpty
+          ? journal.tags.first
+          : (journal.category.isNotEmpty ? journal.category : 'Moments');
+      for (final url in urls) {
+        photos.add(_GalleryPhoto(
+          url: url,
+          caption: caption,
+          dateLabel: _dateLabel(journal),
+          category: category,
+          author: journal.authorName,
+        ));
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _photos = photos;
+      _loading = false;
+    });
+  }
+
+  List<String> get _categories {
+    final tags = _photos
+        .map((p) => p.category)
+        .where((c) => c.trim().isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+    return ['All', ...tags];
+  }
+
+  List<_GalleryPhoto> get _filtered {
+    if (_selectedCategory == 'All') return _photos;
+    return _photos.where((p) => p.category == _selectedCategory).toList();
+  }
+
+  void _openLightbox(int initialIndex) {
+    final photos = _filtered;
+    if (photos.isEmpty) return;
     showDialog(
       context: context,
-      builder: (ctx) => Dialog.fullscreen(
-        backgroundColor: Colors.black,
-        child: StatefulBuilder(
-          builder: (context, setDialogState) {
-            int currentIndex = initialIndex;
-
-            return Stack(
-              children: [
-                // PageView
-                PageView.builder(
-                  itemCount: photos.length,
-                  onPageChanged: (idx) {
-                    setDialogState(() {
-                      currentIndex = idx;
-                    });
-                  },
-                  itemBuilder: (context, index) {
-                    final photo = photos[index] as Map<String, dynamic>;
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            constraints: const BoxConstraints(maxHeight: 450),
-                            margin: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(20),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Colors.black54,
-                                  blurRadius: 20,
-                                ),
-                              ],
-                            ),
-                            clipBehavior: Clip.antiAlias,
-                            child: Image.asset(
-                              album['assetPath'] as String,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Container(
-                                height: 300,
-                                color: Colors.grey.shade900,
-                                child: const Center(
-                                  child: Icon(Icons.image_rounded,
-                                      size: 80, color: Colors.white38),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24),
-                            child: Text(
-                              photo['caption'] as String,
-                              style: GoogleFonts.inter(
-                                color: Colors.white,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            photo['date'] as String,
-                            style: GoogleFonts.inter(
-                              color: Colors.white60,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-
-                // Top Controls Bar
-                Positioned(
-                  top: MediaQuery.of(context).padding.top + 8,
-                  left: 16,
-                  right: 16,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      IconButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        icon: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: const BoxDecoration(
-                            color: Colors.black45,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(Icons.close_rounded,
-                              color: Colors.white, size: 22),
-                        ),
-                      ),
-                      Text(
-                        '${currentIndex + 1} / ${photos.length}',
-                        style: GoogleFonts.inter(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                      Row(
-                        children: [
-                          IconButton(
-                            onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Downloading HD Photo to gallery...'),
-                                  backgroundColor: Color(0xFF10B981),
-                                ),
-                              );
-                            },
-                            icon: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: const BoxDecoration(
-                                color: Colors.black45,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Icons.download_rounded,
-                                  color: Colors.white, size: 20),
-                            ),
-                          ),
-                          IconButton(
-                            onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Photo link copied for sharing!'),
-                                  backgroundColor: Color(0xFF8B0000),
-                                ),
-                              );
-                            },
-                            icon: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: const BoxDecoration(
-                                color: Colors.black45,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Icons.share_rounded,
-                                  color: Colors.white, size: 20),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
+      builder: (ctx) => _GalleryLightbox(
+        photos: photos,
+        initialIndex: initialIndex,
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final albums = _filteredAlbums;
-
+    final photos = _filtered;
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(80),
-        child: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF6B0000), Color(0xFF8B0000)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-          child: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(
-                      Icons.arrow_back_ios_new_rounded,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'School Photo Gallery',
-                          style: GoogleFonts.outfit(
-                            color: Colors.white,
-                            fontSize: 19,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: -0.2,
-                          ),
-                        ),
-                        Text(
-                          'Classroom moments, festival events & activities',
-                          style: GoogleFonts.inter(
-                            color: Colors.white70,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+      backgroundColor: const Color(0xFFF5F6F8),
+      appBar: AppBar(
+        title: Text(
+          'Photo Gallery',
+          style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
         ),
+        backgroundColor: const Color(0xFF6B0000),
+        foregroundColor: Colors.white,
+        elevation: 0,
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 16),
-
-            // Category Filter Pills
-            SizedBox(
-              height: 38,
-              child: ListView.separated(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                scrollDirection: Axis.horizontal,
-                itemCount: _categories.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
-                itemBuilder: (context, index) {
-                  final cat = _categories[index];
-                  final isSelected = cat == _selectedCategory;
-                  return ChoiceChip(
-                    label: Text(cat),
-                    selected: isSelected,
-                    onSelected: (selected) {
-                      if (selected) {
-                        setState(() {
-                          _selectedCategory = cat;
-                        });
-                      }
-                    },
-                    selectedColor: const Color(0xFF8B0000),
-                    backgroundColor: Colors.white,
-                    labelStyle: GoogleFonts.inter(
-                      color:
-                          isSelected ? Colors.white : const Color(0xFF374151),
-                      fontSize: 12.5,
-                      fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.w500,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(100),
-                      side: BorderSide(
-                        color: isSelected
-                            ? const Color(0xFF8B0000)
-                            : const Color(0xFFE5E7EB),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          setState(() => _loading = true);
+          await _load();
+        },
+        color: const Color(0xFF8B0000),
+        child: _loading
+            ? const Center(child: CircularProgressIndicator(color: Color(0xFF8B0000)))
+            : CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      child: Text(
+                        photos.isEmpty
+                            ? 'Classroom moments from Daily Journal'
+                            : '${photos.length} photo${photos.length == 1 ? '' : 's'} from class moments',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: const Color(0xFF6B7280),
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
-                    showCheckmark: false,
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Recent Albums (${albums.length})',
-                    style: GoogleFonts.outfit(
-                      fontSize: 16.5,
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF111827),
-                    ),
                   ),
-                  Text(
-                    _selectedCategory,
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF8B0000),
+                  if (_categories.length > 2)
+                    SliverToBoxAdapter(
+                      child: SizedBox(
+                        height: 42,
+                        child: ListView.separated(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          scrollDirection: Axis.horizontal,
+                          itemCount: _categories.length,
+                          separatorBuilder: (_, __) => const SizedBox(width: 8),
+                          itemBuilder: (context, index) {
+                            final cat = _categories[index];
+                            final selected = cat == _selectedCategory;
+                            return ChoiceChip(
+                              label: Text(cat),
+                              selected: selected,
+                              onSelected: (_) => setState(() => _selectedCategory = cat),
+                              selectedColor: const Color(0xFF8B0000),
+                              backgroundColor: Colors.white,
+                              labelStyle: GoogleFonts.inter(
+                                color: selected ? Colors.white : const Color(0xFF374151),
+                                fontSize: 12.5,
+                                fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(100),
+                                side: BorderSide(
+                                  color: selected ? const Color(0xFF8B0000) : const Color(0xFFE5E7EB),
+                                ),
+                              ),
+                              showCheckmark: false,
+                            );
+                          },
+                        ),
+                      ),
                     ),
-                  ),
+                  if (photos.isEmpty)
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.photo_library_outlined, size: 42, color: Colors.grey.shade400),
+                              const SizedBox(height: 10),
+                              Text(
+                                'No photos yet',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w800,
+                                  color: const Color(0xFF111827),
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Moment photos from Daily Journal will appear here.',
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF6B7280)),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+                      sliver: SliverGrid(
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3,
+                          mainAxisSpacing: 6,
+                          crossAxisSpacing: 6,
+                        ),
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            final photo = photos[index];
+                            return GestureDetector(
+                              onTap: () => _openLightbox(index),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: photo.url.startsWith('http')
+                                    ? Image.network(
+                                        photo.url,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => _photoFallback(),
+                                      )
+                                    : Image.asset(
+                                        photo.url,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => _photoFallback(),
+                                      ),
+                              ),
+                            );
+                          },
+                          childCount: photos.length,
+                        ),
+                      ),
+                    ),
                 ],
               ),
-            ),
-            const SizedBox(height: 14),
-
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: albums.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 16),
-              itemBuilder: (context, index) {
-                final album = albums[index];
-                return _buildAlbumCard(album);
-              },
-            ),
-
-            const SizedBox(height: 30),
-          ],
-        ),
       ),
     );
   }
 
-  Widget _buildAlbumCard(Map<String, dynamic> album) {
-    final isLiked = album['isLiked'] as bool;
-    final color = album['coverColor'] as Color;
-    final bg = album['coverBg'] as Color;
-
+  Widget _photoFallback() {
     return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFEFEFEF)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.035),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      color: AppTheme.goldLight,
+      child: const Icon(Icons.photo_rounded, color: AppTheme.goldDark),
+    );
+  }
+}
+
+class _GalleryLightbox extends StatefulWidget {
+  final List<_GalleryPhoto> photos;
+  final int initialIndex;
+
+  const _GalleryLightbox({required this.photos, required this.initialIndex});
+
+  @override
+  State<_GalleryLightbox> createState() => _GalleryLightboxState();
+}
+
+class _GalleryLightboxState extends State<_GalleryLightbox> {
+  late int _index;
+  late final PageController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _index = widget.initialIndex;
+    _controller = PageController(initialPage: widget.initialIndex);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final photo = widget.photos[_index];
+    return Dialog.fullscreen(
+      backgroundColor: Colors.black,
+      child: Stack(
         children: [
-          // Album Cover Image Box
-          GestureDetector(
-            onTap: () => _openPhotoLightbox(album, 0),
-            child: Container(
-              height: 180,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: bg,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-              ),
-              child: Stack(
-                children: [
-                  Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(album['coverIcon'] as IconData,
-                            size: 48, color: color),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Tap to view album photos',
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: color,
-                          ),
-                        ),
-                      ],
-                    ),
+          PageView.builder(
+            controller: _controller,
+            itemCount: widget.photos.length,
+            onPageChanged: (i) => setState(() => _index = i),
+            itemBuilder: (_, i) {
+              final item = widget.photos[i];
+              return InteractiveViewer(
+                child: Center(
+                  child: item.url.startsWith('http')
+                      ? Image.network(item.url, fit: BoxFit.contain)
+                      : Image.asset(item.url, fit: BoxFit.contain),
+                ),
+              );
+            },
+          ),
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 8,
+            left: 8,
+            right: 8,
+            child: Row(
+              children: [
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: const BoxDecoration(color: Colors.black45, shape: BoxShape.circle),
+                    child: const Icon(Icons.close_rounded, color: Colors.white, size: 22),
                   ),
-                  // Category Badge
-                  Positioned(
-                    top: 12,
-                    left: 12,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(100),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Colors.black12,
-                            blurRadius: 4,
-                          ),
-                        ],
-                      ),
-                      child: Text(
-                        album['category'].toString(),
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: color,
-                        ),
-                      ),
-                    ),
-                  ),
-                  // Photo Count Badge
-                  Positioned(
-                    bottom: 12,
-                    right: 12,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.65),
-                        borderRadius: BorderRadius.circular(100),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.photo_library_rounded,
-                              size: 13, color: Colors.white),
-                          const SizedBox(width: 5),
-                          Text(
-                            album['count'].toString(),
-                            style: GoogleFonts.inter(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+                const Spacer(),
+                Text(
+                  '${_index + 1} / ${widget.photos.length}',
+                  style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(width: 12),
+              ],
             ),
           ),
-
-          // Album Details
-          Padding(
-            padding: const EdgeInsets.all(16),
+          Positioned(
+            left: 20,
+            right: 20,
+            bottom: MediaQuery.of(context).padding.bottom + 24,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  album['title'].toString(),
+                  photo.caption,
+                  textAlign: TextAlign.center,
                   style: GoogleFonts.inter(
-                    fontSize: 15.5,
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFF111827),
-                    height: 1.3,
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 6),
-
-                Row(
-                  children: [
-                    const Icon(Icons.person_outline_rounded,
-                        size: 14, color: Color(0xFF6B7280)),
-                    const SizedBox(width: 4),
-                    Text(
-                      album['uploader'].toString(),
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: const Color(0xFF6B7280),
-                      ),
-                    ),
-                    const Spacer(),
-                    const Icon(Icons.calendar_today_rounded,
-                        size: 13, color: Color(0xFF9CA3AF)),
-                    const SizedBox(width: 4),
-                    Text(
-                      album['date'].toString(),
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: const Color(0xFF6B7280),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                const Divider(height: 1, color: Color(0xFFF3F4F6)),
-                const SizedBox(height: 10),
-
-                // Footer Actions (Like & View Photos)
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    InkWell(
-                      onTap: () {
-                        setState(() {
-                          album['isLiked'] = !isLiked;
-                          if (!isLiked) {
-                            album['likes'] = (album['likes'] as int) + 1;
-                          } else {
-                            album['likes'] = (album['likes'] as int) - 1;
-                          }
-                        });
-                      },
-                      borderRadius: BorderRadius.circular(100),
-                      child: Row(
-                        children: [
-                          Icon(
-                            isLiked
-                                ? Icons.favorite_rounded
-                                : Icons.favorite_border_rounded,
-                            color: isLiked
-                                ? const Color(0xFFDC2626)
-                                : const Color(0xFF9CA3AF),
-                            size: 20,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            '${album['likes']} Likes',
-                            style: GoogleFonts.inter(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFF4B5563),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: () => _openPhotoLightbox(album, 0),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF8B0000),
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 8),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      icon: const Icon(Icons.collections_rounded, size: 16),
-                      label: Text(
-                        'View Photos',
-                        style: GoogleFonts.inter(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
+                const SizedBox(height: 4),
+                Text(
+                  '${photo.dateLabel} · ${photo.author}',
+                  style: GoogleFonts.inter(color: Colors.white70, fontSize: 12),
                 ),
               ],
             ),

@@ -79,7 +79,7 @@ export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
     { id: "p10", type: "page", title: "School Calendar", subtitle: "Holidays, PTMs, events and assessment dates", href: "/calendar" },
     { id: "p11", type: "page", title: "Child Documents", subtitle: "Birth certificate, Aadhaar and medical forms", href: "/child-documents" },
     { id: "p12", type: "page", title: "Branch Transfer", subtitle: "Move a child between ARKA KIDS branches", href: "/transfers" },
-    { id: "p14", type: "page", title: "Parent Communication", subtitle: "Announcements, messages and notifications", href: "/parent-communication" },
+    { id: "p15", type: "page", title: "School Notices", subtitle: "Send circulars to all batches or a specific class", href: "/notices" },
     { id: "p4", type: "page", title: "Announcements", subtitle: "Send school circulars and parent notices", href: "/campaigns" },
     { id: "p5", type: "page", title: "Staff Attendance", subtitle: "Mark and review daily present/absent logs", href: "/hr/attendance" },
     { id: "p6", type: "page", title: "Settings & Profile", subtitle: "System settings and workspace preferences", href: "/settings" },
@@ -93,7 +93,7 @@ export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
     // 1. Pages matching search
     const matchedPages = pageItems.filter((p) => {
       if (hideEnquirySearch && (p.href === "/crm" || p.href === "/followups" || p.href === "/admissions")) return false
-      if (p.href === "/parent-communication" && role !== "owner") return false
+      if (p.href === "/notices" && role !== "owner") return false
       if (p.href === "/campaigns" && role === "owner") return false
       return p.title.toLowerCase().includes(q) || p.subtitle.toLowerCase().includes(q)
     })

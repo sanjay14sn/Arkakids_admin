@@ -21,6 +21,7 @@ export const PLATFORM_FEATURES = [
   { key: "childdocuments", label: "Child Documents", group: "Classroom" },
   { key: "transfers", label: "Transfers", group: "Academic" },
   { key: "fees", label: "Fees & Payments", group: "Finance" },
+  { key: "notices", label: "School Notices", group: "Communication" },
   { key: "campaigns", label: "Parent Communication", group: "Communication" },
   { key: "support", label: "Support", group: "Operations" },
 ] as const

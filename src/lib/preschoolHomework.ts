@@ -34,6 +34,7 @@ export type HomeworkItem = {
   status: HomeworkStatus
   createdBy: string
   attachment?: HomeworkAttachment
+  submittable?: boolean
 }
 
 export type HomeworkCompletion = {
@@ -216,7 +217,7 @@ export function usePreschoolHomework() {
     try {
       const data = await api.getHomeworks()
       const items: HomeworkItem[] = data.map((d: any) => ({
-        id: d._id,
+        id: String(d.id || d._id),
         batch: d.batch || d.className || "",
         activity: d.activity || d.subject || "",
         title: d.title || "",
@@ -227,7 +228,8 @@ export function usePreschoolHomework() {
         visibleFrom: d.visibleFrom,
         status: d.status || "active",
         createdBy: d.createdBy || "",
-        attachment: d.attachment
+        attachment: d.attachment,
+        submittable: Boolean(d.submittable),
       }))
       
       const completions: HomeworkCompletion[] = data.flatMap((d: any) => {

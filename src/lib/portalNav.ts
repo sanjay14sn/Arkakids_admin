@@ -27,6 +27,7 @@ import {
   Send,
   HeartPulse,
   ShieldCheck,
+  Bell,
 } from "lucide-react"
 import type { UserRole } from "@/store/useStore"
 import type { CenterFeatureKey } from "@/lib/centerPolicyClient"
@@ -80,6 +81,7 @@ export function getPortalNavLinks(opts: {
     "/roles": "coordinators",
     "/campaigns": "campaigns",
     "/parent-communication": "campaigns",
+    "/notices": "notices",
     "/messages": "campaigns",
     "/support": "support",
     "/hr": "hr",
@@ -88,6 +90,9 @@ export function getPortalNavLinks(opts: {
 
   const isAllowed = (path: string): boolean => {
     if (opts.role === "super_admin" || opts.role === "owner") return true
+    if (path === "/notices") {
+      return opts.role === "trainer" || opts.role === "coordinator" || opts.role === "bde"
+    }
     if (!normPermissions) return true
     const fKey = PATH_TO_FEATURE[path]
     if (!fKey) return true
@@ -144,6 +149,7 @@ export function getPortalNavLinks(opts: {
       { label: "Calendar", path: "/calendar", icon: CalendarDays },
       { label: "Child Documents", path: "/child-documents", icon: FolderOpen },
       { label: "Homework", path: "/homework", icon: ClipboardList },
+      { label: "School Notices", path: "/notices", icon: Bell },
       { label: "Messages", path: "/messages", icon: Send },
       { label: "Communication", path: "/support", icon: MessageSquare },
       ...(policyOk("enableHrModule")
@@ -197,7 +203,7 @@ export function getPortalNavLinks(opts: {
     { label: "Child Documents", path: "/child-documents", icon: FolderOpen },
     { label: "Transfers", path: "/transfers", icon: ArrowLeftRight },
     { label: "Fees & Payments", path: "/fees", icon: CreditCard },
-    { label: "Parent Communication", path: "/parent-communication", icon: Megaphone },
+    { label: "School Notices", path: "/notices", icon: Bell },
     ...(policyOk("enableHrModule")
       ? [{ label: "Staff Payroll & HR", path: "/hr", icon: Wallet }]
       : []),

@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -13,10 +12,10 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
-  late Animation<double> _fadeAnimation;
 
   @override
   void initState() {
@@ -24,7 +23,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1400),
+      duration: const Duration(milliseconds: 800),
     );
 
     _scaleAnimation = CurvedAnimation(
@@ -32,28 +31,23 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
       curve: Curves.easeOutBack,
     );
 
-    _fadeAnimation = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeIn,
-    );
-
     _controller.forward();
-
-    // Navigate to next screen after 2.2 seconds
-    Timer(const Duration(milliseconds: 2200), _navigateToNextScreen);
+    _bootstrap();
   }
 
-  void _navigateToNextScreen() {
-    if (!mounted) return;
+  Future<void> _bootstrap() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-
+    final sessionFuture = authProvider.restoreSession();
+    await Future<void>.delayed(const Duration(milliseconds: 4000));
+    final hasValidSession = await sessionFuture;
+    if (!mounted) return;
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 600),
         pageBuilder: (context, animation, secondaryAnimation) {
           return FadeTransition(
             opacity: animation,
-            child: authProvider.isAuthenticated
+            child: hasValidSession
                 ? const MainNavigationShell()
                 : const LoginScreen(),
           );
@@ -71,47 +65,40 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Color(0xFF580000), // Deep Maroon
-              Color(0xFF7A0000),
-              Color(0xFF4A0000),
-            ],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+      backgroundColor: const Color(0xFFF3E6C8),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Positioned.fill(
+            child: Image.asset(
+              'assets/icons/splashscreen.png',
+              fit: BoxFit.cover,
+              alignment: const Alignment(0, -0.12),
+              filterQuality: FilterQuality.medium,
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Spacer(),
-
-              // Animated Logo Badge
-              ScaleTransition(
-                scale: _scaleAnimation,
-                child: FadeTransition(
-                  opacity: _fadeAnimation,
+          SafeArea(
+            child: Column(
+              children: [
+                const SizedBox(height: 28),
+                ScaleTransition(
+                  scale: _scaleAnimation,
                   child: Container(
-                    width: 110,
-                    height: 110,
+                    width: 88,
+                    height: 88,
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(32),
+                      borderRadius: BorderRadius.circular(26),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.25),
-                          blurRadius: 25,
-                          offset: const Offset(0, 10),
+                          color: Colors.black.withValues(alpha: 0.22),
+                          blurRadius: 20,
+                          offset: const Offset(0, 8),
                         ),
                       ],
                     ),
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(32),
+                      borderRadius: BorderRadius.circular(26),
                       child: Image.asset(
                         'assets/icons/app_icon.png',
                         fit: BoxFit.cover,
@@ -119,74 +106,60 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                           child: Icon(
                             Icons.child_care_rounded,
                             color: Color(0xFF580000),
-                            size: 64,
+                            size: 48,
                           ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 28),
-
-              // Animated App Title
-              FadeTransition(
-                opacity: _fadeAnimation,
-                child: Column(
-                  children: [
-                    Text(
-                      'Arka Kids',
-                      style: GoogleFonts.outfit(
-                        fontSize: 36,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Early Childhood ERP & Learning Portal',
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w400,
-                        color: Colors.white.withValues(alpha: 0.8),
-                        letterSpacing: 0.2,
-                      ),
-                    ),
-                  ],
+                const SizedBox(height: 16),
+                Text(
+                  'Arka Kids',
+                  style: GoogleFonts.outfit(
+                    fontSize: 32,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF5B0202),
+                    letterSpacing: -0.5,
+                  ),
                 ),
-              ),
-
-              const Spacer(),
-
-              // Loading Spinner & Version
-              FadeTransition(
-                opacity: _fadeAnimation,
-                child: Column(
-                  children: [
-                    const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        color: Colors.white70,
-                        strokeWidth: 2.5,
-                      ),
+                const SizedBox(height: 4),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 28),
+                  child: Text(
+                    'Early Childhood Learning Portal',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF5B0202),
+                      letterSpacing: 0.2,
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'v1.0.0 · Arka Kids Mobile',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: Colors.white.withValues(alpha: 0.5),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                  ],
+                  ),
                 ),
-              ),
-            ],
+                const Spacer(),
+                const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    color: Color(0xFF5B0202),
+                    strokeWidth: 2.5,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'v1.0.0 · Arka Kids Mobile',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF5B0202),
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

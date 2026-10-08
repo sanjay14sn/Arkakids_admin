@@ -15,6 +15,15 @@ import { Dialog } from "@/components/ui/Dialog"
 import { useStore, ALL_MODULES } from "@/store/useStore"
 import { api } from "@/lib/api"
 
+const INDIAN_STATES = [
+  "Andaman and Nicobar Islands", "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", 
+  "Chandigarh", "Chhattisgarh", "Dadra and Nagar Haveli and Daman and Diu", "Delhi", "Goa", 
+  "Gujarat", "Haryana", "Himachal Pradesh", "Jammu and Kashmir", "Jharkhand", "Karnataka", 
+  "Kerala", "Ladakh", "Lakshadweep", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", 
+  "Mizoram", "Nagaland", "Odisha", "Puducherry", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", 
+  "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal"
+]
+
 export default function RegisterCenterPage() {
   const router = useRouter()
   const { addNotification } = useStore()
@@ -885,18 +894,15 @@ export default function RegisterCenterPage() {
                     </div>
 
                     <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-muted-foreground">State *</label>
                       <Select
-                        label="State *"
+                        required
                         value={state}
                         onChange={e => setState(e.target.value)}
                         className="text-xs h-10"
                       >
-                        <option value="Maharashtra">Maharashtra</option>
-                        <option value="Karnataka">Karnataka</option>
-                        <option value="Tamil Nadu">Tamil Nadu</option>
-                        <option value="Delhi">Delhi</option>
-                        <option value="Telangana">Telangana</option>
-                        <option value="Gujarat">Gujarat</option>
+                        <option value="">Select State</option>
+                        {INDIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
                       </Select>
                     </div>
 

@@ -13,7 +13,7 @@ import { formatDate } from "@/lib/utils"
 import { api } from "@/lib/api"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-export type LeaveStatus = "pending" | "approved" | "rejected"
+export type LeaveStatus = "pending" | "approved" | "rejected" | "cancelled"
 
 export interface LeaveRequest {
   id: string
@@ -102,6 +102,7 @@ function isLeaveCompleted(toDateStr?: string): boolean {
 function statusBadge(status: LeaveStatus) {
   if (status === "approved") return <Badge variant="success">Approved</Badge>
   if (status === "rejected") return <Badge variant="destructive">Rejected</Badge>
+  if (status === "cancelled") return <Badge variant="secondary">Cancelled</Badge>
   return <Badge variant="warning">Pending</Badge>
 }
 
@@ -280,15 +281,20 @@ export default function ChildLeavePage() {
   }
 
   // ── Approve / Reject ───────────────────────────────────────────────────────
-  const decide = async (id: string, status: "approved" | "rejected") => {
+  const decide = async (id: string, status: "approved" | "rejected" | "cancelled") => {
+    if (!id) {
+      setError("This leave request is missing an id. Refresh and try again.")
+      return
+    }
     setDecidingId(id)
-    setLeaves(prev =>
-      prev.map(r => r.id === id ? { ...r, status, decidedBy: user?.name || "Coordinator" } : r)
-    )
+    setError("")
     try {
-      await api.reviewChildLeave(id, status, user?.name || "Coordinator")
+      const updated = await api.reviewChildLeave(id, status, user?.name || "Coordinator")
+      const mapped = mapApiLeave(updated)
+      setLeaves((prev) => prev.map((r) => (r.id === id ? { ...r, ...mapped, status } : r)))
       void fetchPendingLeavesCount()
-    } catch {
+    } catch (e: any) {
+      setError(e?.message ?? "Could not update this leave request.")
       fetchData()
     } finally {
       setDecidingId(null)
@@ -307,7 +313,7 @@ export default function ChildLeavePage() {
             Child Leave
           </h1>
           <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-            Parent absentee requests. Approved leave marks the child absent on the attendance register. This is not staff HR leave.
+            Parent absentee requests. Approved leave auto-marks the child as Leave on the attendance register. This is not staff HR leave.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -398,6 +404,7 @@ export default function ChildLeavePage() {
                 <option value="pending">Pending</option>
                 <option value="approved">Approved</option>
                 <option value="rejected">Rejected</option>
+                <option value="cancelled">Cancelled</option>
               </Select>
             </div>
           </div>
@@ -427,7 +434,7 @@ export default function ChildLeavePage() {
                   <th className="py-3 px-4">Dates</th>
                   <th className="py-3 px-4">Reason</th>
                   <th className="py-3 px-4">Status</th>
-                  {canDecide && <th className="py-3 px-4 text-right">Action</th>}
+                  {(canDecide || isParent) && <th className="py-3 px-4 text-right">Action</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40">
@@ -446,9 +453,9 @@ export default function ChildLeavePage() {
                     </td>
                     <td className="py-3 px-4 max-w-xs text-xs">{row.reason}</td>
                     <td className="py-3 px-4">{statusBadge(row.status)}</td>
-                    {canDecide && (
+                    {(canDecide || isParent) && (
                       <td className="py-3 px-4 text-right">
-                        {row.status === "pending" ? (
+                        {row.status === "pending" && canDecide ? (
                           <div className="flex justify-end gap-1.5">
                             <Button
                               size="sm"
@@ -471,9 +478,26 @@ export default function ChildLeavePage() {
                               Reject
                             </Button>
                           </div>
+                        ) : (row.status === "pending" || row.status === "approved") ? (
+                          <div className="flex flex-col items-end gap-1.5">
+                            {row.status === "approved" && (
+                              <span className="text-[11px] text-muted-foreground italic font-medium">
+                                by {row.decidedBy || "—"}
+                              </span>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 px-2 text-xs"
+                              disabled={decidingId === row.id}
+                              onClick={() => decide(row.id, "cancelled")}
+                            >
+                              {decidingId === row.id ? "Cancelling…" : "Cancel leave"}
+                            </Button>
+                          </div>
                         ) : (
                           <span className="text-[11px] text-muted-foreground italic font-medium">
-                            by {row.decidedBy || "—"}
+                            {row.status === "cancelled" ? "Cancelled" : `by ${row.decidedBy || "—"}`}
                           </span>
                         )}
                       </td>

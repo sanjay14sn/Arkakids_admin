@@ -41,6 +41,10 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Arka Kids needs camera access so you can photograph homework to submit.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Arka Kids needs photo library access so you can upload homework pictures.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>

@@ -1089,7 +1089,13 @@ export default function CoursesPage() {
                     <label className="text-xs font-semibold text-muted-foreground">Class Teacher *</label>
                     <Select
                       value={classTeacherName}
-                      onChange={(e) => setClassTeacherName(e.target.value)}
+                      onChange={(e) => {
+                        if (e.target.value === "ADD_TEACHER") {
+                          router.push("/staff?section=teachers")
+                        } else {
+                          setClassTeacherName(e.target.value)
+                        }
+                      }}
                       className="bg-card text-xs h-9.5"
                       required
                     >
@@ -1100,13 +1106,20 @@ export default function CoursesPage() {
                       {teacherOptions.length === 0 && !classTeacherName && (
                         <option value="" disabled>No teachers found</option>
                       )}
+                      <option value="ADD_TEACHER" className="text-primary font-semibold">+ Add Teacher...</option>
                     </Select>
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-semibold text-muted-foreground">Assistant Teacher</label>
                     <Select
                       value={assistantTeacherName}
-                      onChange={(e) => setAssistantTeacherName(e.target.value)}
+                      onChange={(e) => {
+                        if (e.target.value === "ADD_TEACHER") {
+                          router.push("/staff?section=teachers")
+                        } else {
+                          setAssistantTeacherName(e.target.value)
+                        }
+                      }}
                       className="bg-card text-xs h-9.5"
                     >
                       <option value="">None</option>
@@ -1116,6 +1129,7 @@ export default function CoursesPage() {
                       {assistantOptions.length === 0 && !assistantTeacherName && (
                         <option value="" disabled>No assistants found</option>
                       )}
+                      <option value="ADD_TEACHER" className="text-primary font-semibold">+ Add Teacher...</option>
                     </Select>
                   </div>
                 </div>
