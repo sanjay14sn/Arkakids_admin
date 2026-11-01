@@ -1,6 +1,6 @@
 import { isPreviewSession, previewApiResponse } from "@/lib/previewAuth"
 
-const DEFAULT_BACKEND_API = "http://13.205.189.169:4000/api"
+const DEFAULT_BACKEND_API = "http://13.236.93.138:4000/api"
 
 /** Browser uses same-origin `/api` (rewritten to arka_kids_backend). SSR hits the backend directly. */
 export const API_URL =

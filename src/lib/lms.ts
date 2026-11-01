@@ -477,7 +477,7 @@ export type LmsVideoItem = {
 }
 
 export const API_ORIGIN =
-  (process.env.NEXT_PUBLIC_API_URL || "http://13.205.189.169:4000/api").replace(/\/api\/?$/, "")
+  (process.env.NEXT_PUBLIC_API_URL || "http://13.236.93.138:4000/api").replace(/\/api\/?$/, "")
 
 export function resolveMediaUrl(url: string) {
   if (!url) return ""

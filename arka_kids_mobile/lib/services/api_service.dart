@@ -72,7 +72,7 @@ class ApiService {
 
   // USB (adb reverse) → Android emulator → LAN IP of the machine running `npm run dev`.
   static const List<String> _candidateBaseUrls = [
-    'http://13.205.189.169:4000/api',
+    'http://13.236.93.138:4000/api',
     'http://127.0.0.1:4000/api',
     'http://10.0.2.2:4000/api',
     'http://192.168.1.2:4000/api',
