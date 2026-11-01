@@ -1660,6 +1660,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen>
                             children: [
                               Expanded(
                                 child: Text(
+                                  
                                   mealName.isEmpty ? 'Meal logged' : mealName,
                                   style: const TextStyle(
                                     fontSize: 13.5,

@@ -19,6 +19,7 @@ import {
   Clock,
   AlertCircle,
   Info,
+  ChevronDown,
 } from "lucide-react"
 import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
@@ -202,32 +203,38 @@ function StudentList({ isParent, allDocs, childrenList, onSelect }: StudentListP
         <div className="flex flex-wrap gap-3 p-4 rounded-xl border border-border/60 bg-card mt-3">
           {/* Branch */}
           <div className="flex items-center gap-2">
-            <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            <select
-              value={branchFilter}
-              onChange={(e) => setBranchFilter(e.target.value)}
-              className="h-8 text-xs rounded-lg border border-border bg-card px-2 focus:outline-none focus:border-primary"
-            >
-              <option value="all">All Branches</option>
-              {branches.map((b) => (
-                <option key={b} value={b}>{b.replace("ARKA KIDS ", "")}</option>
-              ))}
-            </select>
+            <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+            <div className="relative inline-flex items-center">
+              <select
+                value={branchFilter}
+                onChange={(e) => setBranchFilter(e.target.value)}
+                className="h-8 min-w-[130px] text-xs font-medium rounded-lg border border-border bg-card pl-3 pr-8 appearance-none cursor-pointer text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/40 transition-colors shadow-2xs hover:border-primary/50"
+              >
+                <option value="all">All Branches</option>
+                {branches.map((b) => (
+                  <option key={b} value={b}>{b.replace("ARKA KIDS ", "")}</option>
+                ))}
+              </select>
+              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" />
+            </div>
           </div>
 
           {/* Class */}
           <div className="flex items-center gap-2">
-            <BookOpen className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            <select
-              value={classFilter}
-              onChange={(e) => setClassFilter(e.target.value)}
-              className="h-8 text-xs rounded-lg border border-border bg-card px-2 focus:outline-none focus:border-primary"
-            >
-              <option value="all">All Classes</option>
-              {Array.from(new Set(childrenList.map((c) => c.className))).map((cls: any) => (
-                <option key={cls} value={cls}>{cls}</option>
-              ))}
-            </select>
+            <BookOpen className="h-4 w-4 text-muted-foreground shrink-0" />
+            <div className="relative inline-flex items-center">
+              <select
+                value={classFilter}
+                onChange={(e) => setClassFilter(e.target.value)}
+                className="h-8 min-w-[120px] text-xs font-medium rounded-lg border border-border bg-card pl-3 pr-8 appearance-none cursor-pointer text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/40 transition-colors shadow-2xs hover:border-primary/50"
+              >
+                <option value="all">All Classes</option>
+                {Array.from(new Set(childrenList.map((c) => c.className))).map((cls: any) => (
+                  <option key={cls} value={cls}>{cls}</option>
+                ))}
+              </select>
+              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" />
+            </div>
           </div>
 
           {/* Document status */}

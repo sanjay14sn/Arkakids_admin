@@ -20,12 +20,16 @@ import {
   FileText,
   Globe,
   Upload,
+  CheckCircle2,
+  RefreshCw,
+  Calendar,
 } from "lucide-react"
 import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/Card"
 import { Input } from "@/components/ui/Input"
 import { Select } from "@/components/ui/Select"
+import { Dialog } from "@/components/ui/Dialog"
 import { useStore } from "@/store/useStore"
 import { api } from "@/lib/api"
 import { cn } from "@/lib/utils"
@@ -51,6 +55,41 @@ const INDIAN_STATES = [
   "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal"
 ]
 
+const CITY_CODE_MAP: Record<string, string> = {
+  bengaluru: "BLR",
+  bangalore: "BLR",
+  chennai: "CHE",
+  madras: "CHE",
+  mumbai: "MUM",
+  delhi: "DEL",
+  hyderabad: "HYD",
+  kolkata: "CCU",
+  pune: "PUN",
+  ahmedabad: "AMD",
+  jaipur: "JAI",
+  coimbatore: "CJB",
+  salem: "SLM",
+  trichy: "TRZ",
+  madurai: "IXM",
+  kochi: "COK",
+  mysore: "MYQ",
+  mangalore: "IXE",
+  chandigarh: "IXC",
+}
+
+function resolveCityCode(cityStr?: string): string {
+  if (!cityStr) return "BLR"
+  const clean = cityStr.trim().toLowerCase()
+  if (CITY_CODE_MAP[clean]) return CITY_CODE_MAP[clean]
+  for (const [key, code] of Object.entries(CITY_CODE_MAP)) {
+    if (clean.includes(key) || key.includes(clean)) return code
+  }
+  const letters = clean.replace(/[^a-z0-9]/g, "").toUpperCase()
+  return (letters.slice(0, 3) || "LOC").padEnd(3, "X")
+}
+
+const ACADEMIC_YEAR_OPTIONS = ["2026–27", "2025–26", "2024–25", "2027–28", "2028–29"]
+
 export default function EditCenterPage() {
   const router = useRouter()
   const params = useParams()
@@ -64,6 +103,19 @@ export default function EditCenterPage() {
 
   const [loadError, setLoadError] = React.useState("")
   const [isDirty, setIsDirty] = React.useState(false)
+
+  // Renewal Dialog States (Every 3 Years)
+  const [showRenewalDialog, setShowRenewalDialog] = React.useState(false)
+  const [renewalSuccessModal, setRenewalSuccessModal] = React.useState(false)
+  const [renewStartDate, setRenewStartDate] = React.useState(new Date().toISOString().split("T")[0])
+  const [renewEndDate, setRenewEndDate] = React.useState(() => {
+    const d = new Date()
+    d.setFullYear(d.getFullYear() + 3)
+    return d.toISOString().split("T")[0]
+  })
+  const [renewFee, setRenewFee] = React.useState("")
+  const [isRenewing, setIsRenewing] = React.useState(false)
+  const [renewalDetails, setRenewalDetails] = React.useState<any>(null)
 
   const updateConfig = React.useCallback((patch: Partial<CenterConfig>) => {
     setIsDirty(true)
@@ -92,6 +144,20 @@ export default function EditCenterPage() {
     if (!config.name || !(config.location || config.address1) || !(config.manager || config.ownerName) || !(config.email || config.ownerEmail)) {
       alert("Please complete all required fields.")
       return
+    }
+
+    // Validate date sequences
+    if (config.agreementStartDate && config.agreementEndDate) {
+      if (new Date(config.agreementEndDate) <= new Date(config.agreementStartDate)) {
+        alert(`Invalid date sequence: Agreement End Date (${config.agreementEndDate}) must be after Agreement Start Date (${config.agreementStartDate}).`)
+        return
+      }
+    }
+    if (config.agreementStartDate && config.renewalDate) {
+      if (new Date(config.renewalDate) <= new Date(config.agreementStartDate)) {
+        alert(`Invalid date sequence: Renewal Date (${config.renewalDate}) must be after Agreement Start Date (${config.agreementStartDate}).`)
+        return
+      }
     }
 
     setIsSaving(true)
@@ -255,23 +321,41 @@ export default function EditCenterPage() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted-foreground">Institute Code</label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-muted-foreground">Institute Code</label>
+                {config.city && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cityCode = resolveCityCode(config.city)
+                      const namePart = (config.name.trim().split(/\s+/).find(t => /arka/i.test(t)) || config.name.trim().split(/\s+/)[0] || "Arka").replace(/[^a-zA-Z0-9]/g, "")
+                      updateConfig({ centerCode: `IPA-${cityCode}-${namePart}` })
+                    }}
+                    className="text-[10px] text-primary hover:underline font-medium"
+                  >
+                    Sync city code ({resolveCityCode(config.city)})
+                  </button>
+                )}
+              </div>
               <Input
                 value={config.centerCode}
                 onChange={(e) => updateConfig({ centerCode: e.target.value.toUpperCase() })}
-                className="text-xs h-10 font-mono"
-                placeholder="IPA-BLR-001"
+                className="text-xs h-10 font-mono font-bold text-primary"
+                placeholder="e.g. IPA-BLR-Arka"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted-foreground">Academic Year Start Date</label>
-              <Input
-                type="date"
-                value={config.academicYear}
+              <label className="text-xs font-semibold text-muted-foreground">Academic Year</label>
+              <Select
+                value={config.academicYear || "2026–27"}
                 onChange={(e) => updateConfig({ academicYear: e.target.value })}
                 className="text-xs h-10"
-              />
+              >
+                {ACADEMIC_YEAR_OPTIONS.map(yr => (
+                  <option key={yr} value={yr}>{yr}</option>
+                ))}
+              </Select>
             </div>
 
             <div className="space-y-1.5">
@@ -604,12 +688,33 @@ export default function EditCenterPage() {
 
         {/* Section 6: Agreement & Contract Details */}
         <Card className="bg-card border-border/80">
-          <CardHeader>
-            <CardTitle className="text-sm font-bold flex items-center gap-2 text-primary">
-              <FileText className="h-4 w-4" />
-              Agreement & Contract Details
-            </CardTitle>
-            <CardDescription className="text-xs font-medium">Franchise agreement dates, fees, and tax identifiers.</CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-sm font-bold flex items-center gap-2 text-primary">
+                <FileText className="h-4 w-4" />
+                Agreement & Contract Details
+              </CardTitle>
+              <CardDescription className="text-xs font-medium">Franchise agreement dates, 3-year renewal cycle, and fee terms.</CardDescription>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              icon={RefreshCw}
+              onClick={() => {
+                const baseDate = config.renewalDate ? new Date(config.renewalDate) : new Date()
+                const startStr = baseDate.toISOString().split("T")[0]
+                const endD = new Date(baseDate)
+                endD.setFullYear(endD.getFullYear() + 3)
+                setRenewStartDate(startStr)
+                setRenewEndDate(endD.toISOString().split("T")[0])
+                setRenewFee(config.franchiseFee || "150000")
+                setShowRenewalDialog(true)
+              }}
+              className="text-xs border-primary/40 text-primary hover:bg-primary/5 font-semibold"
+            >
+              Renew Agreement (3 Years)
+            </Button>
           </CardHeader>
           <CardContent className="grid gap-5 grid-cols-1 md:grid-cols-3">
             <div className="space-y-1.5">
@@ -773,6 +878,156 @@ export default function EditCenterPage() {
           </div>
         </div>
       </form>
+
+      {/* Agreement Renewal Dialog (Every 3 Years) */}
+      <Dialog
+        isOpen={showRenewalDialog}
+        onClose={() => setShowRenewalDialog(false)}
+        title="Renew Franchise Agreement"
+        description="Renew the franchise contract for a standard 3-year term with automatic confirmation and email dispatch."
+        className="max-w-md"
+      >
+        <div className="space-y-4 pt-2">
+          <div className="p-3 rounded-xl bg-primary/5 border border-primary/20 space-y-1">
+            <p className="text-xs font-bold text-primary">{config.name} ({config.centerCode || "IPA"})</p>
+            <p className="text-[11px] text-muted-foreground">Recipient: {config.officialEmail || config.ownerEmail || config.email || "No email"}</p>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-muted-foreground">Renewal Effective Date *</label>
+            <Input
+              type="date"
+              value={renewStartDate}
+              onChange={(e) => {
+                setRenewStartDate(e.target.value)
+                const d = new Date(e.target.value)
+                if (!isNaN(d.getTime())) {
+                  d.setFullYear(d.getFullYear() + 3)
+                  setRenewEndDate(d.toISOString().split("T")[0])
+                }
+              }}
+              className="text-xs h-9.5"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-muted-foreground">New Valid Until (3-Year Term) *</label>
+            <Input
+              type="date"
+              value={renewEndDate}
+              onChange={(e) => setRenewEndDate(e.target.value)}
+              className="text-xs h-9.5 font-bold text-primary"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-muted-foreground">Renewal Franchise Fee (₹)</label>
+            <Input
+              type="number"
+              placeholder="e.g. 150000"
+              value={renewFee}
+              onChange={(e) => setRenewFee(e.target.value)}
+              className="text-xs h-9.5"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-border">
+            <Button type="button" variant="outline" size="sm" onClick={() => setShowRenewalDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              disabled={isRenewing}
+              onClick={async () => {
+                setIsRenewing(true)
+                try {
+                  const targetEmail = config.officialEmail || config.ownerEmail || config.email || config.adminEmail
+                  
+                  // Update center in backend
+                  await api.updateCenter(centerId, {
+                    renewalDate: renewEndDate,
+                    agreementEndDate: renewEndDate,
+                    franchiseFee: renewFee || config.franchiseFee,
+                  })
+
+                  updateConfig({
+                    renewalDate: renewEndDate,
+                    agreementEndDate: renewEndDate,
+                    franchiseFee: renewFee || config.franchiseFee,
+                  })
+
+                  // Dispatch confirmation email
+                  if (targetEmail) {
+                    await api.sendEmail({
+                      type: "renewal",
+                      to: targetEmail,
+                      details: {
+                        centerName: config.name,
+                        centerCode: config.centerCode,
+                        city: config.city,
+                        renewalDate: renewStartDate,
+                        validUntil: renewEndDate,
+                        renewalFee: renewFee,
+                        adminEmail: targetEmail,
+                      }
+                    })
+                  }
+
+                  setRenewalDetails({
+                    centerName: config.name,
+                    centerCode: config.centerCode,
+                    validUntil: renewEndDate,
+                    email: targetEmail,
+                  })
+
+                  setShowRenewalDialog(false)
+                  setRenewalSuccessModal(true)
+                  addNotification({
+                    title: "Agreement Renewed",
+                    description: `Franchise agreement renewed until ${renewEndDate} (3 Years). Confirmation email sent to ${targetEmail}.`,
+                    type: "system"
+                  })
+                } catch (err: any) {
+                  alert(err.message || "Failed to renew agreement")
+                } finally {
+                  setIsRenewing(false)
+                }
+              }}
+            >
+              {isRenewing ? "Renewing…" : "Confirm 3-Year Renewal"}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Renewal Confirmation Modal */}
+      <Dialog
+        isOpen={renewalSuccessModal}
+        onClose={() => setRenewalSuccessModal(false)}
+        title="Agreement Renewed Successfully"
+        description="The 3-year agreement renewal has been recorded and confirmed."
+        className="max-w-md text-center"
+      >
+        <div className="py-4 space-y-4">
+          <div className="h-14 w-14 rounded-full bg-emerald-500/10 text-emerald-600 mx-auto flex items-center justify-center">
+            <CheckCircle2 className="h-8 w-8" />
+          </div>
+          <div className="space-y-1">
+            <h4 className="text-base font-bold text-foreground">{renewalDetails?.centerName}</h4>
+            <p className="text-xs text-muted-foreground">Valid through <span className="font-bold text-primary">{renewalDetails?.validUntil}</span> (3-Year Term)</p>
+          </div>
+          <div className="p-3 bg-card border border-border rounded-xl text-left text-xs space-y-1 text-muted-foreground">
+            <p><strong>Confirmation Email:</strong> Dispatched to {renewalDetails?.email}</p>
+            <p><strong>Institute Code:</strong> {renewalDetails?.centerCode}</p>
+            <p><strong>Status:</strong> Active Franchise Agreement</p>
+          </div>
+          <Button variant="primary" size="sm" onClick={() => setRenewalSuccessModal(false)} className="w-full">
+            Done
+          </Button>
+        </div>
+      </Dialog>
     </div>
   )
 }

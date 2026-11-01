@@ -75,26 +75,106 @@ export function uniqueDurations(programs: { duration?: string }[]) {
   return Array.from(new Set(programs.map((program) => program.duration?.trim()).filter(Boolean) as string[]))
 }
 
+export const DEFAULT_PROGRAMS: SavedClassProgram[] = [
+  {
+    id: "prog-toddler",
+    name: "Toddler",
+    code: "TOD",
+    duration: "1 Year",
+    fees: 48000,
+    ageFrom: 2,
+    ageTo: 3,
+    ageGroup: "2–3 years",
+    description: "Foundational sensory learning, fine motor skills, and early play exploration.",
+    startTime: "09:00",
+    endTime: "12:00",
+    capacity: 20,
+    status: "active",
+  },
+  {
+    id: "prog-nursery",
+    name: "Nursery",
+    code: "NUR",
+    duration: "1 Year",
+    fees: 54000,
+    ageFrom: 3,
+    ageTo: 4,
+    ageGroup: "3–4 years",
+    description: "Language development, pre-math concepts, creativity, and phonics.",
+    startTime: "09:00",
+    endTime: "12:30",
+    capacity: 25,
+    status: "active",
+  },
+  {
+    id: "prog-junior",
+    name: "Junior (JR)",
+    code: "JR",
+    duration: "1 Year",
+    fees: 60000,
+    ageFrom: 4,
+    ageTo: 5,
+    ageGroup: "4–5 years",
+    description: "Introductory abacus arithmetic, reading, writing, and mathematical reasoning.",
+    startTime: "09:00",
+    endTime: "13:00",
+    capacity: 25,
+    status: "active",
+  },
+  {
+    id: "prog-senior",
+    name: "Senior (SR)",
+    code: "SR",
+    duration: "1 Year",
+    fees: 66000,
+    ageFrom: 5,
+    ageTo: 6,
+    ageGroup: "5–6 years",
+    description: "Advanced abacus calculations, speed math, and primary school readiness.",
+    startTime: "09:00",
+    endTime: "13:30",
+    capacity: 30,
+    status: "active",
+  },
+]
+
+export function deduplicatePrograms(programs: SavedClassProgram[]): SavedClassProgram[] {
+  const seen = new Set<string>()
+  const result: SavedClassProgram[] = []
+  for (const prog of programs) {
+    const key = (prog.name || "").trim().toLowerCase()
+    if (!key) continue
+    if (!seen.has(key)) {
+      seen.add(key)
+      result.push(prog)
+    }
+  }
+  return result
+}
+
 export function loadSavedPrograms(): SavedClassProgram[] {
-  if (typeof window === "undefined") return []
+  if (typeof window === "undefined") return DEFAULT_PROGRAMS
   try {
     const parsed = JSON.parse(localStorage.getItem(CLASS_PROGRAMS_KEY) || "[]")
-    return Array.isArray(parsed) ? parsed : []
+    if (Array.isArray(parsed) && parsed.length > 0) return deduplicatePrograms(parsed)
+    return DEFAULT_PROGRAMS
   } catch {
-    return []
+    return DEFAULT_PROGRAMS
   }
 }
 
 export function persistPrograms(programs: SavedClassProgram[]) {
   if (typeof window === "undefined") return
-  localStorage.setItem(CLASS_PROGRAMS_KEY, JSON.stringify(programs))
+  localStorage.setItem(CLASS_PROGRAMS_KEY, JSON.stringify(deduplicatePrograms(programs)))
 }
 
 export function mergeProgramLists(apiList: SavedClassProgram[] | unknown) {
   const fromApi = Array.isArray(apiList) ? (apiList as SavedClassProgram[]) : []
   if (fromApi.length > 0) {
-    persistPrograms(fromApi)
-    return fromApi
+    const deduped = deduplicatePrograms(fromApi)
+    persistPrograms(deduped)
+    return deduped
   }
-  return loadSavedPrograms()
+  return deduplicatePrograms(loadSavedPrograms())
 }
+

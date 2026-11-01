@@ -1,5 +1,5 @@
 export const ACADEMIC_YEARS = ["2025–26", "2026–27", "2027–28"] as const
-export const GRADES = ["Toddler", "Nursery", "Jr KG", "Sr KG"] as const
+export const GRADES = ["Toddler", "Nursery", "Junior (JR)", "Senior (SR)"] as const
 export const SECTIONS = ["A", "B", "C"] as const
 export const CLASSROOMS = ["Room 101", "Room 102", "Room 103", "Activity Room 2", "Sand Pit Classroom"] as const
 export const WEEKDAYS = [
@@ -23,8 +23,8 @@ export const PREVIEW_STAFF = [
 export function gradeCode(grade: string) {
   if (grade === "Toddler" || grade === "Play Group") return "TOD"
   if (grade === "Nursery") return "NUR"
-  if (grade === "Jr KG" || grade === "LKG") return "JKG"
-  if (grade === "Sr KG" || grade === "UKG") return "SKG"
+  if (grade.includes("Junior") || grade.includes("JR") || grade === "Jr KG" || grade === "LKG") return "JR"
+  if (grade.includes("Senior") || grade.includes("SR") || grade === "Sr KG" || grade === "UKG") return "SR"
   return grade
 }
 

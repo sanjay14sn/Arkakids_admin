@@ -39,7 +39,7 @@ export default function PublicEnquiryPage() {
             <>
               <h1 className="text-lg font-bold mb-1">Enquire for a seat</h1>
               <p className="text-xs text-muted-foreground mb-4">
-                Child date of birth picks Toddler (2–3), Nursery (3–4), Jr KG (4–5), or Sr KG (5–6). Under 2 joins the waitlist.
+                Child date of birth picks Toddler (2–3 years), Nursery (3–4 years), Junior (JR) (4–5 years), or Senior (SR) (5–6 years). Under 2 joins the waitlist.
               </p>
               <EnquiryForm submitLabel="Submit enquiry" onSuccess={() => setSaved(true)} />
             </>

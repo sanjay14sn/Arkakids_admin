@@ -52,6 +52,7 @@ import {
   invoiceRemaining,
   methodLabel,
   printReceipt,
+  planBreakdown,
   recordPayment,
   sendFeeReminder,
   statusLabel,
@@ -473,6 +474,25 @@ export function FeesModule({ superAdminCenter }: { superAdminCenter?: string }) 
                           </div>
                         ))}
                       </div>
+                      {(() => {
+                        const comps = structure.components.filter((c) => c.type !== "transport")
+                        const monthly = planBreakdown(comps, "monthly")
+                        const term = planBreakdown(comps, "term")
+                        return (
+                          <div className="mt-2 grid grid-cols-2 gap-2 border-t border-border/50 pt-4">
+                            <div className="rounded-xl border border-border bg-background p-3">
+                              <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Monthly plan</p>
+                              <p className="text-sm font-black text-foreground mt-1">{formatCurrency(monthly.installments[1]?.amount ?? 0)}<span className="text-[10px] font-semibold text-muted-foreground"> /mo</span></p>
+                              <p className="text-[10px] text-muted-foreground mt-0.5">1st month {formatCurrency(monthly.installments[0]?.amount ?? 0)}</p>
+                            </div>
+                            <div className="rounded-xl border border-primary/20 bg-primary/5 p-3">
+                              <p className="text-[9px] font-bold uppercase tracking-wider text-primary">Term plan · 4 terms</p>
+                              <p className="text-sm font-black text-foreground mt-1">{formatCurrency(term.installments[1]?.amount ?? 0)}<span className="text-[10px] font-semibold text-muted-foreground"> /term</span></p>
+                              <p className="text-[10px] text-muted-foreground mt-0.5">Term 1 {formatCurrency(term.installments[0]?.amount ?? 0)}</p>
+                            </div>
+                          </div>
+                        )
+                      })()}
                     </div>
 
                     <div className="p-4 border-t border-border/50 bg-muted/10 flex gap-2">

@@ -28,6 +28,7 @@ import {
   HeartPulse,
   ShieldCheck,
   Bell,
+  Library,
 } from "lucide-react"
 import type { UserRole } from "@/store/useStore"
 import type { CenterFeatureKey } from "@/lib/centerPolicyClient"
@@ -127,6 +128,7 @@ export function getPortalNavLinks(opts: {
       { label: "Child Documents", path: "/child-documents", icon: FolderOpen },
       { label: "Transfers", path: "/transfers", icon: ArrowLeftRight },
       { label: "Announcements", path: "/campaigns", icon: Megaphone },
+      { label: "Resources & Training", path: "/resources", icon: Library },
       { label: "Settings", path: "/settings", icon: Settings },
       {
         label: "Support",
@@ -151,7 +153,7 @@ export function getPortalNavLinks(opts: {
       { label: "Homework", path: "/homework", icon: ClipboardList },
       { label: "School Notices", path: "/notices", icon: Bell },
       { label: "Messages", path: "/messages", icon: Send },
-      { label: "Communication", path: "/support", icon: MessageSquare },
+      { label: "Resources & Training", path: "/resources", icon: Library },
       ...(policyOk("enableHrModule")
         ? [{ label: "Staff Payroll & HR", path: "/hr/me", icon: Wallet }]
         : []),
@@ -204,6 +206,7 @@ export function getPortalNavLinks(opts: {
     { label: "Transfers", path: "/transfers", icon: ArrowLeftRight },
     { label: "Fees & Payments", path: "/fees", icon: CreditCard },
     { label: "School Notices", path: "/notices", icon: Bell },
+    { label: "Resources & Training", path: "/resources", icon: Library },
     ...(policyOk("enableHrModule")
       ? [{ label: "Staff Payroll & HR", path: "/hr", icon: Wallet }]
       : []),

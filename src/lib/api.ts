@@ -607,4 +607,13 @@ export const api = {
   createJournal: (data: any) => fetchAPI('/journal', { method: 'POST', body: JSON.stringify(data) }),
   updateJournal: (id: string, data: any) => fetchAPI(`/journal/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteJournal: (id: string) => fetchAPI(`/journal/${id}`, { method: 'DELETE' }),
+  // Email delivery
+  sendEmail: (data: { type?: 'registration' | 'renewal'; to: string; subject?: string; html?: string; details?: any }) =>
+    fetchAPI('/email', { method: 'POST', body: JSON.stringify(data) }),
+
+  // Resources & Training Materials
+  getResources: (kind?: 'material' | 'video') => fetchAPI(`/resources${kind ? `?kind=${kind}` : ''}`),
+  createResource: (data: any) => fetchAPI('/resources', { method: 'POST', body: JSON.stringify(data) }),
+  updateResource: (id: string, data: any) => fetchAPI(`/resources/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteResource: (id: string) => fetchAPI(`/resources/${id}`, { method: 'DELETE' }),
 };

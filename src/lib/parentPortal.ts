@@ -6,8 +6,8 @@ export const PARENT_PORTAL_KEY = "arka_parent_portal_v1"
 export const PROGRAMS = [
   { id: "toddler", label: "Toddler", ages: "2–3 years", minAge: 2, maxAge: 3 },
   { id: "nursery", label: "Nursery", ages: "3–4 years", minAge: 3, maxAge: 4 },
-  { id: "jrkg", label: "Jr KG", ages: "4–5 years", minAge: 4, maxAge: 5 },
-  { id: "srkg", label: "Sr KG", ages: "5–6 years", minAge: 5, maxAge: 6 },
+  { id: "jrkg", label: "Junior (JR)", ages: "4–5 years", minAge: 4, maxAge: 5 },
+  { id: "srkg", label: "Senior (SR)", ages: "5–6 years", minAge: 5, maxAge: 6 },
 ] as const
 
 export type ProgramId = (typeof PROGRAMS)[number]["id"] | "waitlist" | "overage"

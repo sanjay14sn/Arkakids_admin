@@ -32,6 +32,7 @@ import {
   programKey,
   uniqueDurations,
   uniqueProgramNames,
+  deduplicatePrograms,
   type ProgramStatus,
   type SavedClassProgram,
 } from "@/lib/preschoolProgram"
@@ -42,6 +43,8 @@ type BatchStatus = "active" | "inactive" | "completed"
 export interface Batch {
   id: string
   code: string
+  name?: string
+  batchName?: string
   courseName: string
   trainerName: string
   schedule: string
@@ -98,12 +101,13 @@ function rosterStudents(): Student[] {
 }
 
 function matchesGrade(student: Student, grade: string) {
+  const g = grade.toLowerCase()
   const band =
-    grade === "Toddler" || grade === "Play Group"
+    g.includes("toddler") || g.includes("playgroup") || g.includes("play group")
       ? "Playgroup"
-      : grade === "Jr KG" || grade === "LKG"
+      : g.includes("junior") || g.includes("jr") || g === "lkg"
         ? "LKG"
-        : grade === "Sr KG" || grade === "UKG"
+        : g.includes("senior") || g.includes("sr") || g === "ukg"
           ? "UKG"
           : grade
   return !student.ageBand || student.ageBand === band
@@ -119,6 +123,8 @@ function staffByKind(kind: "coordinator" | "teacher" | "assistant", trainers: { 
 }
 
 function batchTitle(batch: Batch) {
+  if (batch.batchName) return batch.batchName
+  if (batch.name) return batch.name
   const grade = batch.courseName || "Class"
   const section = batch.section
   return section ? `${grade} - ${section}` : batch.code
@@ -241,6 +247,8 @@ export default function CoursesPage() {
 
   // Form states for batch
   const [editingBatch, setEditingBatch] = React.useState<Batch | null>(null)
+  const [batchName, setBatchName] = React.useState("")
+  const [batchNameTouched, setBatchNameTouched] = React.useState(false)
   const [code, setCode] = React.useState("")
   const [courseName, setCourseName] = React.useState("")
   const [trainerName, setTrainerName] = React.useState("")
@@ -280,15 +288,24 @@ export default function CoursesPage() {
     setCode(generatedCode)
   }, [generatedCode, codeTouched])
 
+  React.useEffect(() => {
+    if (batchNameTouched) return
+    const defaultName = grade ? (section ? `${grade} - ${section}` : grade) : section ? `Batch ${section}` : ""
+    setBatchName(defaultName)
+  }, [grade, section, batchNameTouched])
+
   const resetBatchForm = React.useCallback(() => {
     setEditingBatch(null)
     setDetailBatch(null)
     setCodeTouched(false)
+    setBatchNameTouched(false)
+    const initialGrade = uniqueProgramNames(courses)[0] || ""
     setAcademicYear("2026–27")
-    setGrade(uniqueProgramNames(courses)[0] || "")
+    setGrade(initialGrade)
     setSection("A")
-    setCode(makeBatchCode(uniqueProgramNames(courses)[0] || "CLS", "A", "2026–27"))
-    setCourseName(uniqueProgramNames(courses)[0] || "")
+    setBatchName(initialGrade ? `${initialGrade} - A` : "Batch A")
+    setCode(makeBatchCode(initialGrade || "CLS", "A", "2026–27"))
+    setCourseName(initialGrade)
     setTrainerName(staffByKind("coordinator", trainers)[0] || "")
     setClassTeacherName(staffByKind("teacher", trainers)[0] || "")
     setAssistantTeacherName(staffByKind("assistant", trainers)[0] || "")
@@ -327,9 +344,12 @@ export default function CoursesPage() {
     const enrolledStudents = activeStudentsList
       .filter((st) => selectedStudentIds.includes(st.id))
       .map((st) => st.name)
+    const finalBatchName = batchName.trim() || (grade ? `${grade} - ${section}` : generatedCode)
     const batchCode = code.trim() || generatedCode
 
     return {
+      name: finalBatchName,
+      batchName: finalBatchName,
       code: batchCode,
       courseName: grade,
       trainerName,
@@ -352,6 +372,7 @@ export default function CoursesPage() {
   }
 
   // Form states for course
+  const [editingCourse, setEditingCourse] = React.useState<SavedClassProgram | null>(null)
   const [newCourseName, setNewCourseName] = React.useState("")
   const [newCourseCode, setNewCourseCode] = React.useState("")
   const [newCourseDuration, setNewCourseDuration] = React.useState("")
@@ -369,6 +390,7 @@ export default function CoursesPage() {
   const savedDurations = React.useMemo(() => uniqueDurations(courses), [courses])
 
   const fillProgramForm = React.useCallback((program: SavedClassProgram, keepCustomCode = false) => {
+    setEditingCourse(program)
     const range = parseAgeRange(program)
     setNewCourseName(program.name || "")
     setProgramAgeFrom(range.from)
@@ -386,6 +408,7 @@ export default function CoursesPage() {
   }, [])
 
   const resetProgramForm = React.useCallback(() => {
+    setEditingCourse(null)
     setProgramCodeTouched(false)
     setProgramStatus("active")
     setNewCourseName("")
@@ -505,6 +528,8 @@ export default function CoursesPage() {
     setDetailBatch(batch)
     setCodeTouched(true)
     setCode(batch.code)
+    setBatchName(batch.batchName || batch.name || (batch.section ? `${batch.courseName} - ${batch.section}` : batch.code))
+    setBatchNameTouched(true)
     setGrade(batch.courseName || uniqueProgramNames(courses)[0] || "")
     setCourseName(batch.courseName || uniqueProgramNames(courses)[0] || "")
     setSection(batch.section || batch.code.split("-")[1] || "A")
@@ -602,9 +627,10 @@ export default function CoursesPage() {
       return
     }
 
+    const trimmedName = newCourseName.trim()
     const newCourseData = {
-      name: newCourseName,
-      code: newCourseCode.trim() || makeProgramCode(newCourseName),
+      name: trimmedName,
+      code: newCourseCode.trim() || makeProgramCode(trimmedName),
       duration: newCourseDuration.trim(),
       fees: Number(newCourseFees) || 0,
       ageFrom,
@@ -618,6 +644,45 @@ export default function CoursesPage() {
     }
 
     try {
+      const existingMatch = editingCourse || courses.find(
+        (c) => (c.name || "").trim().toLowerCase() === trimmedName.toLowerCase()
+      )
+
+      if (existingMatch && (existingMatch.id || existingMatch._id)) {
+        const courseId = existingMatch.id || existingMatch._id
+        let updatedRaw: any = null
+        if (!String(courseId).startsWith("prog-")) {
+          updatedRaw = await fetchAPI(`/courses/${courseId}`, {
+            method: "PUT",
+            body: JSON.stringify(newCourseData),
+          }).catch(() => null)
+        }
+        const updatedCourse = {
+          ...newCourseData,
+          ...(updatedRaw || {}),
+          id: courseId,
+          _id: courseId,
+        } as SavedClassProgram
+
+        const nextCourses = deduplicatePrograms(
+          courses.map((c) =>
+            (c.id || c._id) === courseId || (c.name || "").trim().toLowerCase() === trimmedName.toLowerCase()
+              ? updatedCourse
+              : c
+          )
+        )
+        setCourses(nextCourses)
+        persistPrograms(nextCourses)
+        setIsCourseAddOpen(false)
+        addNotification({
+          title: "Class program updated",
+          description: `${trimmedName} has been saved.`,
+          type: "system",
+        })
+        resetProgramForm()
+        return
+      }
+
       const createdCourseRaw = await fetchAPI("/courses", {
         method: "POST",
         body: JSON.stringify(newCourseData),
@@ -627,22 +692,22 @@ export default function CoursesPage() {
         ...createdCourseRaw,
         id: createdCourseRaw.id || createdCourseRaw._id,
       } as SavedClassProgram
-      const nextCourses = [createdCourse, ...courses]
+      const nextCourses = deduplicatePrograms([createdCourse, ...courses])
       setCourses(nextCourses)
       persistPrograms(nextCourses)
       setIsCourseAddOpen(false)
       addNotification({
         title: "Class program created",
-        description: `${newCourseName} is now available for classroom batches.`,
+        description: `${trimmedName} is now available for classroom batches.`,
         type: "system",
       })
       resetProgramForm()
-      if (!grade) setGrade(newCourseName)
+      if (!grade) setGrade(trimmedName)
     } catch (error) {
-      console.error("Failed to create course program:", error)
+      console.error("Failed to save course program:", error)
       addNotification({
         title: "Error",
-        description: "Failed to create class program. Please try again.",
+        description: "Failed to save class program. Please try again.",
         type: "system",
       })
     }
@@ -677,19 +742,18 @@ export default function CoursesPage() {
                 : "Class programs and batches: year, grade, section, staff, and student assignment."}
           </p>
         </div>
-        {isSuperAdmin ? (
-          <Button variant="primary" size="sm" icon={Plus} onClick={openAddCourseDialog}>
-            Add Class Program
-          </Button>
-        ) : (
-          isAdmin && (
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" icon={Plus} onClick={openCreateBatch}>
-                Create Batch
-              </Button>
-            </div>
-          )
-        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          {isAdmin && (
+            <Button variant="outline" size="sm" icon={Plus} onClick={openAddCourseDialog}>
+              Add Class Program
+            </Button>
+          )}
+          {!isSuperAdmin && (
+            <Button variant="primary" size="sm" icon={Plus} onClick={openCreateBatch}>
+              Create Batch
+            </Button>
+          )}
+        </div>
       </div>
 
       {isSuperAdmin ? (
@@ -755,11 +819,15 @@ export default function CoursesPage() {
                               variant="ghost"
                               size="sm"
                               className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                              onClick={() => {
+                              onClick={async () => {
                                 if (window.confirm(`Are you sure you want to delete ${course.name}?`)) {
-                                  const newCourses = courses.filter(c => (c.id || c._id) !== (course.id || course._id));
-                                  setCourses(newCourses);
-                                  persistPrograms(newCourses);
+                                  const courseId = course.id || course._id
+                                  if (courseId && !String(courseId).startsWith("prog-")) {
+                                    await fetchAPI(`/courses/${courseId}`, { method: "DELETE" }).catch(console.error)
+                                  }
+                                  const newCourses = courses.filter(c => (c.id || c._id) !== courseId && c.name !== course.name)
+                                  setCourses(deduplicatePrograms(newCourses))
+                                  persistPrograms(newCourses)
                                 }
                               }}
                               title="Delete Program"
@@ -915,7 +983,7 @@ export default function CoursesPage() {
       <Dialog
         isOpen={isAddOpen}
         onClose={() => setIsAddOpen(false)}
-        className="max-w-2xl"
+        className={dialogView === "form" ? "max-w-4xl" : "max-w-2xl"}
         title={
           dialogView === "students"
             ? "Add Students"
@@ -935,202 +1003,269 @@ export default function CoursesPage() {
       >
         {dialogView === "form" ? (
           <form onSubmit={handleAddBatch} className="space-y-5">
-            <div className="space-y-3.5">
-              <div className="grid grid-cols-2 gap-3.5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Left Column: Academic & Classroom Details */}
+              <div className="space-y-3.5">
+                <div className="border-b border-border/40 pb-1.5">
+                  <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">Cohort & Classroom</h4>
+                </div>
+
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">Academic Year Date *</label>
+                  <label className="text-xs font-semibold text-muted-foreground">Batch Name *</label>
                   <Input
-                    type="date"
-                    value={academicYear}
-                    onChange={(e) => setAcademicYear(e.target.value)}
+                    value={batchName}
+                    onChange={(e) => {
+                      setBatchName(e.target.value)
+                      setBatchNameTouched(true)
+                    }}
+                    placeholder="e.g. Toddler Program - A or Morning Sunshine Batch"
                     className="bg-card text-xs h-9.5"
                     required
                   />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">Class / Grade *</label>
-                  {savedProgramNames.length > 0 ? (
-                    <Select
-                      value={grade}
-                      onChange={(e) => setGrade(e.target.value)}
-                      className="bg-card text-xs h-9.5"
-                      required
-                    >
-                      <option value="">Select program</option>
-                      {savedProgramNames.map((item, index) => (
-                        <option key={`grade-${item}-${index}`} value={item}>{item}</option>
-                      ))}
-                      {grade && !savedProgramNames.includes(grade) && (
-                        <option value={grade}>{grade}</option>
-                      )}
-                    </Select>
-                  ) : (
+
+                <div className="grid grid-cols-2 gap-3.5">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground">Academic Year Date *</label>
                     <Input
-                      value={grade}
-                      onChange={(e) => setGrade(e.target.value)}
+                      type="date"
+                      value={academicYear}
+                      onChange={(e) => setAcademicYear(e.target.value)}
                       className="bg-card text-xs h-9.5"
                       required
                     />
-                  )}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3.5">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">Section / Batch *</label>
-                  <Input
-                    value={section}
-                    onChange={(e) => setSection(e.target.value)}
-                    className="bg-card text-xs h-9.5"
-                    placeholder="e.g. A"
-                    required
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">Classroom *</label>
-                  <Input
-                    value={roomName}
-                    onChange={(e) => setRoomName(e.target.value)}
-                    className="bg-card text-xs h-9.5"
-                    placeholder="e.g. Room 101"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground">Status</label>
-                <Select
-                  value={batchStatus}
-                  onChange={(e) => setBatchStatus(e.target.value as BatchStatus)}
-                  className="bg-card text-xs h-9.5"
-                >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                  <option value="completed">Completed</option>
-                </Select>
-              </div>
-            </div>
-
-            <div className="pt-2.5 border-t border-border/40 space-y-3">
-              <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">Class Timing</h4>
-              <div className="grid grid-cols-2 gap-3.5">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">Start Time *</label>
-                  <Input
-                    type="time"
-                    value={startTime}
-                    onChange={(e) => setStartTime(e.target.value)}
-                    className="bg-card text-xs h-9.5"
-                    required
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">End Time *</label>
-                  <Input
-                    type="time"
-                    value={endTime}
-                    onChange={(e) => setEndTime(e.target.value)}
-                    className="bg-card text-xs h-9.5"
-                    required
-                  />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Working Days *</label>
-                <div className="flex flex-wrap gap-2">
-                  {WEEKDAYS.map((day) => {
-                    const checked = workingDays.includes(day.id)
-                    return (
-                      <label
-                        key={`wd-${day.id}`}
-                        className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs cursor-pointer ${
-                          checked
-                            ? "border-primary bg-primary/10 text-foreground"
-                            : "border-border bg-card text-muted-foreground"
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleWorkingDay(day.id)}
-                          className="rounded border-border text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer"
-                        />
-                        {day.label}
-                      </label>
-                    )
-                  })}
-                </div>
-              </div>
-            </div>
-
-            <div className="pt-2.5 border-t border-border/40 space-y-3">
-              <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">Staff Assignment</h4>
-              <div className="space-y-3.5">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">Classroom Coordinator *</label>
-                  <Select
-                    value={trainerName}
-                    onChange={(e) => setTrainerName(e.target.value)}
-                    className="bg-card text-xs h-9.5"
-                    required
-                  >
-                    <option value="">Select Coordinator</option>
-                    {Array.from(new Set([trainerName, ...coordinatorOptions].filter(Boolean))).map((name) => (
-                      <option key={`coord-${name}`} value={name}>{name}</option>
-                    ))}
-                    {coordinatorOptions.length === 0 && !trainerName && (
-                      <option value="" disabled>No coordinators found</option>
-                    )}
-                  </Select>
-                </div>
-                <div className="grid grid-cols-2 gap-3.5">
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-muted-foreground">Class Teacher *</label>
-                    <Select
-                      value={classTeacherName}
-                      onChange={(e) => {
-                        if (e.target.value === "ADD_TEACHER") {
-                          router.push("/staff?section=teachers")
-                        } else {
-                          setClassTeacherName(e.target.value)
-                        }
-                      }}
-                      className="bg-card text-xs h-9.5"
-                      required
-                    >
-                      <option value="">Select Teacher</option>
-                      {Array.from(new Set([classTeacherName, ...teacherOptions].filter(Boolean))).map((name) => (
-                        <option key={`teacher-${name}`} value={name}>{name}</option>
-                      ))}
-                      {teacherOptions.length === 0 && !classTeacherName && (
-                        <option value="" disabled>No teachers found</option>
-                      )}
-                      <option value="ADD_TEACHER" className="text-primary font-semibold">+ Add Teacher...</option>
-                    </Select>
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold text-muted-foreground">Assistant Teacher</label>
-                    <Select
-                      value={assistantTeacherName}
+                    <label className="text-xs font-semibold text-muted-foreground">Class / Grade *</label>
+                    {savedProgramNames.length > 0 ? (
+                      <Select
+                        value={grade}
+                        onChange={(e) => {
+                          const val = e.target.value
+                          setGrade(val)
+                          if (!batchNameTouched) {
+                            setBatchName(val ? (section ? `${val} - ${section}` : val) : "")
+                          }
+                        }}
+                        className="bg-card text-xs h-9.5"
+                        containerClassName="w-full"
+                        required
+                      >
+                        <option value="">Select program</option>
+                        {savedProgramNames.map((item, index) => (
+                          <option key={`grade-${item}-${index}`} value={item}>{item}</option>
+                        ))}
+                        {grade && !savedProgramNames.includes(grade) && (
+                          <option value={grade}>{grade}</option>
+                        )}
+                      </Select>
+                    ) : (
+                      <Input
+                        value={grade}
+                        onChange={(e) => {
+                          const val = e.target.value
+                          setGrade(val)
+                          if (!batchNameTouched) {
+                            setBatchName(val ? (section ? `${val} - ${section}` : val) : "")
+                          }
+                        }}
+                        className="bg-card text-xs h-9.5"
+                        required
+                      />
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3.5">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground">Section *</label>
+                    <Input
+                      value={section}
                       onChange={(e) => {
-                        if (e.target.value === "ADD_TEACHER") {
-                          router.push("/staff?section=teachers")
-                        } else {
-                          setAssistantTeacherName(e.target.value)
+                        const val = e.target.value
+                        setSection(val)
+                        if (!batchNameTouched) {
+                          setBatchName(grade ? (val ? `${grade} - ${val}` : grade) : val)
                         }
                       }}
                       className="bg-card text-xs h-9.5"
+                      placeholder="e.g. A"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground">Classroom *</label>
+                    <Input
+                      value={roomName}
+                      onChange={(e) => setRoomName(e.target.value)}
+                      className="bg-card text-xs h-9.5"
+                      placeholder="e.g. Room 101"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Status</label>
+                  <Select
+                    value={batchStatus}
+                    onChange={(e) => setBatchStatus(e.target.value as BatchStatus)}
+                    className="bg-card text-xs h-9.5"
+                    containerClassName="w-full"
+                  >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                    <option value="completed">Completed</option>
+                  </Select>
+                </div>
+
+                {/* Batch Summary Card */}
+                <div className="rounded-xl border border-border/60 bg-muted/20 p-3 text-xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Cohort Preview</span>
+                    <span className="text-[10px] font-mono text-muted-foreground bg-muted/40 px-1.5 py-0.5 rounded border border-border/40">
+                      Code: {code.trim() || generatedCode}
+                    </span>
+                  </div>
+                  <p className="font-bold text-foreground text-sm">
+                    {batchName || (grade ? `${grade} — ${section}` : "New Batch")}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {roomName ? `Classroom: ${roomName}` : "Classroom not specified"} • {startTime && endTime ? `${startTime} to ${endTime}` : "Timing not set"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Right Column: Timing & Staff Assignment */}
+              <div className="space-y-3.5">
+                <div className="border-b border-border/40 pb-1.5">
+                  <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">Class Timing & Schedule</h4>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3.5">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground">Start Time *</label>
+                    <Input
+                      type="time"
+                      value={startTime}
+                      onChange={(e) => setStartTime(e.target.value)}
+                      className="bg-card text-xs h-9.5"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground">End Time *</label>
+                    <Input
+                      type="time"
+                      value={endTime}
+                      onChange={(e) => setEndTime(e.target.value)}
+                      className="bg-card text-xs h-9.5"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">Working Days *</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {WEEKDAYS.map((day) => {
+                      const checked = workingDays.includes(day.id)
+                      return (
+                        <label
+                          key={`wd-${day.id}`}
+                          className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs cursor-pointer transition-colors ${
+                            checked
+                              ? "border-primary bg-primary/10 text-foreground font-semibold"
+                              : "border-border bg-card text-muted-foreground hover:border-primary/40"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleWorkingDay(day.id)}
+                            className="rounded border-border text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer accent-[#8B0000]"
+                          />
+                          {day.label}
+                        </label>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <div className="border-b border-border/40 pb-1.5 pt-1">
+                  <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">Staff Assignment</h4>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground">Classroom Coordinator *</label>
+                    <Select
+                      value={trainerName}
+                      onChange={(e) => setTrainerName(e.target.value)}
+                      className="bg-card text-xs h-9.5"
+                      containerClassName="w-full"
+                      required
                     >
-                      <option value="">None</option>
-                      {Array.from(new Set([assistantTeacherName, ...assistantOptions].filter(Boolean))).map((name) => (
-                        <option key={`assistant-${name}`} value={name}>{name}</option>
+                      <option value="">Select Coordinator</option>
+                      {Array.from(new Set([trainerName, ...coordinatorOptions].filter(Boolean))).map((name) => (
+                        <option key={`coord-${name}`} value={name}>{name}</option>
                       ))}
-                      {assistantOptions.length === 0 && !assistantTeacherName && (
-                        <option value="" disabled>No assistants found</option>
+                      {coordinatorOptions.length === 0 && !trainerName && (
+                        <option value="" disabled>No coordinators found</option>
                       )}
-                      <option value="ADD_TEACHER" className="text-primary font-semibold">+ Add Teacher...</option>
                     </Select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3.5">
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-muted-foreground">Class Teacher *</label>
+                      <Select
+                        value={classTeacherName}
+                        onChange={(e) => {
+                          if (e.target.value === "ADD_TEACHER") {
+                            router.push("/staff?section=teachers")
+                          } else {
+                            setClassTeacherName(e.target.value)
+                          }
+                        }}
+                        className="bg-card text-xs h-9.5"
+                        containerClassName="w-full"
+                        required
+                      >
+                        <option value="">Select Teacher</option>
+                        {Array.from(new Set([classTeacherName, ...teacherOptions].filter(Boolean))).map((name) => (
+                          <option key={`teacher-${name}`} value={name}>{name}</option>
+                        ))}
+                        {teacherOptions.length === 0 && !classTeacherName && (
+                          <option value="" disabled>No teachers found</option>
+                        )}
+                        <option value="ADD_TEACHER" className="text-primary font-semibold">+ Add Teacher...</option>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-muted-foreground">Assistant Teacher</label>
+                      <Select
+                        value={assistantTeacherName}
+                        onChange={(e) => {
+                          if (e.target.value === "ADD_TEACHER") {
+                            router.push("/staff?section=teachers")
+                          } else {
+                            setAssistantTeacherName(e.target.value)
+                          }
+                        }}
+                        className="bg-card text-xs h-9.5"
+                        containerClassName="w-full"
+                      >
+                        <option value="">None</option>
+                        {Array.from(new Set([assistantTeacherName, ...assistantOptions].filter(Boolean))).map((name) => (
+                          <option key={`assistant-${name}`} value={name}>{name}</option>
+                        ))}
+                        {assistantOptions.length === 0 && !assistantTeacherName && (
+                          <option value="" disabled>No assistants found</option>
+                        )}
+                        <option value="ADD_TEACHER" className="text-primary font-semibold">+ Add Teacher...</option>
+                      </Select>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1308,13 +1443,16 @@ export default function CoursesPage() {
         )}
       </Dialog>
 
-      {/* Add Class Program Dialog */}
+      {/* Add / Edit Class Program Dialog */}
       <Dialog
         isOpen={isCourseAddOpen}
-        onClose={() => setIsCourseAddOpen(false)}
+        onClose={() => {
+          setIsCourseAddOpen(false)
+          resetProgramForm()
+        }}
         className="max-w-2xl"
-        title="Add Class Program"
-        description="Name any program, set the age range, then save it to the catalog."
+        title={editingCourse ? "Edit Class Program" : "Add Class Program"}
+        description={editingCourse ? "Update the name, age range, and details of this program." : "Name any program, set the age range, then save it to the catalog."}
       >
         <form onSubmit={handleAddCourse} className="space-y-4">
           <div className="grid grid-cols-2 gap-3.5">
@@ -1423,39 +1561,64 @@ export default function CoursesPage() {
           </div>
 
           <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Available programs</p>
-            {courses.length === 0 ? (
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Available programs</p>
+              {editingCourse && (
+                <button
+                  type="button"
+                  onClick={() => resetProgramForm()}
+                  className="text-[11px] font-semibold text-primary hover:underline cursor-pointer"
+                >
+                  + Create New Program
+                </button>
+              )}
+            </div>
+            {deduplicatePrograms(courses).length === 0 ? (
               <p className="text-xs text-muted-foreground">
                 No programs saved yet. Type a name and age range, then save to add the first one.
               </p>
             ) : (
               <div className="grid grid-cols-2 gap-2">
-                {courses.map((program, index) => (
-                  <button
-                    key={`avail-${programKey(program)}-${index}`}
-                    type="button"
-                    onClick={() => fillProgramForm(program)}
-                    className={`text-left rounded-md border px-2.5 py-2 cursor-pointer ${
-                      newCourseName === program.name
-                        ? "border-primary bg-primary/10"
-                        : "border-border bg-card hover:bg-muted"
-                    }`}
-                  >
-                    <p className="text-xs font-semibold text-foreground">{program.name}</p>
-                    <p className="text-[10px] text-muted-foreground">{formatAgeGroup(program.ageFrom, program.ageTo) || program.ageGroup || "Age group not set"}</p>
-                    <p className="text-[10px] text-muted-foreground">{program.description || program.code}</p>
-                  </button>
-                ))}
+                {deduplicatePrograms(courses).map((program, index) => {
+                  const isSelected = newCourseName.trim().toLowerCase() === (program.name || "").trim().toLowerCase()
+                  return (
+                    <button
+                      key={`avail-${programKey(program)}-${index}`}
+                      type="button"
+                      onClick={() => fillProgramForm(program)}
+                      className={`text-left rounded-md border px-2.5 py-2 cursor-pointer transition-colors ${
+                        isSelected
+                          ? "border-primary bg-primary/10 shadow-xs"
+                          : "border-border bg-card hover:bg-muted/50"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-semibold text-foreground">{program.name}</p>
+                        {isSelected && <span className="text-[9px] font-bold text-primary uppercase">Active</span>}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">{formatAgeGroup(program.ageFrom, program.ageTo) || program.ageGroup || "Age group not set"}</p>
+                      <p className="text-[10px] text-muted-foreground line-clamp-1">{program.description || program.code}</p>
+                    </button>
+                  )
+                })}
               </div>
             )}
           </div>
 
           <div className="pt-3 border-t border-border/50 flex justify-end gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => setIsCourseAddOpen(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setIsCourseAddOpen(false)
+                resetProgramForm()
+              }}
+            >
               Cancel
             </Button>
             <Button type="submit" variant="primary" size="sm">
-              Save Program
+              {editingCourse ? "Save Program Changes" : "Save Program"}
             </Button>
           </div>
         </form>

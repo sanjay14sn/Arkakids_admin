@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'providers/auth_provider.dart';
 import 'theme/app_theme.dart';
@@ -36,7 +39,156 @@ class ArkaKidsApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       themeMode: ThemeMode.light,
-      home: const SplashScreen(),
+      home: const InternetGate(child: SplashScreen()),
+    );
+  }
+}
+
+class InternetGate extends StatefulWidget {
+  final Widget child;
+
+  const InternetGate({super.key, required this.child});
+
+  @override
+  State<InternetGate> createState() => _InternetGateState();
+}
+
+class _InternetGateState extends State<InternetGate> {
+  bool _checking = true;
+  bool _online = false;
+  bool _ready = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkInternet();
+  }
+
+  Future<bool> _hasInternet() async {
+    try {
+      final result = await InternetAddress.lookup('example.com')
+          .timeout(const Duration(seconds: 8));
+      return result.isNotEmpty && result.first.rawAddress.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _checkInternet() async {
+    setState(() {
+      _checking = true;
+      _ready = false;
+    });
+    final online = await _hasInternet();
+    if (!mounted) return;
+    setState(() {
+      _online = online;
+      _checking = false;
+    });
+    if (!online) return;
+    await Future<void>.delayed(const Duration(milliseconds: 900));
+    if (!mounted) return;
+    setState(() => _ready = true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_ready) return widget.child;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF3E6C8),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 28),
+          child: Column(
+            children: [
+              const Spacer(),
+              Container(
+                width: 88,
+                height: 88,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(26),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.16),
+                      blurRadius: 18,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  _checking
+                      ? Icons.wifi_find_rounded
+                      : _online
+                          ? Icons.wifi_rounded
+                          : Icons.wifi_off_rounded,
+                  color: const Color(0xFF5B0202),
+                  size: 42,
+                ),
+              ),
+              const SizedBox(height: 22),
+              Text(
+                _checking
+                    ? 'Checking internet'
+                    : _online
+                        ? 'Internet is active'
+                        : 'No internet',
+                style: GoogleFonts.outfit(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFF5B0202),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _checking
+                    ? 'Please wait while we confirm your connection.'
+                    : _online
+                        ? 'Connected. Opening Arka Kids…'
+                        : 'Turn on mobile data or Wi‑Fi, then try again.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF5B0202),
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 28),
+              if (_checking || _online)
+                const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    color: Color(0xFF5B0202),
+                    strokeWidth: 2.5,
+                  ),
+                )
+              else
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _checkInternet,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF5B0202),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text(
+                      'Try again',
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                ),
+              const Spacer(),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

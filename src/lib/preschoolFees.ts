@@ -53,10 +53,10 @@ export const DISCOUNT_TYPES = [
 export type DiscountTypeId = (typeof DISCOUNT_TYPES)[number]["id"]
 
 export const SCHEDULES = [
+  { id: "monthly", label: "Monthly Fees (12 installments)" },
+  { id: "term", label: "Term Fees (4 terms / year)" },
   { id: "full", label: "Full Payment" },
-  { id: "monthly", label: "Monthly" },
   { id: "quarterly", label: "Quarterly" },
-  { id: "term", label: "Term-wise" },
   { id: "custom", label: "Custom Installments" },
 ] as const
 
@@ -270,6 +270,10 @@ export function invoiceRemaining(invoice: FeeInvoice) {
   return Math.max(0, invoice.amount - invoice.paidAmount)
 }
 
+/** Each academic year is split into 4 terms (Jun, Sep, Dec, Mar when the year starts in June). */
+export const TERMS_PER_YEAR = 4
+export const TERM_OFFSETS = [0, 3, 6, 9] as const
+
 function componentInvoices(studentId: string, component: FeeComponent, startDue: string): FeeInvoice[] {
   const make = (id: string, label: string, dueDate: string): FeeInvoice =>
     refreshInvoice({
@@ -297,7 +301,7 @@ function componentInvoices(studentId: string, component: FeeComponent, startDue:
     })
   }
   if (component.frequency === "term") {
-    return [0, 4].map((offset, index) => {
+    return TERM_OFFSETS.map((offset, index) => {
       const dueDate = addMonths(startDue, offset)
       return make(`${studentId}-${component.id}-t${index + 1}`, `${component.name} – Term ${index + 1}`, dueDate)
     })
@@ -311,42 +315,67 @@ function componentInvoices(studentId: string, component: FeeComponent, startDue:
   return [make(`${studentId}-${component.id}`, component.name, component.dueDate || startDue)]
 }
 
+/** Annual value of a single component, based on its billing frequency. */
+export function annualizedAmount(item: Pick<FeeComponent, "amount" | "frequency">) {
+  if (item.frequency === "monthly") return item.amount * 12
+  if (item.frequency === "quarterly") return item.amount * 4
+  if (item.frequency === "term") return item.amount * TERMS_PER_YEAR
+  if (item.frequency === "half_yearly") return item.amount * 2
+  return item.amount
+}
+
+export type PlanInstallment = { index: number; label: string; dueDate: string; amount: number }
+
+/**
+ * Fee plan for a program, by payment method.
+ * One-time charges (admission, annual, books, uniform…) are billed with the first installment;
+ * recurring charges are spread evenly across 12 months (monthly) or 4 terms (term).
+ */
+export function planBreakdown(
+  components: FeeComponent[],
+  method: "monthly" | "term",
+  startDue = "2026-06-10"
+): { annualTotal: number; oneTime: number; recurring: number; installments: PlanInstallment[] } {
+  const oneTime = components
+    .filter((item) => item.frequency === "one_time" || item.frequency === "yearly" || item.frequency === "custom")
+    .reduce((sum, item) => sum + item.amount, 0)
+  const recurring = components
+    .filter((item) => !(item.frequency === "one_time" || item.frequency === "yearly" || item.frequency === "custom"))
+    .reduce((sum, item) => sum + annualizedAmount(item), 0)
+  const count = method === "monthly" ? 12 : TERMS_PER_YEAR
+  const step = method === "monthly" ? 1 : 3
+  const base = Math.floor(recurring / count)
+  const remainder = recurring - base * count
+  const installments = Array.from({ length: count }, (_, index) => {
+    const dueDate = addMonths(startDue, index * step)
+    const amount = base + (index === count - 1 ? remainder : 0) + (index === 0 ? oneTime : 0)
+    const label = method === "monthly" ? `Month ${index + 1} · ${monthLabel(dueDate)}` : `Term ${index + 1}`
+    return { index: index + 1, label, dueDate, amount }
+  })
+  return { annualTotal: oneTime + recurring, oneTime, recurring, installments }
+}
+
 export function invoicesForAssignment(student: FeeStudent, structure: FeeStructure): FeeInvoice[] {
   const startDue = "2026-06-10"
   const components = structure.components.filter((item) => item.type !== "transport" || student.includeTransport)
-  if (student.schedule === "term") {
-    const total = components.reduce((sum, item) => {
-      if (item.frequency === "monthly") return sum + item.amount * 12
-      if (item.frequency === "quarterly") return sum + item.amount * 4
-      if (item.frequency === "term") return sum + item.amount * 2
-      if (item.frequency === "half_yearly") return sum + item.amount * 2
-      return sum + item.amount
-    }, 0)
-    const splits = total === 67000 ? [27000, 20000, 20000] : [Math.round(total * 0.4), Math.round(total * 0.3), 0]
-    if (total !== 67000) splits[2] = total - splits[0] - splits[1]
-    const dues = ["2026-06-10", "2026-08-10", "2027-01-10"]
-    return splits.map((amount, index) =>
+  if (student.schedule === "term" || student.schedule === "monthly") {
+    const plan = planBreakdown(components, student.schedule, startDue)
+    return plan.installments.map((inst) =>
       refreshInvoice({
-        id: `${student.id}-term-${index + 1}`,
+        id: `${student.id}-${student.schedule}-${inst.index}`,
         studentId: student.id,
-        componentId: "term-plan",
-        label: `Term ${index + 1} Fee`,
+        componentId: `${student.schedule}-plan`,
+        label: student.schedule === "term" ? `${inst.label} Fee` : `Monthly Fee – ${monthLabel(inst.dueDate)}`,
         feeType: "tuition",
-        amount,
+        amount: inst.amount,
         paidAmount: 0,
-        dueDate: dues[index],
+        dueDate: inst.dueDate,
         status: "pending",
       })
     )
   }
   if (student.schedule === "full") {
-    const total = components.reduce((sum, item) => {
-      if (item.frequency === "monthly") return sum + item.amount * 12
-      if (item.frequency === "quarterly") return sum + item.amount * 4
-      if (item.frequency === "term") return sum + item.amount * 2
-      if (item.frequency === "half_yearly") return sum + item.amount * 2
-      return sum + item.amount
-    }, 0)
+    const total = components.reduce((sum, item) => sum + annualizedAmount(item), 0)
     return [
       refreshInvoice({
         id: `${student.id}-full`,
@@ -386,25 +415,14 @@ function playgroupComponents(): FeeComponent[] {
 export function structureTotal(structure: FeeStructure, includeTransport: boolean) {
   return structure.components.reduce((sum, item) => {
     if (item.type === "transport" && !includeTransport) return sum
-    if (item.frequency === "monthly") return sum + item.amount * 12
-    if (item.frequency === "quarterly") return sum + item.amount * 4
-    if (item.frequency === "term") return sum + item.amount * 2
-    if (item.frequency === "half_yearly") return sum + item.amount * 2
-    return sum + item.amount
+    return sum + annualizedAmount(item)
   }, 0)
 }
 
 export function structureLines(structure: FeeStructure, includeTransport: boolean) {
   return structure.components
     .filter((item) => item.type !== "transport" || includeTransport)
-    .map((item) => {
-      let yearly = item.amount
-      if (item.frequency === "monthly") yearly = item.amount * 12
-      else if (item.frequency === "quarterly") yearly = item.amount * 4
-      else if (item.frequency === "term") yearly = item.amount * 2
-      else if (item.frequency === "half_yearly") yearly = item.amount * 2
-      return { ...item, yearly }
-    })
+    .map((item) => ({ ...item, yearly: annualizedAmount(item) }))
 }
 
 function makeStudent(

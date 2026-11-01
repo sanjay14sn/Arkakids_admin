@@ -206,7 +206,7 @@ export default function ManageCoursesPage() {
             <span>Manage class programs</span>
           </h1>
           <p className="text-xs text-muted-foreground">
-            Toddler, Nursery, Jr KG, Sr KG, or any program you add — age group, timing, and capacity.
+            Toddler (2–3 years), Nursery (3–4 years), Junior (JR) (4–5 years), Senior (SR) (5–6 years), or any custom program — age group, timing, and capacity.
           </p>
         </div>
       </div>

@@ -168,7 +168,12 @@ export function Navbar() {
 
             <div className="border-t border-border/50 p-4 mt-auto">
               <div className="rounded-lg bg-primary-light p-3 text-[10px] border border-primary/10">
-                <p className="font-semibold text-primary">{BRAND_NAME}</p>
+                <p className="font-semibold text-primary flex items-center gap-1.5">
+                  <span>{BRAND_NAME}</span>
+                  <span className="inline-block rounded-full bg-primary text-primary-foreground px-2 py-0.5 text-[9px] font-bold tracking-wide shadow-2xs">
+                    Portal
+                  </span>
+                </p>
                 <p className="text-secondary-text mt-0.5 leading-normal">
                   {BRAND_TAGLINE}
                 </p>

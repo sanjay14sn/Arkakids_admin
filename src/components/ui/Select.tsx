@@ -5,12 +5,13 @@ import { cn } from "@/lib/utils"
 export interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   error?: string
   label?: string
+  containerClassName?: string
 }
 
 export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
-  ({ className, error, label, children, ...props }, ref) => {
+  ({ className, error, label, containerClassName, children, ...props }, ref) => {
     return (
-      <div className="relative w-full">
+      <div className={cn("relative w-full", containerClassName)}>
         {label && (
           <label className="block text-xs font-medium text-muted-foreground mb-1.5">
             {label}

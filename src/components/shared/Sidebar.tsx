@@ -146,8 +146,8 @@ export function Sidebar() {
                         "inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none tabular-nums shrink-0",
                         link.badgeCount > 0
                           ? isParentActive
-                            ? "bg-highlight-light text-highlight-foreground border border-highlight/30"
-                            : "bg-highlight-light text-warning border border-highlight/25"
+                            ? "bg-primary text-primary-foreground border border-primary/30"
+                            : "bg-primary/10 text-primary border border-primary/25"
                           : isParentActive
                             ? "bg-primary/10 text-primary"
                             : "bg-muted text-muted-foreground border border-border"
@@ -231,7 +231,7 @@ export function Sidebar() {
           <div className="rounded-lg bg-primary-light p-3 text-xs border border-primary/10">
             <p className="font-semibold text-primary flex items-center gap-1.5">
               <span>{BRAND_NAME}</span>
-              <span className="inline-block rounded-full bg-highlight-light px-1.5 py-0.5 text-[9px] font-medium text-highlight-foreground border border-highlight/30">
+              <span className="inline-block rounded-full bg-primary text-primary-foreground px-2 py-0.5 text-[9px] font-bold tracking-wide shadow-2xs">
                 Portal
               </span>
             </p>

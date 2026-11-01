@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from "framer-motion"
 import { 
   Users, Search, Plus, Filter, Download, ArrowLeft, MoreHorizontal, Mail, Phone,
   FileCheck, ShieldAlert, BadgeDollarSign, CalendarRange, GraduationCap, Clock, FileDown, CheckSquare, Trash2, Calendar,
-  ChevronLeft, ChevronRight, Pencil, AlertTriangle, Syringe, X, Check, Eye
+  ChevronLeft, ChevronRight, Pencil, AlertTriangle, Syringe, X, Check, Eye,
+  AlertCircle, Loader2
 } from "lucide-react"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
@@ -15,11 +16,12 @@ import { Select } from "@/components/ui/Select"
 import { Dialog } from "@/components/ui/Dialog"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs"
 import { useStore } from "@/store/useStore"
-import { formatCurrency, formatDate } from "@/lib/utils"
+import { formatCurrency, formatDate, cn } from "@/lib/utils"
 import { api, ApiError, isForbiddenError } from "@/lib/api"
 import { AccessRestricted } from "@/components/shared/AccessRestricted"
 import { useCenterPolicy } from "@/hooks/useCenterPolicy"
 import { CapacityLimitNotice, showCapacityLimitToast } from "@/components/shared/CapacityLimitNotice"
+import { GRADES } from "@/lib/preschoolBatch"
 import {
   computeInstallmentRows,
   getCurrentDueInstallment,
@@ -101,16 +103,27 @@ export default function StudentsPage() {
   const [name, setName] = React.useState("")
   const [email, setEmail] = React.useState("")
   const [phone, setPhone] = React.useState("")
-  const [course, setCourse] = React.useState("Playgroup & Toddlers")
+  const [course, setCourse] = React.useState("Toddler")
   const [feesTotal, setFeesTotal] = React.useState("1800")
   const [feesPaid, setFeesPaid] = React.useState("1800")
   const [paymentScheme, setPaymentScheme] = React.useState<"full" | "part1" | "part2" | "custom">("full")
   const [addNextDueDate, setAddNextDueDate] = React.useState("")
-  const [addInstallmentCount, setAddInstallmentCount] = React.useState("3")
+  const [addInstallmentCount, setAddInstallmentCount] = React.useState("4")
   const [selectedIds, setSelectedIds] = React.useState<string[]>([])
   const [statusUpdatingId, setStatusUpdatingId] = React.useState<string | null>(null)
   const [isAddOpen, setIsAddOpen] = React.useState(false)
   const [addBatchId, setAddBatchId] = React.useState("")
+
+  // Validation & Feedback States for Add Student
+  const [addErrors, setAddErrors] = React.useState<Record<string, string>>({})
+  const [addSubmitError, setAddSubmitError] = React.useState<string | null>(null)
+  const [isSubmittingStudent, setIsSubmittingStudent] = React.useState(false)
+  const [enrolledSuccessStudent, setEnrolledSuccessStudent] = React.useState<{
+    name: string
+    email?: string
+    password?: string
+    course?: string
+  } | null>(null)
 
   // Wizard States
   const [addStep, setAddStep] = React.useState(1)
@@ -424,37 +437,144 @@ export default function StudentsPage() {
     setSelectedIds([])
   }
 
-  const handleAddStudent = async (e: React.FormEvent) => {
+  // ── Step Validations for Enroll Student ──────────────────────────
+  const validateStep1 = () => {
+    const errs: Record<string, string> = {}
+    if (!name.trim()) errs.name = "Student Name is required"
+    else if (name.trim().length < 2) errs.name = "Student Name must be at least 2 characters"
+
+    if (!dob) {
+      errs.dob = "Date of Birth is required"
+    } else {
+      const dobDate = new Date(dob)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      if (dobDate > today) {
+        errs.dob = "Date of Birth cannot be in the future"
+      }
+    }
+
+    if (!gender) errs.gender = "Gender is required"
+    if (!course) errs.course = "Class/Grade is required"
+
+    if (!parentName.trim()) errs.parentName = "Parent/Guardian Name is required"
+    else if (parentName.trim().length < 2) errs.parentName = "Parent Name must be at least 2 characters"
+
+    const cleanPhone = phone.trim().replace(/[\s\-()]/g, "")
+    if (!cleanPhone) {
+      errs.phone = "Parent Mobile Number is required"
+    } else if (!/^\+?[0-9]{10,14}$/.test(cleanPhone)) {
+      errs.phone = "Enter a valid 10-digit mobile number"
+    }
+
+    if (!parentRelation) errs.parentRelation = "Relationship is required"
+    if (!academicYear.trim()) errs.academicYear = "Academic Year is required"
+    if (!address.trim()) errs.address = "Residential Address is required"
+    else if (address.trim().length < 5) errs.address = "Please enter full residential address"
+
+    if (!admissionDate) {
+      errs.admissionDate = "Admission Date is required"
+    } else if (dob && new Date(admissionDate) < new Date(dob)) {
+      errs.admissionDate = "Admission Date cannot be before Date of Birth"
+    }
+
+    const cleanEmergency = emergencyContact.trim().replace(/[\s\-()]/g, "")
+    if (!cleanEmergency) {
+      errs.emergencyContact = "Emergency Contact Number is required"
+    } else if (!/^\+?[0-9]{7,14}$/.test(cleanEmergency)) {
+      errs.emergencyContact = "Enter a valid phone number"
+    }
+
+    if (!pickupPerson.trim()) errs.pickupPerson = "Authorized Pickup Person is required"
+
+    setAddErrors(errs)
+    return Object.keys(errs).length === 0
+  }
+
+  const validateStep2 = () => {
+    const errs: Record<string, string> = {}
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      errs.email = "Please enter a valid email address"
+    }
+    setAddErrors(errs)
+    return Object.keys(errs).length === 0
+  }
+
+  const validateStep4 = () => {
+    const errs: Record<string, string> = {}
+    const total = Number(feesTotal)
+    const paid = Number(feesPaid)
+
+    if (isNaN(total) || total < 0 || feesTotal.trim() === "") {
+      errs.feesTotal = "Enter a valid total fee amount (₹)"
+    }
+    if (isNaN(paid) || paid < 0 || feesPaid.trim() === "") {
+      errs.feesPaid = "Enter a valid amount paid (₹)"
+    } else if (paid > total) {
+      errs.feesPaid = `Amount paid (₹${paid}) cannot exceed total fee (₹${total})`
+    }
+
+    const remaining = total - paid
+    if (remaining > 0) {
+      if (!addNextDueDate) {
+        errs.addNextDueDate = "Next Due Date is required when there are pending fee dues"
+      }
+    }
+
+    setAddErrors(errs)
+    return Object.keys(errs).length === 0
+  }
+
+  const handleStepNext = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!name || !phone) return
+    setAddSubmitError(null)
+
+    if (addStep === 1) {
+      if (!validateStep1()) return
+      setAddStep(2)
+    } else if (addStep === 2) {
+      if (!validateStep2()) return
+      setAddStep(3)
+    } else if (addStep === 3) {
+      setAddStep(4)
+    } else if (addStep === 4) {
+      if (!validateStep4()) return
+      void handleAddStudent()
+    }
+  }
+
+  const handleAddStudent = async () => {
+    if (!validateStep1() || !validateStep4()) return
+    setIsSubmittingStudent(true)
+    setAddSubmitError(null)
 
     try {
       const hasDues = Number(feesTotal) - Number(feesPaid) > 0
       const newStudent = await api.createStudent({
-        name,
-        email,
-        phone,
+        name: name.trim(),
+        email: email.trim() || undefined,
+        phone: phone.trim(),
         className: course,
         course,
         status: "active",
         admissionDate,
         dateOfBirth: dob,
         gender: gender.toLowerCase(),
-        parentName,
-        parentPhone: phone,
+        parentName: parentName.trim(),
+        parentPhone: phone.trim(),
         parentRelation,
-        academicYear,
-        address,
-        emergencyContact,
-        pickupPerson,
-        bloodGroup,
-        allergies,
-        prevSchool,
-        transport,
+        academicYear: academicYear.trim(),
+        address: address.trim(),
+        emergencyContact: emergencyContact.trim(),
+        pickupPerson: pickupPerson.trim(),
+        bloodGroup: bloodGroup.trim() || undefined,
+        allergies: allergies.trim() || undefined,
+        prevSchool: prevSchool.trim() || undefined,
+        transport: transport.trim() || undefined,
         fees: {
           feesPaid: Number(feesPaid),
           feesTotal: Number(feesTotal),
-          nextDueDate: (Number(feesTotal) - Number(feesPaid)) > 0 ? addNextDueDate : null,
+          nextDueDate: hasDues ? addNextDueDate : null,
           installmentsCount: Number(addInstallmentCount),
         },
       })
@@ -487,7 +607,12 @@ export default function StudentsPage() {
         description: `${name} enrolled in Course: ${course}. Password: ${newStudent.password}`,
         type: "admissions"
       })
-      alert(`Student enrolled successfully!\nEmail: ${email}\nPassword: ${newStudent.password}`);
+      setEnrolledSuccessStudent({
+        name: newStudent.name,
+        email: newStudent.email || email,
+        password: newStudent.password,
+        course: course,
+      })
 
       // Reset fields
       setAddStep(1)
@@ -495,23 +620,29 @@ export default function StudentsPage() {
       setEmail("")
       setPhone("")
       setPaymentScheme("full")
-      setCourse(courses.length > 0 ? courses[0].name : "")
+      setCourse(courses.length > 0 ? courses[0].name : "Toddler")
       setAddBatchId("")
       setFeesTotal("1800")
       setFeesPaid("1800")
-      setAddInstallmentCount("3")
+      setAddInstallmentCount("4")
+      setAddNextDueDate("")
+      setAddErrors({})
     } catch (err: unknown) {
       console.error("Failed to enroll student:", err)
+      const msg = err instanceof Error ? err.message : "Failed to enroll student."
+      setAddSubmitError(msg)
       if (err instanceof ApiError && err.isCapacityLimit) {
         showCapacityLimitToast(addNotification, "students", policy, err.message)
         void fetchCenterPolicy()
       } else {
         addNotification({
           title: "Enrollment Failed",
-          description: err instanceof Error ? err.message : "Failed to add student.",
+          description: msg,
           type: "system",
         })
       }
+    } finally {
+      setIsSubmittingStudent(false)
     }
   }
 
@@ -1106,7 +1237,6 @@ export default function StudentsPage() {
                   {!isTrainer && <th className="p-4">Next Due Date</th>}
                   <th className="p-4">Course</th>
                   <th className="p-4">Institute Name</th>
-                  {isOwner && <th className="p-4">Attendance</th>}
                   {isOwner && <th className="p-4">Paid / Total Dues</th>}
                   <th className="p-4 font-semibold text-center">Actions</th>
                   <th className="p-4 text-right">Enrollment Date</th>
@@ -1115,7 +1245,7 @@ export default function StudentsPage() {
               <tbody className="divide-y divide-border/60">
                 {paginatedStudents.length === 0 ? (
                   <tr>
-                    <td colSpan={isOwner ? 9 : isTrainer ? 5 : 7} className="py-12 text-center text-muted-foreground">
+                    <td colSpan={isOwner ? 8 : isTrainer ? 5 : 6} className="py-12 text-center text-muted-foreground">
                       No student records matched the filters.
                     </td>
                   </tr>
@@ -1174,21 +1304,6 @@ export default function StudentsPage() {
                         )}
                         <td className="p-4 text-foreground">{displayCourse}</td>
                         <td className="p-4 text-foreground">{student.branch || "—"}</td>
-                        {isOwner && (
-                          <td className="p-4">
-                            <div className="flex items-center gap-2">
-                              <span className={`font-semibold ${student.attendanceRate < 75 ? "text-red-500" : "text-foreground"}`}>
-                                {student.attendanceRate}%
-                              </span>
-                              <div className="h-1.5 w-16 bg-secondary rounded-full overflow-hidden">
-                                <div 
-                                  className={`h-full ${student.attendanceRate < 75 ? "bg-red-500" : "bg-primary"}`} 
-                                  style={{ width: `${student.attendanceRate}%` }}
-                                />
-                              </div>
-                            </div>
-                          </td>
-                        )}
                         {isOwner && (
                           <td className="p-4 font-semibold text-foreground">
                             {formatCurrency(student.feesPaid)} / {formatCurrency(student.feesTotal)}
@@ -1914,14 +2029,36 @@ export default function StudentsPage() {
       {/* Add Student Dialog */}
       <Dialog
         isOpen={isAddOpen}
-        onClose={() => { setIsAddOpen(false); setAddStep(1); }}
+        onClose={() => {
+          setIsAddOpen(false)
+          setAddStep(1)
+          setAddErrors({})
+          setAddSubmitError(null)
+        }}
         title="Enroll New Student"
         description={`Step ${addStep} of 4: ${addStep === 1 ? 'Required Details' : addStep === 2 ? 'Optional Details' : addStep === 3 ? 'Documents' : 'Fees & Payment'}`}
         className="max-w-2xl"
       >
-        <form onSubmit={addStep === 4 ? handleAddStudent : (e) => { e.preventDefault(); setAddStep(p => p + 1); }} className="space-y-4">
+        <form onSubmit={handleStepNext} className="space-y-4">
           {studentsAtCapacity && policy && (
             <CapacityLimitNotice resource="students" policy={policy} variant="inline" />
+          )}
+
+          {addSubmitError && (
+            <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-semibold">Enrollment Error</p>
+                <p className="mt-0.5 text-[11px]">{addSubmitError}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAddSubmitError(null)}
+                className="text-destructive hover:opacity-75"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
           )}
 
           {/* Stepper Header */}
@@ -1936,133 +2073,332 @@ export default function StudentsPage() {
             ))}
           </div>
 
+          {/* Step 1: Required Details */}
           {addStep === 1 && (
-            <div className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="space-y-3.5 animate-in fade-in zoom-in-95 duration-200">
+              {/* Row 1: Student Name & Date of Birth */}
               <div className="grid grid-cols-2 gap-3.5">
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-muted-foreground">Student Name <span className="text-red-500">*</span></label>
-                  <Input placeholder="Full name" value={name} onChange={(e) => setName(e.target.value)} className="bg-card text-xs h-9.5" required />
+                  <Input
+                    placeholder="Full name"
+                    value={name}
+                    onChange={(e) => {
+                      setName(e.target.value)
+                      if (addErrors.name) setAddErrors((p) => ({ ...p, name: "" }))
+                    }}
+                    className={cn("bg-card text-xs h-9.5", addErrors.name && "border-destructive focus-visible:ring-destructive")}
+                  />
+                  {addErrors.name && (
+                    <p className="text-[11px] text-destructive font-medium flex items-center gap-1 mt-0.5">
+                      <AlertCircle className="h-3 w-3 shrink-0" /> {addErrors.name}
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-muted-foreground">Date of Birth <span className="text-red-500">*</span></label>
-                  <Input type="date" value={dob} onChange={(e) => setDob(e.target.value)} className="bg-card text-xs h-9.5" required />
+                  <Input
+                    type="date"
+                    max={new Date().toISOString().split("T")[0]}
+                    value={dob}
+                    onChange={(e) => {
+                      setDob(e.target.value)
+                      if (addErrors.dob) setAddErrors((p) => ({ ...p, dob: "" }))
+                    }}
+                    className={cn("bg-card text-xs h-9.5", addErrors.dob && "border-destructive focus-visible:ring-destructive")}
+                  />
+                  {addErrors.dob && (
+                    <p className="text-[11px] text-destructive font-medium flex items-center gap-1 mt-0.5">
+                      <AlertCircle className="h-3 w-3 shrink-0" /> {addErrors.dob}
+                    </p>
+                  )}
                 </div>
               </div>
 
+              {/* Row 2: Gender & Class/Grade */}
               <div className="grid grid-cols-2 gap-3.5">
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-muted-foreground">Gender <span className="text-red-500">*</span></label>
-                  <Select value={gender} onChange={(e) => setGender(e.target.value)} className="bg-card text-xs h-9.5" required>
+                  <Select
+                    value={gender}
+                    onChange={(e) => {
+                      setGender(e.target.value)
+                      if (addErrors.gender) setAddErrors((p) => ({ ...p, gender: "" }))
+                    }}
+                    className="bg-card text-xs h-9.5"
+                    containerClassName="w-full"
+                  >
                     <option value="Female">Female</option>
                     <option value="Male">Male</option>
                   </Select>
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-muted-foreground">Class/Grade <span className="text-red-500">*</span></label>
-                  <Select value={course} onChange={(e) => { setCourse(e.target.value); setAddBatchId(""); }} className="bg-card text-xs h-9.5" required>
-                    {courses.map((c, index) => <option key={c.id || c._id || `course-opt-${index}`} value={c.name}>{c.name}</option>)}
+                  <Select
+                    value={course}
+                    onChange={(e) => {
+                      setCourse(e.target.value)
+                      setAddBatchId("")
+                      if (addErrors.course) setAddErrors((p) => ({ ...p, course: "" }))
+                    }}
+                    className={cn("bg-card text-xs h-9.5", addErrors.course && "border-destructive")}
+                    containerClassName="w-full"
+                  >
+                    {(courses.length > 0 ? courses.map((c) => c.name) : GRADES).map((cName, idx) => (
+                      <option key={`${cName}-${idx}`} value={cName}>{cName}</option>
+                    ))}
                   </Select>
+                  {addErrors.course && (
+                    <p className="text-[11px] text-destructive font-medium flex items-center gap-1 mt-0.5">
+                      <AlertCircle className="h-3 w-3 shrink-0" /> {addErrors.course}
+                    </p>
+                  )}
                 </div>
               </div>
 
+              {/* Row 3: Batch & Academic Year */}
               <div className="grid grid-cols-2 gap-3.5">
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">Batch</label>
-                  <Select value={addBatchId} onChange={(e) => setAddBatchId(e.target.value)} className="bg-card text-xs h-9.5">
+                  <label className="text-xs font-semibold text-muted-foreground">Batch (Optional)</label>
+                  <Select
+                    value={addBatchId}
+                    onChange={(e) => setAddBatchId(e.target.value)}
+                    className="bg-card text-xs h-9.5"
+                    containerClassName="w-full"
+                  >
                     <option value="">No Batch Assigned</option>
-                    {batches.filter(b => b.courseName === course).map(b => (
-                       <option key={b.id || b._id} value={b.id || b._id}>{b.code}</option>
+                    {batches.filter((b) => b.courseName === course).map((b) => (
+                      <option key={b.id || b._id} value={b.id || b._id}>{b.code}</option>
                     ))}
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">Parent/Guardian Name <span className="text-red-500">*</span></label>
-                  <Input placeholder="Parent name" value={parentName} onChange={(e) => setParentName(e.target.value)} className="bg-card text-xs h-9.5" required />
+                  <label className="text-xs font-semibold text-muted-foreground">Academic Year <span className="text-red-500">*</span></label>
+                  <Input
+                    placeholder="e.g. 2026-27"
+                    value={academicYear}
+                    onChange={(e) => {
+                      setAcademicYear(e.target.value)
+                      if (addErrors.academicYear) setAddErrors((p) => ({ ...p, academicYear: "" }))
+                    }}
+                    className={cn("bg-card text-xs h-9.5", addErrors.academicYear && "border-destructive focus-visible:ring-destructive")}
+                  />
+                  {addErrors.academicYear && (
+                    <p className="text-[11px] text-destructive font-medium flex items-center gap-1 mt-0.5">
+                      <AlertCircle className="h-3 w-3 shrink-0" /> {addErrors.academicYear}
+                    </p>
+                  )}
                 </div>
               </div>
 
+              {/* Row 4: Parent Name & Relationship */}
               <div className="grid grid-cols-2 gap-3.5">
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">Parent Mobile Number <span className="text-red-500">*</span></label>
-                  <Input placeholder="+1 555-0123" value={phone} onChange={(e) => setPhone(e.target.value)} className="bg-card text-xs h-9.5" required />
+                  <label className="text-xs font-semibold text-muted-foreground">Parent/Guardian Name <span className="text-red-500">*</span></label>
+                  <Input
+                    placeholder="Parent full name"
+                    value={parentName}
+                    onChange={(e) => {
+                      setParentName(e.target.value)
+                      if (addErrors.parentName) setAddErrors((p) => ({ ...p, parentName: "" }))
+                    }}
+                    className={cn("bg-card text-xs h-9.5", addErrors.parentName && "border-destructive focus-visible:ring-destructive")}
+                  />
+                  {addErrors.parentName && (
+                    <p className="text-[11px] text-destructive font-medium flex items-center gap-1 mt-0.5">
+                      <AlertCircle className="h-3 w-3 shrink-0" /> {addErrors.parentName}
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-muted-foreground">Relationship <span className="text-red-500">*</span></label>
-                  <Select value={parentRelation} onChange={(e) => setParentRelation(e.target.value)} className="bg-card text-xs h-9.5" required>
+                  <Select
+                    value={parentRelation}
+                    onChange={(e) => setParentRelation(e.target.value)}
+                    className="bg-card text-xs h-9.5"
+                    containerClassName="w-full"
+                  >
                     <option value="Mother">Mother</option>
                     <option value="Father">Father</option>
                     <option value="Guardian">Guardian</option>
                   </Select>
                 </div>
+              </div>
+
+              {/* Row 5: Parent Mobile & Emergency Contact */}
+              <div className="grid grid-cols-2 gap-3.5">
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">Academic Year <span className="text-red-500">*</span></label>
-                  <Input value={academicYear} onChange={(e) => setAcademicYear(e.target.value)} className="bg-card text-xs h-9.5" required />
+                  <label className="text-xs font-semibold text-muted-foreground">Parent Mobile Number <span className="text-red-500">*</span></label>
+                  <Input
+                    placeholder="10-digit mobile number"
+                    value={phone}
+                    onChange={(e) => {
+                      setPhone(e.target.value)
+                      if (addErrors.phone) setAddErrors((p) => ({ ...p, phone: "" }))
+                    }}
+                    className={cn("bg-card text-xs h-9.5", addErrors.phone && "border-destructive focus-visible:ring-destructive")}
+                  />
+                  {addErrors.phone && (
+                    <p className="text-[11px] text-destructive font-medium flex items-center gap-1 mt-0.5">
+                      <AlertCircle className="h-3 w-3 shrink-0" /> {addErrors.phone}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Emergency Contact Number <span className="text-red-500">*</span></label>
+                  <Input
+                    placeholder="Alternative contact number"
+                    value={emergencyContact}
+                    onChange={(e) => {
+                      setEmergencyContact(e.target.value)
+                      if (addErrors.emergencyContact) setAddErrors((p) => ({ ...p, emergencyContact: "" }))
+                    }}
+                    className={cn("bg-card text-xs h-9.5", addErrors.emergencyContact && "border-destructive focus-visible:ring-destructive")}
+                  />
+                  {addErrors.emergencyContact && (
+                    <p className="text-[11px] text-destructive font-medium flex items-center gap-1 mt-0.5">
+                      <AlertCircle className="h-3 w-3 shrink-0" /> {addErrors.emergencyContact}
+                    </p>
+                  )}
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground">Address <span className="text-red-500">*</span></label>
-                <textarea
-                  value={address} onChange={(e) => setAddress(e.target.value)}
-                  className="w-full bg-card border border-border rounded-lg text-xs p-2.5 min-h-[60px]" required
-                  placeholder="Full residential address"
-                />
-              </div>
-
-              <div className="grid grid-cols-3 gap-3.5">
+              {/* Row 6: Admission Date & Authorized Pickup Person */}
+              <div className="grid grid-cols-2 gap-3.5">
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-muted-foreground">Admission Date <span className="text-red-500">*</span></label>
-                  <Input type="date" value={admissionDate} onChange={(e) => setAdmissionDate(e.target.value)} className="bg-card text-xs h-9.5" required />
+                  <Input
+                    type="date"
+                    value={admissionDate}
+                    onChange={(e) => {
+                      setAdmissionDate(e.target.value)
+                      if (addErrors.admissionDate) setAddErrors((p) => ({ ...p, admissionDate: "" }))
+                    }}
+                    className={cn("bg-card text-xs h-9.5", addErrors.admissionDate && "border-destructive focus-visible:ring-destructive")}
+                  />
+                  {addErrors.admissionDate && (
+                    <p className="text-[11px] text-destructive font-medium flex items-center gap-1 mt-0.5">
+                      <AlertCircle className="h-3 w-3 shrink-0" /> {addErrors.admissionDate}
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">Emergency Contact <span className="text-red-500">*</span></label>
-                  <Input value={emergencyContact} onChange={(e) => setEmergencyContact(e.target.value)} className="bg-card text-xs h-9.5" required />
+                  <label className="text-xs font-semibold text-muted-foreground">Authorized Pickup Person <span className="text-red-500">*</span></label>
+                  <Input
+                    placeholder="Name of person picking up child"
+                    value={pickupPerson}
+                    onChange={(e) => {
+                      setPickupPerson(e.target.value)
+                      if (addErrors.pickupPerson) setAddErrors((p) => ({ ...p, pickupPerson: "" }))
+                    }}
+                    className={cn("bg-card text-xs h-9.5", addErrors.pickupPerson && "border-destructive focus-visible:ring-destructive")}
+                  />
+                  {addErrors.pickupPerson && (
+                    <p className="text-[11px] text-destructive font-medium flex items-center gap-1 mt-0.5">
+                      <AlertCircle className="h-3 w-3 shrink-0" /> {addErrors.pickupPerson}
+                    </p>
+                  )}
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">Pickup Person <span className="text-red-500">*</span></label>
-                  <Input value={pickupPerson} onChange={(e) => setPickupPerson(e.target.value)} className="bg-card text-xs h-9.5" required />
-                </div>
+              </div>
+
+              {/* Row 7: Address */}
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground">Residential Address <span className="text-red-500">*</span></label>
+                <textarea
+                  value={address}
+                  onChange={(e) => {
+                    setAddress(e.target.value)
+                    if (addErrors.address) setAddErrors((p) => ({ ...p, address: "" }))
+                  }}
+                  className={cn(
+                    "w-full bg-card border border-border rounded-lg text-xs p-2.5 min-h-[60px] focus:outline-none focus:border-primary",
+                    addErrors.address && "border-destructive focus:border-destructive"
+                  )}
+                  placeholder="Full residential address"
+                />
+                {addErrors.address && (
+                  <p className="text-[11px] text-destructive font-medium flex items-center gap-1 mt-0.5">
+                    <AlertCircle className="h-3 w-3 shrink-0" /> {addErrors.address}
+                  </p>
+                )}
               </div>
             </div>
           )}
 
+          {/* Step 2: Optional Details */}
           {addStep === 2 && (
             <div className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
               <div className="grid grid-cols-2 gap-3.5">
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-muted-foreground">Profile Photo</label>
-                  <input type="file" className="block w-full text-xs file:mr-3 file:rounded-md file:border file:border-border file:bg-muted file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-foreground hover:file:bg-muted/40 cursor-pointer h-9.5 border border-border rounded-md bg-card pt-0.5 pl-0.5" />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="block w-full text-xs file:mr-3 file:rounded-md file:border file:border-border file:bg-muted file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-foreground hover:file:bg-muted/40 cursor-pointer h-9.5 border border-border rounded-md bg-card pt-0.5 pl-0.5"
+                  />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">Email</label>
-                  <Input type="email" placeholder="name@email.com" value={email} onChange={(e) => setEmail(e.target.value)} className="bg-card text-xs h-9.5" />
+                  <label className="text-xs font-semibold text-muted-foreground">Parent Email</label>
+                  <Input
+                    type="email"
+                    placeholder="name@email.com"
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value)
+                      if (addErrors.email) setAddErrors((p) => ({ ...p, email: "" }))
+                    }}
+                    className={cn("bg-card text-xs h-9.5", addErrors.email && "border-destructive focus-visible:ring-destructive")}
+                  />
+                  {addErrors.email && (
+                    <p className="text-[11px] text-destructive font-medium flex items-center gap-1 mt-0.5">
+                      <AlertCircle className="h-3 w-3 shrink-0" /> {addErrors.email}
+                    </p>
+                  )}
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3.5">
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-muted-foreground">Blood Group</label>
-                  <Input placeholder="e.g. O+" value={bloodGroup} onChange={(e) => setBloodGroup(e.target.value)} className="bg-card text-xs h-9.5" />
+                  <Input
+                    placeholder="e.g. O+, B+, A+"
+                    value={bloodGroup}
+                    onChange={(e) => setBloodGroup(e.target.value)}
+                    className="bg-card text-xs h-9.5"
+                  />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">Allergies / Medical Details</label>
-                  <Input placeholder="Any medical conditions..." value={allergies} onChange={(e) => setAllergies(e.target.value)} className="bg-card text-xs h-9.5" />
+                  <label className="text-xs font-semibold text-muted-foreground">Allergies / Medical Notes</label>
+                  <Input
+                    placeholder="Any allergies or dietary restrictions..."
+                    value={allergies}
+                    onChange={(e) => setAllergies(e.target.value)}
+                    className="bg-card text-xs h-9.5"
+                  />
                 </div>
               </div>
 
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-muted-foreground">Transport Details</label>
-                <Input placeholder="Route or pickup location" value={transport} onChange={(e) => setTransport(e.target.value)} className="bg-card text-xs h-9.5" />
+                <Input
+                  placeholder="Route name, bus stop or pickup point"
+                  value={transport}
+                  onChange={(e) => setTransport(e.target.value)}
+                  className="bg-card text-xs h-9.5"
+                />
               </div>
             </div>
           )}
 
+          {/* Step 3: Documents */}
           {addStep === 3 && (
             <div className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
               <div className="rounded-xl border border-border bg-muted/10 p-4 space-y-4">
                 <div className="flex items-center justify-between border-b border-border/50 pb-3">
                   <div>
-                    <p className="font-bold text-foreground text-sm flex items-center gap-1.5"><FileCheck className="h-4 w-4 text-primary" /> Birth Certificate</p>
+                    <p className="font-bold text-foreground text-sm flex items-center gap-1.5">
+                      <FileCheck className="h-4 w-4 text-primary" /> Birth Certificate
+                    </p>
                     <p className="text-[10px] text-muted-foreground">Recommended for age verification</p>
                   </div>
                   <input type="file" className="block max-w-[200px] text-[10px] file:mr-2 file:rounded file:border file:border-border file:bg-card file:px-2 file:py-1 file:text-[10px] file:font-semibold file:text-foreground cursor-pointer" />
@@ -2070,7 +2406,9 @@ export default function StudentsPage() {
 
                 <div className="flex items-center justify-between border-b border-border/50 pb-3">
                   <div>
-                    <p className="font-bold text-foreground text-sm flex items-center gap-1.5"><FileCheck className="h-4 w-4 text-muted-foreground" /> Student ID Document</p>
+                    <p className="font-bold text-foreground text-sm flex items-center gap-1.5">
+                      <FileCheck className="h-4 w-4 text-muted-foreground" /> Student ID Document
+                    </p>
                     <p className="text-[10px] text-muted-foreground">Optional</p>
                   </div>
                   <input type="file" className="block max-w-[200px] text-[10px] file:mr-2 file:rounded file:border file:border-border file:bg-card file:px-2 file:py-1 file:text-[10px] file:font-semibold file:text-foreground cursor-pointer" />
@@ -2078,7 +2416,9 @@ export default function StudentsPage() {
 
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-bold text-foreground text-sm flex items-center gap-1.5"><FileCheck className="h-4 w-4 text-muted-foreground" /> Address Proof</p>
+                    <p className="font-bold text-foreground text-sm flex items-center gap-1.5">
+                      <FileCheck className="h-4 w-4 text-muted-foreground" /> Address Proof
+                    </p>
                     <p className="text-[10px] text-muted-foreground">Optional</p>
                   </div>
                   <input type="file" className="block max-w-[200px] text-[10px] file:mr-2 file:rounded file:border file:border-border file:bg-card file:px-2 file:py-1 file:text-[10px] file:font-semibold file:text-foreground cursor-pointer" />
@@ -2087,6 +2427,7 @@ export default function StudentsPage() {
             </div>
           )}
 
+          {/* Step 4: Fees & Payment */}
           {addStep === 4 && (
             <div className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
               <div className="rounded-xl border border-border bg-card p-4 space-y-4">
@@ -2102,47 +2443,75 @@ export default function StudentsPage() {
                     <label className="text-xs font-semibold text-muted-foreground">Total Fees (₹) <span className="text-red-500">*</span></label>
                     <Input
                       type="number"
+                      min={0}
                       placeholder="Total course fees"
                       value={feesTotal}
-                      onChange={(e) => setFeesTotal(e.target.value)}
-                      className="bg-card text-xs h-9.5"
-                      required
+                      onChange={(e) => {
+                        setFeesTotal(e.target.value)
+                        if (addErrors.feesTotal) setAddErrors((p) => ({ ...p, feesTotal: "" }))
+                      }}
+                      className={cn("bg-card text-xs h-9.5", addErrors.feesTotal && "border-destructive focus-visible:ring-destructive")}
                     />
+                    {addErrors.feesTotal && (
+                      <p className="text-[11px] text-destructive font-medium flex items-center gap-1 mt-0.5">
+                        <AlertCircle className="h-3 w-3 shrink-0" /> {addErrors.feesTotal}
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-semibold text-muted-foreground">Fees Paid (₹) <span className="text-red-500">*</span></label>
                     <Input
                       type="number"
+                      min={0}
                       placeholder="Amount paid"
                       value={feesPaid}
-                      onChange={(e) => setFeesPaid(e.target.value)}
-                      className="bg-card text-xs h-9.5"
-                      required
+                      onChange={(e) => {
+                        setFeesPaid(e.target.value)
+                        if (addErrors.feesPaid) setAddErrors((p) => ({ ...p, feesPaid: "" }))
+                      }}
+                      className={cn("bg-card text-xs h-9.5", addErrors.feesPaid && "border-destructive focus-visible:ring-destructive")}
                     />
+                    {addErrors.feesPaid && (
+                      <p className="text-[11px] text-destructive font-medium flex items-center gap-1 mt-0.5">
+                        <AlertCircle className="h-3 w-3 shrink-0" /> {addErrors.feesPaid}
+                      </p>
+                    )}
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3.5">
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold text-muted-foreground">Next Due Date</label>
+                    <label className="text-xs font-semibold text-muted-foreground">
+                      Next Due Date {Number(feesTotal) - Number(feesPaid) > 0 && <span className="text-red-500">*</span>}
+                    </label>
                     <Input
                       type="date"
+                      min={admissionDate || new Date().toISOString().split("T")[0]}
                       value={addNextDueDate}
-                      onChange={(e) => setAddNextDueDate(e.target.value)}
-                      className="bg-card text-xs h-9.5"
+                      onChange={(e) => {
+                        setAddNextDueDate(e.target.value)
+                        if (addErrors.addNextDueDate) setAddErrors((p) => ({ ...p, addNextDueDate: "" }))
+                      }}
+                      className={cn("bg-card text-xs h-9.5", addErrors.addNextDueDate && "border-destructive focus-visible:ring-destructive")}
                     />
+                    {addErrors.addNextDueDate && (
+                      <p className="text-[11px] text-destructive font-medium flex items-center gap-1 mt-0.5">
+                        <AlertCircle className="h-3 w-3 shrink-0" /> {addErrors.addNextDueDate}
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold text-muted-foreground">Installments Count</label>
+                    <label className="text-xs font-semibold text-muted-foreground">Installments / Payment Plan</label>
                     <Select
                       value={addInstallmentCount}
                       onChange={(e) => setAddInstallmentCount(e.target.value)}
                       className="bg-card text-xs h-9.5"
+                      containerClassName="w-full"
                     >
-                      <option value="1">1 (Single Payment)</option>
-                      <option value="2">2 Installments</option>
-                      <option value="3">3 Installments</option>
-                      <option value="4">4 Installments</option>
+                      <option value="1">1 (Single Payment / Annual)</option>
+                      <option value="2">2 (Semi-Annual / 2 Installments)</option>
+                      <option value="4">4 (Term-wise / 4 Terms)</option>
+                      <option value="12">12 (Monthly / 12 Months)</option>
                     </Select>
                   </div>
                 </div>
@@ -2162,22 +2531,93 @@ export default function StudentsPage() {
             </div>
           )}
 
+          {/* Stepper Footer Controls */}
           <div className="pt-3 border-t border-border/50 flex justify-between items-center mt-6">
-            <Button type="button" variant="ghost" size="sm" onClick={() => { setIsAddOpen(false); setAddStep(1); }}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setIsAddOpen(false)
+                setAddStep(1)
+                setAddErrors({})
+                setAddSubmitError(null)
+              }}
+            >
               Cancel
             </Button>
             <div className="flex gap-2">
               {addStep > 1 && (
-                <Button type="button" variant="outline" size="sm" onClick={() => setAddStep(p => p - 1)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setAddStep((p) => p - 1)
+                    setAddErrors({})
+                    setAddSubmitError(null)
+                  }}
+                >
                   Back
                 </Button>
               )}
-              <Button type="submit" variant="primary" size="sm" disabled={addStep === 4 && studentsAtCapacity}>
-                {addStep < 4 ? "Next Step" : "Enroll Student"}
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                disabled={addStep === 4 && (studentsAtCapacity || isSubmittingStudent)}
+                icon={isSubmittingStudent ? Loader2 : undefined}
+              >
+                {isSubmittingStudent
+                  ? "Enrolling…"
+                  : addStep < 4
+                  ? "Next Step"
+                  : "Enroll Student"}
               </Button>
             </div>
           </div>
         </form>
+      </Dialog>
+
+      {/* Enroll Success Confirmation Modal */}
+      <Dialog
+        isOpen={Boolean(enrolledSuccessStudent)}
+        onClose={() => setEnrolledSuccessStudent(null)}
+        title="Student Enrolled Successfully"
+        description="Portal login credentials and student profile details have been created."
+        className="max-w-md"
+      >
+        <div className="space-y-4 pt-2">
+          <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500 text-white mb-2">
+              <Check className="h-6 w-6" />
+            </div>
+            <h3 className="text-base font-bold text-foreground">{enrolledSuccessStudent?.name}</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">{enrolledSuccessStudent?.course}</p>
+          </div>
+
+          <div className="rounded-xl border border-border bg-card p-4 space-y-2.5 text-xs">
+            <p className="font-semibold text-foreground text-xs border-b border-border/60 pb-1.5">Student & Parent Portal Credentials</p>
+            <div className="flex justify-between items-center py-1">
+              <span className="text-muted-foreground">Login ID / Email:</span>
+              <span className="font-mono font-medium text-foreground">{enrolledSuccessStudent?.email || "Generated via Phone"}</span>
+            </div>
+            <div className="flex justify-between items-center py-1">
+              <span className="text-muted-foreground">Default Password:</span>
+              <span className="font-mono font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">{enrolledSuccessStudent?.password}</span>
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setEnrolledSuccessStudent(null)}
+            >
+              Done
+            </Button>
+          </div>
+        </div>
       </Dialog>
 
       {/* Edit Student Dialog */}

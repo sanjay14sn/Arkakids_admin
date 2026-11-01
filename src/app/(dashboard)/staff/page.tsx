@@ -18,6 +18,28 @@ import { useStore } from "@/store/useStore"
 import { toast } from "sonner"
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
+export const EDUCATIONAL_QUALIFICATIONS = [
+  "NTT (Nursery Teacher Training)",
+  "MTT (Montessori Teacher Training)",
+  "DECE / DECEd (Diploma in Early Childhood Care & Education)",
+  "D.El.Ed (Diploma in Elementary Education)",
+  "B.Ed (Bachelor of Education)",
+  "M.Ed (Master of Education)",
+  "B.El.Ed (Bachelor of Elementary Education)",
+  "BA in Education / Child Development",
+  "MA in Education / Child Psychology",
+  "B.Sc in Child Development / Home Science",
+  "M.Sc in Child Development / Psychology",
+  "Diploma in Pre-Primary Teacher Training (PPTT)",
+  "Certificate in Early Childhood Care and Education (ECCE)",
+  "Bachelor of Arts (BA)",
+  "Bachelor of Science (B.Sc)",
+  "Bachelor of Commerce (B.Com)",
+  "Master's Degree (MA / M.Sc / M.Com)",
+  "Higher Secondary (+2 / 12th Pass)",
+  "Other Relevant Qualification",
+]
+
 export interface StaffMember {
   id: string
   name: string
@@ -379,13 +401,16 @@ function StaffFormDialog({
 
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-muted-foreground">Date of Joining *</label>
-                  <input type="date" value={joiningDate} onChange={e => setJoiningDate(e.target.value)} required min={new Date().toISOString().split("T")[0]}
+                  <input type="date" value={joiningDate} onChange={e => setJoiningDate(e.target.value)} required max={new Date().toISOString().split("T")[0]}
                     className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary" />
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-muted-foreground">Qualification</label>
-                  <input value={qual} onChange={e => setQual(e.target.value)} placeholder="Select / enter"
-                    className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary" />
+                  <select value={qual} onChange={e => setQual(e.target.value)}
+                    className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary">
+                    <option value="">Select qualification</option>
+                    {EDUCATIONAL_QUALIFICATIONS.map(q => <option key={q} value={q}>{q}</option>)}
+                  </select>
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-muted-foreground">Employment Type</label>
@@ -525,7 +550,7 @@ function StaffFormDialog({
             </div>
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Date of Joining *</label>
-              <input type="date" value={joiningDate} onChange={e => setJoiningDate(e.target.value)} required min={new Date().toISOString().split("T")[0]}
+              <input type="date" value={joiningDate} onChange={e => setJoiningDate(e.target.value)} required max={new Date().toISOString().split("T")[0]}
                 className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary" />
             </div>
             <div className="space-y-1">
@@ -547,10 +572,7 @@ function StaffFormDialog({
               <select value={qual} onChange={e => setQual(e.target.value)}
                 className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary">
                 <option value="">Select qualification</option>
-                <option value="B.Ed">B.Ed</option>
-                <option value="M.Ed">M.Ed</option>
-                <option value="Diploma in Early Childhood">Diploma in Early Childhood</option>
-                <option value="Other">Other</option>
+                {EDUCATIONAL_QUALIFICATIONS.map(q => <option key={q} value={q}>{q}</option>)}
               </select>
             </div>
             <div className="space-y-1">

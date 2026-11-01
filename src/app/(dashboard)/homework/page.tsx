@@ -601,142 +601,167 @@ export default function HomeworkPage() {
         onClose={() => !saving && (setCreateOpen(false), resetCreate())}
         title={editingId ? "Edit Homework" : "Create Homework"}
         description={editingId ? "Update this class activity." : "Assign an activity to a class batch."}
-        className="max-w-xl"
+        className="max-w-3xl"
       >
-        <div className="space-y-3">
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-muted-foreground">Class / Batch *</label>
-            <SearchableSelect
-              value={batch}
-              onChange={setBatch}
-              options={realBatches.map((b) => b.label)}
-              placeholder="Search class / batch"
-              emptyText="No class batches found"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-muted-foreground">Activity *</label>
-            <Input
-              value={activity}
-              onChange={(e) => setActivity(e.target.value)}
-              list="homework-activity-suggestions"
-              placeholder="Type an activity, e.g. English, Maths, Drawing"
-              className="h-9 text-xs"
-              required
-            />
-            <datalist id="homework-activity-suggestions">
-              {HOMEWORK_ACTIVITIES.map((item) => (
-                <option key={`activity-${item}`} value={item} />
-              ))}
-            </datalist>
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-muted-foreground">Title *</label>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} className="h-9 text-xs" required />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-muted-foreground">Instructions</label>
-            <textarea
-              value={instructions}
-              onChange={(e) => setInstructions(e.target.value)}
-              className="w-full min-h-20 rounded-lg border border-border bg-card px-3 py-2 text-sm"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted-foreground">Date *</label>
-              <Input
-                type="date"
-                value={assignedDate}
-                min={dateMin}
-                onChange={(e) => {
-                  const next = e.target.value
-                  setAssignedDate(next)
-                  if (dueDate && next && dueDate < next) setDueDate("")
-                }}
-                className="h-9 text-xs"
-                required
-              />
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Left Column: Activity Details */}
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground">Class / Batch *</label>
+                <SearchableSelect
+                  value={batch}
+                  onChange={setBatch}
+                  options={realBatches.map((b) => b.label)}
+                  placeholder="Search class / batch"
+                  emptyText="No class batches found"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground">Activity *</label>
+                <Input
+                  value={activity}
+                  onChange={(e) => setActivity(e.target.value)}
+                  list="homework-activity-suggestions"
+                  placeholder="Type an activity, e.g. English, Maths, Drawing"
+                  className="h-9 text-xs"
+                  required
+                />
+                <datalist id="homework-activity-suggestions">
+                  {HOMEWORK_ACTIVITIES.map((item) => (
+                    <option key={`activity-${item}`} value={item} />
+                  ))}
+                </datalist>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground">Title *</label>
+                <Input
+                  placeholder="e.g. Alphabet Practice Sheet"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="h-9 text-xs"
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground">Instructions</label>
+                <textarea
+                  value={instructions}
+                  onChange={(e) => setInstructions(e.target.value)}
+                  placeholder="Detailed instructions for parents or students..."
+                  className="w-full min-h-[92px] rounded-lg border border-border bg-card px-3 py-2 text-xs focus:outline-none focus:border-primary"
+                />
+              </div>
             </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted-foreground">Due Date *</label>
-              <Input
-                type="date"
-                value={dueDate}
-                min={assignedDate && assignedDate > dueMin ? assignedDate : dueMin}
-                onChange={(e) => setDueDate(e.target.value)}
-                className="h-9 text-xs"
-                required
-              />
+
+            {/* Right Column: Schedule & Submissions */}
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Date *</label>
+                  <Input
+                    type="date"
+                    value={assignedDate}
+                    min={dateMin}
+                    onChange={(e) => {
+                      const next = e.target.value
+                      setAssignedDate(next)
+                      if (dueDate && next && dueDate < next) setDueDate("")
+                    }}
+                    className="h-9 text-xs"
+                    required
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Due Date *</label>
+                  <Input
+                    type="date"
+                    value={dueDate}
+                    min={assignedDate && assignedDate > dueMin ? assignedDate : dueMin}
+                    onChange={(e) => setDueDate(e.target.value)}
+                    className="h-9 text-xs"
+                    required
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground">Parent Visibility</label>
+                <Select
+                  value={visibility}
+                  onChange={(e) => setVisibility(e.target.value as ParentVisibility)}
+                  className="h-9 text-xs"
+                  containerClassName="w-full"
+                >
+                  <option value="immediate">Immediately</option>
+                  <option value="scheduled">Scheduled</option>
+                </Select>
+              </div>
+              {visibility === "scheduled" && (
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Show to parents on *</label>
+                  <DatePicker
+                    value={visibleFrom}
+                    onChange={setVisibleFrom}
+                    min={liveToday}
+                    placeholder="Select date"
+                    className="text-xs"
+                  />
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => setSubmittable((v) => !v)}
+                className={`flex w-full items-start gap-3 rounded-xl border p-2.5 text-left transition-colors ${
+                  submittable ? "border-primary bg-primary/5" : "border-border bg-card hover:border-border-strong"
+                }`}
+              >
+                <span
+                  className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                    submittable ? "border-primary bg-primary text-white" : "border-border-strong bg-card"
+                  }`}
+                >
+                  {submittable ? "✓" : ""}
+                </span>
+                <span>
+                  <span className="block text-xs font-semibold text-foreground">Submittable activity</span>
+                  <span className="block text-[10px] text-muted-foreground mt-0.5">
+                    Parents will see an Upload homework button in the mobile app.
+                  </span>
+                </span>
+              </button>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground">Attachment</label>
+                <input
+                  type="file"
+                  accept="image/*,.pdf,.doc,.docx"
+                  className="block w-full text-xs text-muted-foreground file:mr-3 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-foreground cursor-pointer"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (!file) {
+                      setFileName("")
+                      setFileSrc("")
+                      return
+                    }
+                    setFileName(file.name)
+                    setFileKind(attachmentKind(file))
+                    setFileSrc(URL.createObjectURL(file))
+                  }}
+                />
+                {fileName ? <p className="text-[11px] text-muted-foreground truncate">{fileName}</p> : null}
+              </div>
             </div>
           </div>
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-muted-foreground">Parent Visibility</label>
-            <Select
-              value={visibility}
-              onChange={(e) => setVisibility(e.target.value as ParentVisibility)}
-              className="h-9 text-xs"
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-border/60">
+            <Button variant="outline" size="sm" onClick={() => (setCreateOpen(false), resetCreate())} disabled={saving}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={assignHomework}
+              isLoading={saving}
+              disabled={!title.trim() || !batch || !activity.trim() || !assignedDate || !dueDate || (visibility === "scheduled" && !visibleFrom)}
             >
-              <option value="immediate">Immediately</option>
-              <option value="scheduled">Scheduled</option>
-            </Select>
-          </div>
-          {visibility === "scheduled" && (
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted-foreground">Show to parents on *</label>
-              <DatePicker
-                value={visibleFrom}
-                onChange={setVisibleFrom}
-                min={liveToday}
-                placeholder="Select date"
-                className="text-xs"
-              />
-            </div>
-          )}
-          <button
-            type="button"
-            onClick={() => setSubmittable((v) => !v)}
-            className={`flex w-full items-start gap-3 rounded-xl border px-3 py-2.5 text-left ${
-              submittable ? "border-primary bg-primary/5" : "border-border bg-card"
-            }`}
-          >
-            <span
-              className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-                submittable ? "border-primary bg-primary text-white" : "border-border-strong bg-card"
-              }`}
-            >
-              {submittable ? "✓" : ""}
-            </span>
-            <span>
-              <span className="block text-xs font-semibold text-foreground">Submittable activity</span>
-              <span className="block text-[11px] text-muted-foreground mt-0.5">
-                Parents will see an Upload homework button in the mobile app.
-              </span>
-            </span>
-          </button>
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-muted-foreground">Attachment</label>
-            <input
-              type="file"
-              accept="image/*,.pdf,.doc,.docx"
-              className="block w-full text-xs text-muted-foreground file:mr-3 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-foreground"
-              onChange={(e) => {
-                const file = e.target.files?.[0]
-                if (!file) {
-                  setFileName("")
-                  setFileSrc("")
-                  return
-                }
-                setFileName(file.name)
-                setFileKind(attachmentKind(file))
-                setFileSrc(URL.createObjectURL(file))
-              }}
-            />
-            {fileName ? <p className="text-[11px] text-muted-foreground">{fileName}</p> : null}
-          </div>
-          <div className="flex justify-end gap-2 pt-1">
-            <Button variant="outline" size="sm" onClick={() => (setCreateOpen(false), resetCreate())} disabled={saving}>Cancel</Button>
-            <Button size="sm" onClick={assignHomework} isLoading={saving} disabled={!title.trim() || !batch || !activity.trim() || !assignedDate || !dueDate || (visibility === "scheduled" && !visibleFrom)}>
               {editingId ? "Save changes" : "Assign Homework"}
             </Button>
           </div>
