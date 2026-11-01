@@ -2,6 +2,8 @@ import { Schema, Document, model, models } from "mongoose"
 
 export interface IBatch extends Document {
   code: string
+  name?: string
+  batchName?: string
   courseName: string
   trainerName: string
   schedule: string
@@ -26,6 +28,8 @@ export interface IBatch extends Document {
 const BatchSchema = new Schema<IBatch>(
   {
     code: { type: String, required: true },
+    name: { type: String },
+    batchName: { type: String },
     courseName: { type: String },
     trainerName: { type: String },
     schedule: { type: String },

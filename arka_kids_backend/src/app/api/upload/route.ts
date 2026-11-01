@@ -5,7 +5,7 @@ export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData()
     const file = formData.get("file") as File | null
-    const scope = (formData.get("scope") as string) || "journal"
+    const scope = (formData.get("scope") as string) || req.nextUrl.searchParams.get("scope") || "journal"
 
     if (!file) {
       return NextResponse.json({ message: "No file provided" }, { status: 400 })
@@ -20,6 +20,7 @@ export async function POST(req: NextRequest) {
       documents: "arka_kids/documents",
       homework: "arka_kids/homework",
       hr: "arka_kids/hr",
+      resources: "arka_kids/resources",
     }
     const folder = folderMap[scope] || `arka_kids/${scope}`
 
