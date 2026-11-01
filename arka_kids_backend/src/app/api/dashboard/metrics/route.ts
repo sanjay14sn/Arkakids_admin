@@ -4,7 +4,9 @@ import { Student } from "@/models/Student"
 import { Staff } from "@/models/Staff"
 import { Lead } from "@/models/Lead"
 import { Attendance } from "@/models/Attendance"
-import { Admission, Journal, ChildCare } from "@/models/index"
+import { Admission, Journal, ChildCare, SupportTicket } from "@/models/index"
+import { Center } from "@/models/Center"
+import { User } from "@/models/User"
 import { requireAuth, tenantFilter } from "@/lib/authMiddleware"
 
 // GET /api/dashboard/metrics
@@ -16,6 +18,94 @@ export async function GET(req: NextRequest) {
     await connectDB()
     const tf = tenantFilter(user)
     const today = new Date().toISOString().slice(0, 10)
+
+    // For Super Admin, compute multi-franchise branch distribution & hub health
+    if (user.role === "super_admin") {
+      const [
+        allCenters,
+        totalStudents,
+        users,
+        tickets,
+        studentCounts,
+      ] = await Promise.all([
+        Center.find().lean().sort({ createdAt: -1 }),
+        Student.countDocuments().catch(() => 0),
+        User.find({ role: { $in: ["trainer", "owner", "bde"] } }, "role").lean().catch(() => []),
+        SupportTicket.find({ status: { $in: ["open", "in-progress", "in_progress"] } }, "status").lean().catch(() => []),
+        Student.aggregate([{ $group: { _id: "$tenantId", count: { $sum: 1 } } }]).catch(() => []),
+      ])
+
+      const totalCenters = allCenters.length
+      const activeCentersCount = allCenters.filter((c: any) => c.status === "active").length
+      const maintCount = allCenters.filter((c: any) => c.status === "maintenance").length
+      const inactiveCount = allCenters.filter((c: any) => c.status === "inactive").length
+
+      const totalTrainers = (users as any[]).filter((u: any) => u.role === "trainer").length
+      const totalOwners = (users as any[]).filter((u: any) => u.role === "owner").length
+      const totalBdes = (users as any[]).filter((u: any) => u.role === "bde").length
+
+      const openTickets = (tickets as any[]).filter((t: any) => t.status === "open").length
+      const inProgressTickets = (tickets as any[]).filter((t: any) => t.status === "in-progress" || t.status === "in_progress").length
+
+      const statusBreakdown = [
+        { status: "Active", count: activeCentersCount },
+        { status: "Maintenance", count: maintCount },
+        { status: "Inactive", count: inactiveCount },
+      ]
+
+      const recentTenants = allCenters.slice(0, 10).map((c: any) => ({
+        id: c._id.toString(),
+        name: c.name,
+        tenantName: c.tenantName || c.name,
+        location: c.location || "—",
+        plan: c.plan || "Standard",
+        modulesCount: Array.isArray(c.enabledModules) ? c.enabledModules.length : 8,
+        status: c.status || "active",
+      }))
+
+      const studentMap = new Map((studentCounts || []).map((s: any) => [String(s._id), s.count]))
+
+      const enrollmentData = allCenters.slice(0, 8).map((c: any) => {
+        const studCount = studentMap.get(c.tenantName) || studentMap.get(c._id.toString()) || 0
+        const shortName = c.name.length > 14 ? c.name.slice(0, 12) + "…" : c.name
+        return {
+          tenant: shortName,
+          centers: 1,
+          students: studCount,
+        }
+      })
+
+      const metrics = {
+        activeCentersCount,
+        totalCenters,
+        totalStudents,
+        totalTrainers,
+        totalOwners,
+        totalBdes,
+        openTickets,
+        inProgressTickets,
+      }
+
+      return NextResponse.json({
+        metrics,
+        recentTenants,
+        enrollmentData,
+        statusBreakdown,
+        totalStudents,
+        activeStudents: totalStudents,
+        totalStaff: totalTrainers + totalBdes,
+        activeStaff: totalTrainers + totalBdes,
+        totalLeads: 0,
+        pendingAdmissions: 0,
+        todayPresent: 0,
+        todayAbsent: 0,
+        todayJournals: 0,
+        sectionAttendanceData: [],
+        journalUpdatesData: [],
+        safetyWatchlistData: [],
+        routineTimelineData: [],
+      })
+    }
 
     const [totalStudents, allActiveStudents, totalStaff, activeStaff, totalLeads, pendingAdmissions, todayAttendances, todayJournalsList, todaySafetyList] =
       await Promise.all([

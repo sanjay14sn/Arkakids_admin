@@ -16,9 +16,13 @@ export async function GET(req: NextRequest) {
     if (kind === "material" || kind === "video") filter.kind = kind
 
     if (user.role !== "super_admin") {
-      // Franchise users see Super Admin's global resources + their own centre's uploads
+      // Franchise users see Super Admin's global resources + resources assigned to their centre
       filter.tenantId = { $in: ["global", user.tenantId].filter(Boolean) }
-      if (user.role !== "owner") filter.audience = user.role
+      filter.$or = [
+        { audience: user.role },
+        { audience: { $exists: false } },
+        { audience: { $size: 0 } },
+      ]
     }
 
     const resources = await Resource.find(filter).sort({ createdAt: -1 })
@@ -31,8 +35,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const { user, error } = requireAuth(req)
   if (error) return error
-  if (!MANAGER_ROLES.includes(user.role)) {
-    return NextResponse.json({ message: "Only Super Admin or franchise owners can upload resources." }, { status: 403 })
+  if (user.role !== "super_admin") {
+    return NextResponse.json({ message: "Only Head Office / Super Admin can upload resources." }, { status: 403 })
   }
 
   try {
@@ -43,7 +47,7 @@ export async function POST(req: NextRequest) {
     }
     const resource = await Resource.create({
       ...data,
-      tenantId: user.role === "super_admin" ? data.tenantId || "global" : user.tenantId,
+      tenantId: data.tenantId || "global",
       uploadedBy: user.id,
       uploadedByName: user.name,
     })

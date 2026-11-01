@@ -80,11 +80,70 @@ function resolveCityCode(cityStr?: string): string {
   return (letters.slice(0, 3) || "LOC").padEnd(3, "X")
 }
 
+const POPULAR_CITIES: { name: string; code: string; state?: string }[] = [
+  { name: "Bengaluru", code: "BLR", state: "Karnataka" },
+  { name: "Chennai", code: "CHE", state: "Tamil Nadu" },
+  { name: "Hyderabad", code: "HYD", state: "Telangana" },
+  { name: "Mumbai", code: "MUM", state: "Maharashtra" },
+  { name: "Pune", code: "PUN", state: "Maharashtra" },
+  { name: "Delhi", code: "DEL", state: "Delhi" },
+  { name: "Kolkata", code: "CCU", state: "West Bengal" },
+  { name: "Ahmedabad", code: "AMD", state: "Gujarat" },
+  { name: "Jaipur", code: "JAI", state: "Rajasthan" },
+  { name: "Coimbatore", code: "CJB", state: "Tamil Nadu" },
+  { name: "Madurai", code: "IXM", state: "Tamil Nadu" },
+  { name: "Trichy", code: "TRZ", state: "Tamil Nadu" },
+  { name: "Salem", code: "SLM", state: "Tamil Nadu" },
+  { name: "Kochi", code: "COK", state: "Kerala" },
+  { name: "Thiruvananthapuram", code: "TRV", state: "Kerala" },
+  { name: "Mysuru", code: "MYQ", state: "Karnataka" },
+  { name: "Mangaluru", code: "IXE", state: "Karnataka" },
+  { name: "Chandigarh", code: "IXC", state: "Chandigarh" },
+  { name: "Lucknow", code: "LKO", state: "Uttar Pradesh" },
+  { name: "Kanpur", code: "KNU", state: "Uttar Pradesh" },
+  { name: "Nagpur", code: "NAG", state: "Maharashtra" },
+  { name: "Indore", code: "IDR", state: "Madhya Pradesh" },
+  { name: "Bhopal", code: "BHO", state: "Madhya Pradesh" },
+  { name: "Patna", code: "PAT", state: "Bihar" },
+  { name: "Visakhapatnam", code: "VTZ", state: "Andhra Pradesh" },
+  { name: "Vijayawada", code: "VGA", state: "Andhra Pradesh" },
+  { name: "Surat", code: "STV", state: "Gujarat" },
+  { name: "Vadodara", code: "BDQ", state: "Gujarat" },
+  { name: "Goa", code: "GOI", state: "Goa" },
+  { name: "Bhubaneswar", code: "BBI", state: "Odisha" },
+  { name: "Guwahati", code: "GAU", state: "Assam" },
+]
+
+function toCalendarDate(val?: string): string {
+  const currentYear = new Date().getFullYear()
+  const defaultDate = `${currentYear}-06-01`
+  if (!val) return defaultDate
+  if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
+    const year = parseInt(val.split("-")[0], 10)
+    if (year < currentYear) return defaultDate
+    return val
+  }
+  const match = val.match(/^(\d{4})/)
+  if (match) {
+    const year = parseInt(match[1], 10)
+    if (year < currentYear) return defaultDate
+    return `${year}-06-01`
+  }
+  return defaultDate
+}
+
 const ACADEMIC_YEAR_OPTIONS = ["2026–27", "2025–26", "2024–25", "2027–28", "2028–29"]
 
 export default function RegisterCenterPage() {
   const router = useRouter()
   const { addNotification } = useStore()
+
+  const todayIso = new Date().toISOString().split("T")[0]
+  const defaultRenewalIso = (() => {
+    const d = new Date()
+    d.setFullYear(d.getFullYear() + 3)
+    return d.toISOString().split("T")[0]
+  })()
 
   // State Management for Steps (1 to 5)
   const [currentStep, setCurrentStep] = React.useState(1)
@@ -92,8 +151,9 @@ export default function RegisterCenterPage() {
   // Section 1: Institute / Franchise Details
   const [instName, setInstName] = React.useState("")
   const [instCode, setInstCode] = React.useState("")
-  const [academicYear, setAcademicYear] = React.useState("2026–27")
-  const [dateOfJoining, setDateOfJoining] = React.useState("")
+  const [academicYear, setAcademicYear] = React.useState("2026-06-01")
+  const [isCustomCity, setIsCustomCity] = React.useState(false)
+  const [dateOfJoining, setDateOfJoining] = React.useState(todayIso)
   const [status, setStatus] = React.useState("active")
 
   // Section 2: Owner / Franchisee Details
@@ -136,16 +196,16 @@ export default function RegisterCenterPage() {
   const [totalCapacity, setTotalCapacity] = React.useState("120")
   const [capacityNoLimit, setCapacityNoLimit] = React.useState(false)
   const [classroomsCount, setClassroomsCount] = React.useState("6")
-  const [openingDate, setOpeningDate] = React.useState("")
+  const [openingDate, setOpeningDate] = React.useState(todayIso)
   const [workingDays, setWorkingDays] = React.useState<string[]>(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"])
   const [openingTime, setOpeningTime] = React.useState("08:30")
   const [closingTime, setClosingTime] = React.useState("13:30")
 
   // Section 7: Agreement / Franchise Information
-  const [agreementStartDate, setAgreementStartDate] = React.useState("")
+  const [agreementStartDate, setAgreementStartDate] = React.useState(todayIso)
   const [agreementEndDate, setAgreementEndDate] = React.useState("")
   const [franchiseFee, setFranchiseFee] = React.useState("")
-  const [renewalDate, setRenewalDate] = React.useState("")
+  const [renewalDate, setRenewalDate] = React.useState(defaultRenewalIso)
   const [agreementDocName, setAgreementDocName] = React.useState("")
   const [gstNumber, setGstNumber] = React.useState("")
 
@@ -356,22 +416,54 @@ export default function RegisterCenterPage() {
 
   // Step Validation Evaluator
   const validateDateSequences = () => {
+    const currentYear = new Date().getFullYear()
     const effectiveJoining = dateOfJoining || openingDate
-    if (effectiveJoining && agreementStartDate) {
-      if (new Date(effectiveJoining) < new Date(agreementStartDate)) {
-        return `Invalid date sequence: Date of Joining (${effectiveJoining}) cannot be earlier than Agreement Start Date (${agreementStartDate}). An agreement must exist on or before the centre's joining date.`
+
+    // 1. Academic Year cannot be older than current year
+    if (academicYear) {
+      const acadYearNum = parseInt(academicYear.split("-")[0], 10)
+      if (acadYearNum && acadYearNum < currentYear) {
+        return `Academic Year (${acadYearNum}) cannot be older than current year (${currentYear}). Only current and future academic years (${currentYear}+) are allowed.`
       }
     }
+
+    // 2. Date of Joining cannot be older than current year
+    if (effectiveJoining) {
+      const joinYearNum = new Date(effectiveJoining).getFullYear()
+      if (joinYearNum && joinYearNum < currentYear) {
+        return `Date of Joining (${effectiveJoining}) cannot be in the past (${joinYearNum}). Only current year (${currentYear}) and future dates are allowed.`
+      }
+    }
+
+    // 3. Agreement Start Date cannot be older than current year
+    if (agreementStartDate) {
+      const agreeYearNum = new Date(agreementStartDate).getFullYear()
+      if (agreeYearNum && agreeYearNum < currentYear) {
+        return `Agreement Start Date (${agreementStartDate}) cannot be in the past (${agreeYearNum}). Only current year (${currentYear}) and future dates are allowed.`
+      }
+    }
+
+    // 4. Date of Joining cannot be earlier than Agreement Start Date
+    if (effectiveJoining && agreementStartDate) {
+      if (new Date(effectiveJoining) < new Date(agreementStartDate)) {
+        return `Invalid date sequence: Date of Joining (${effectiveJoining}) cannot be earlier than Agreement Start Date (${agreementStartDate}). The franchise agreement must be on or before the centre's joining date.`
+      }
+    }
+
+    // 5. Agreement End Date must be after Agreement Start Date
     if (agreementStartDate && agreementEndDate) {
       if (new Date(agreementEndDate) <= new Date(agreementStartDate)) {
         return `Invalid date sequence: Agreement End Date (${agreementEndDate}) must be after Agreement Start Date (${agreementStartDate}).`
       }
     }
+
+    // 6. Renewal Date must be after Agreement Start Date
     if (agreementStartDate && renewalDate) {
       if (new Date(renewalDate) <= new Date(agreementStartDate)) {
         return `Invalid date sequence: Agreement Renewal Date (${renewalDate}) must be after Agreement Start Date (${agreementStartDate}).`
       }
     }
+
     return null
   }
 
@@ -412,6 +504,11 @@ export default function RegisterCenterPage() {
           return
         }
       }
+      const dateSeqErr = validateDateSequences()
+      if (dateSeqErr) {
+        setValidationError(dateSeqErr)
+        return
+      }
       setCurrentStep(stepNum)
       setValidationError("")
       setHasTriedSubmit(false)
@@ -427,13 +524,11 @@ export default function RegisterCenterPage() {
       return
     }
 
-    // Validate date sequence if on agreement step or later
-    if (currentStep === 4) {
-      const dateSeqErr = validateDateSequences()
-      if (dateSeqErr) {
-        setValidationError(dateSeqErr)
-        return
-      }
+    // Validate date sequence on every step transition
+    const dateSeqErr = validateDateSequences()
+    if (dateSeqErr) {
+      setValidationError(dateSeqErr)
+      return
     }
 
     // Emails entered on this step must not belong to another center
@@ -563,7 +658,8 @@ export default function RegisterCenterPage() {
         totalCapacity,
         capacityNoLimit,
         classroomsCount,
-        openingDate,
+        openingDate: openingDate || dateOfJoining,
+        dateOfJoining: dateOfJoining || openingDate,
         workingDays,
         operatingHoursStart: openingTime,
         operatingHoursEnd: closingTime,
@@ -803,9 +899,54 @@ export default function RegisterCenterPage() {
                   </div>
 
                   <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-muted-foreground">Select City (Dynamic Code) *</label>
+                      {city && (
+                        <span className="text-[10px] text-primary font-mono font-semibold">
+                          Code: {resolveCityCode(city)}
+                        </span>
+                      )}
+                    </div>
+                    <Select
+                      value={POPULAR_CITIES.some(c => c.name.toLowerCase() === city.trim().toLowerCase()) ? POPULAR_CITIES.find(c => c.name.toLowerCase() === city.trim().toLowerCase())?.name : (city ? "other" : "")}
+                      onChange={e => {
+                        const val = e.target.value
+                        if (val === "other") {
+                          setIsCustomCity(true)
+                        } else {
+                          setIsCustomCity(false)
+                          setCity(val)
+                          const matched = POPULAR_CITIES.find(c => c.name === val)
+                          if (matched?.state && (!state || state === "Maharashtra")) {
+                            setState(matched.state)
+                          }
+                        }
+                      }}
+                      className="text-xs h-10"
+                    >
+                      <option value="">-- Select City --</option>
+                      {POPULAR_CITIES.map(c => (
+                        <option key={c.name} value={c.name}>
+                          {c.name} ({c.code})
+                        </option>
+                      ))}
+                      <option value="other">Other / Custom City...</option>
+                    </Select>
+                    {isCustomCity && (
+                      <Input
+                        placeholder="Type city name (e.g. Ranchi, Nagpur)"
+                        value={city}
+                        onChange={e => setCity(e.target.value)}
+                        className="text-xs h-9 mt-1.5"
+                        autoFocus
+                      />
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-muted-foreground flex items-center justify-between">
                       <span>Institute Code (Dynamic by City) *</span>
-                      <span className="text-[10px] text-primary font-mono">{city ? `City: ${city.toUpperCase()}` : 'Default: BLR'}</span>
+                      <span className="text-[10px] text-primary font-mono">{city ? `City: ${city.toUpperCase()} (${resolveCityCode(city)})` : 'Default: BLR'}</span>
                     </label>
                     <Input
                       placeholder="e.g. IPA-BLR-Arka"
@@ -817,25 +958,37 @@ export default function RegisterCenterPage() {
 
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-muted-foreground">Academic Year *</label>
-                    <Select
-                      value={academicYear}
+                    <Input
+                      type="date"
+                      required
+                      min={`${new Date().getFullYear()}-01-01`}
+                      value={toCalendarDate(academicYear)}
                       onChange={e => setAcademicYear(e.target.value)}
                       className="text-xs h-10"
-                    >
-                      {ACADEMIC_YEAR_OPTIONS.map(yr => (
-                        <option key={yr} value={yr}>{yr}</option>
-                      ))}
-                    </Select>
+                    />
                   </div>
 
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-muted-foreground">Date of Joining / Inception</label>
                     <Input
                       type="date"
+                      min={`${new Date().getFullYear()}-01-01`}
                       value={dateOfJoining || openingDate}
                       onChange={e => {
-                        setDateOfJoining(e.target.value)
-                        setOpeningDate(e.target.value)
+                        const val = e.target.value
+                        setDateOfJoining(val)
+                        setOpeningDate(val)
+                        // Auto-sync agreementStartDate if it matched previous joining date or today
+                        if (!agreementStartDate || agreementStartDate === dateOfJoining || agreementStartDate === todayIso) {
+                          setAgreementStartDate(val)
+                          if (val) {
+                            const d = new Date(val)
+                            if (!isNaN(d.getTime())) {
+                              d.setFullYear(d.getFullYear() + 3)
+                              setRenewalDate(d.toISOString().split("T")[0])
+                            }
+                          }
+                        }
                       }}
                       className="text-xs h-10"
                     />
@@ -1292,6 +1445,7 @@ export default function RegisterCenterPage() {
                     <Input
                       required
                       type="date"
+                      min={`${new Date().getFullYear()}-01-01`}
                       value={agreementStartDate}
                       onChange={e => {
                         const val = e.target.value
@@ -1313,6 +1467,7 @@ export default function RegisterCenterPage() {
                     <label className="text-xs font-semibold text-muted-foreground">Agreement End Date</label>
                     <Input
                       type="date"
+                      min={agreementStartDate || `${new Date().getFullYear()}-01-01`}
                       value={agreementEndDate}
                       onChange={e => setAgreementEndDate(e.target.value)}
                       className="text-xs h-10"
@@ -1340,6 +1495,7 @@ export default function RegisterCenterPage() {
                     </div>
                     <Input
                       type="date"
+                      min={agreementStartDate || `${new Date().getFullYear()}-01-01`}
                       value={renewalDate}
                       onChange={e => setRenewalDate(e.target.value)}
                       className="text-xs h-10"

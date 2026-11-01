@@ -54,6 +54,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs"
 import { useStore } from "@/store/useStore"
 import { type ModuleKey, ALL_MODULES } from "@/store/useStore"
 import { api } from "@/lib/api"
+import { cn } from "@/lib/utils"
 
 interface TrainingCenter {
   id: string
@@ -136,25 +137,92 @@ export function SuperAdminDashboard() {
 
   const loadAll = React.useCallback(async () => {
     try {
-      const [metricsData, centersData, ticketsData] = await Promise.all([
-        api.getDashboardMetrics(),
-        api.getCenters(),
-        api.getSupportTickets().catch(() => []),
-      ])
-
-      if (metricsData.metrics) setMetrics(metricsData.metrics)
-      if (metricsData.recentTenants) setRecentTenants(metricsData.recentTenants)
-      if (metricsData.enrollmentData) setEnrollmentData(metricsData.enrollmentData)
-      if (metricsData.statusBreakdown) setStatusBreakdown(metricsData.statusBreakdown)
-
-      setCenters(
-        (centersData || []).map((c: any) => ({
+      // 1. Fetch centers and populate status breakdown & recent branches immediately
+      const centersPromise = api.getCenters().then((centersData) => {
+        const mappedCenters: TrainingCenter[] = (centersData || []).map((c: any) => ({
           ...c,
           id: String(c._id ?? c.id),
           enabledModules: c.enabledModules || [...ALL_MODULES],
         }))
-      )
+        setCenters(mappedCenters)
+
+        const activeCount = mappedCenters.filter((c) => c.status === "active").length
+        const maintCount = mappedCenters.filter((c) => c.status === "maintenance").length
+        const inactiveCount = mappedCenters.filter((c) => c.status === "inactive").length
+        setStatusBreakdown([
+          { status: "Active", count: activeCount },
+          { status: "Maintenance", count: maintCount },
+          { status: "Inactive", count: inactiveCount },
+        ])
+
+        setRecentTenants(
+          mappedCenters.slice(0, 10).map((c: any) => ({
+            id: c.id,
+            name: c.name,
+            tenantName: c.tenantName || c.name,
+            location: c.location || "—",
+            plan: c.plan || "Standard",
+            modulesCount: Array.isArray(c.enabledModules) ? c.enabledModules.length : 8,
+            status: c.status || "active",
+          }))
+        )
+
+        setEnrollmentData(
+          mappedCenters.slice(0, 8).map((c) => ({
+            tenant: c.name.length > 14 ? c.name.slice(0, 12) + "…" : c.name,
+            centers: 1,
+            students: (c as any).studentsCount || 0,
+          }))
+        )
+
+        // Show dashboard immediately once centers are loaded
+        setIsLoading(false)
+        return mappedCenters
+      }).catch((err) => {
+        console.error("Failed to load centers:", err)
+        return []
+      })
+
+      const metricsPromise = api.getDashboardMetrics().catch(() => null)
+      const ticketsPromise = api.getSupportTickets().catch(() => [])
+
+      const [mappedCenters, metricsData, ticketsData] = await Promise.all([
+        centersPromise,
+        metricsPromise,
+        ticketsPromise,
+      ])
+
       setTickets(ticketsData || [])
+
+      if (metricsData?.metrics) {
+        setMetrics(metricsData.metrics)
+      } else {
+        const totalCentersCount = mappedCenters.length
+        const activeCentersCount = mappedCenters.filter((c) => c.status === "active").length
+        setMetrics({
+          activeCentersCount,
+          totalCenters: totalCentersCount,
+          totalStudents: metricsData?.totalStudents ?? 0,
+          totalTrainers: 0,
+          totalOwners: 0,
+          totalBdes: 0,
+          openTickets: (ticketsData || []).filter((t: any) => t.status === "open").length,
+          inProgressTickets: (ticketsData || []).filter((t: any) => t.status === "in-progress" || t.status === "in_progress").length,
+        })
+      }
+
+      if (metricsData?.recentTenants && metricsData.recentTenants.length > 0) {
+        setRecentTenants(metricsData.recentTenants)
+      }
+
+      if (metricsData?.statusBreakdown && metricsData.statusBreakdown.length > 0) {
+        setStatusBreakdown(metricsData.statusBreakdown)
+      }
+
+      if (metricsData?.enrollmentData && metricsData.enrollmentData.length > 0) {
+        setEnrollmentData(metricsData.enrollmentData)
+      }
+
       void fetchSupportQueueCount()
     } catch (err) {
       console.error("Failed to load super admin data:", err)
@@ -435,8 +503,8 @@ export function SuperAdminDashboard() {
                           borderRadius: "8px",
                         }}
                       />
-                      <Bar dataKey="centers" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Branches" />
-                      <Bar dataKey="students" fill="#10b981" radius={[4, 4, 0, 0]} name="Students" />
+                      <Bar dataKey="centers" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Branches" isAnimationActive={false} />
+                      <Bar dataKey="students" fill="#10b981" radius={[4, 4, 0, 0]} name="Students" isAnimationActive={false} />
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
@@ -452,26 +520,55 @@ export function SuperAdminDashboard() {
                 <CardTitle className="text-sm">Center Status Breakdown</CardTitle>
                 <CardDescription>Operational health across all hubs.</CardDescription>
               </CardHeader>
-              <CardContent className="h-64 flex items-center">
+              <CardContent className="h-64 flex flex-col justify-between">
                 {statusBreakdown.some((s) => s.count > 0) ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={statusBreakdown.filter((s) => s.count > 0)}
-                        dataKey="count"
-                        nameKey="status"
-                        cx="50%"
-                        cy="50%"
-                        outerRadius={80}
-                        label={({ name, value }) => `${name}: ${value}`}
-                      >
-                        {statusBreakdown.map((_, i) => (
-                          <Cell key={i} fill={STATUS_COLORS[i % STATUS_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  <>
+                    <div className="flex-1 w-full min-h-[160px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={statusBreakdown.filter((s) => s.count > 0)}
+                            dataKey="count"
+                            nameKey="status"
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={68}
+                            innerRadius={40}
+                            isAnimationActive={false}
+                            label={({ name, value }) => `${name}: ${value}`}
+                          >
+                            {statusBreakdown.map((s, i) => {
+                              const colorMap: Record<string, string> = {
+                                Active: "#10b981",
+                                Maintenance: "#f59e0b",
+                                Inactive: "#64748b",
+                              }
+                              return (
+                                <Cell key={i} fill={colorMap[s.status] || STATUS_COLORS[i % STATUS_COLORS.length]} />
+                              )
+                            })}
+                          </Pie>
+                          <Tooltip />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="flex items-center justify-center gap-4 pt-2 border-t border-border/40">
+                      {statusBreakdown.map((s) => {
+                        const dotColor: Record<string, string> = {
+                          Active: "bg-emerald-500",
+                          Maintenance: "bg-amber-500",
+                          Inactive: "bg-slate-400",
+                        }
+                        return (
+                          <div key={s.status} className="flex items-center gap-1.5 text-xs">
+                            <span className={cn("w-2 h-2 rounded-full", dotColor[s.status] || "bg-primary")} />
+                            <span className="text-muted-foreground">{s.status}:</span>
+                            <span className="font-semibold text-foreground">{s.count}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </>
                 ) : (
                   <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
                     No branches registered.
@@ -487,7 +584,7 @@ export function SuperAdminDashboard() {
                 <CardTitle className="text-sm">Recent Branch Registrations</CardTitle>
                 <CardDescription>Latest branches onboarded to ARKA KIDS.</CardDescription>
               </div>
-              <Button variant="outline" size="sm" onClick={() => setActiveTab("centers")}>
+              <Button variant="outline" size="sm" onClick={() => router.push("/centers")}>
                 Manage All
               </Button>
             </CardHeader>

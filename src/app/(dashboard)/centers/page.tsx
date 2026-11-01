@@ -4,7 +4,8 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 import {
   Building2, Globe, ShieldCheck, Activity, Search, Plus,
-  MapPin, User, Mail, Edit2, Trash2, Layers, AlertTriangle, X
+  MapPin, User, Mail, Edit2, Trash2, Layers, AlertTriangle, X,
+  ChevronLeft, ChevronRight
 } from "lucide-react"
 import { KPICard } from "@/components/dashboard/KPICard"
 import { Card, CardHeader, CardContent } from "@/components/ui/Card"
@@ -15,6 +16,7 @@ import { Button } from "@/components/ui/Button"
 import { useStore } from "@/store/useStore"
 import { type ModuleKey, type TrainingCenter } from "@/store/useStore"
 import { api } from "@/lib/api"
+import { cn } from "@/lib/utils"
 
 export default function CentersPage() {
   const router = useRouter()
@@ -93,6 +95,14 @@ export default function CentersPage() {
     }
   }
 
+  const PAGE_SIZE = 6
+  const [currentPage, setCurrentPage] = React.useState(1)
+
+  // Reset page to 1 whenever search query or tenant filter changes
+  React.useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, tenantFilter])
+
   const filteredCenters = centers.filter(c => {
     const q = searchQuery.toLowerCase()
     const matchSearch =
@@ -102,6 +112,17 @@ export default function CentersPage() {
     const matchTenant = tenantFilter === "all" || c.tenantName === tenantFilter
     return matchSearch && matchTenant
   })
+
+  const totalPages = Math.max(1, Math.ceil(filteredCenters.length / PAGE_SIZE))
+  const safePage = Math.min(Math.max(1, currentPage), totalPages)
+
+  const paginatedCenters = React.useMemo(() => {
+    const start = (safePage - 1) * PAGE_SIZE
+    return filteredCenters.slice(start, start + PAGE_SIZE)
+  }, [filteredCenters, safePage])
+
+  const paginationStart = filteredCenters.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1
+  const paginationEnd = Math.min(safePage * PAGE_SIZE, filteredCenters.length)
 
   const uniqueTenantNames = Array.from(new Set(centers.map(c => c.tenantName)))
   const activeCount = centers.filter(c => c.status === "active").length
@@ -208,7 +229,7 @@ export default function CentersPage() {
 
       {/* Center Cards Grid */}
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {filteredCenters.map((center) => (
+        {paginatedCenters.map((center) => (
           <Card key={center.id} className="bg-card flex flex-col justify-between hover:border-border transition-all duration-200">
             <CardHeader className="pb-3 border-b border-border/40">
               <div className="flex justify-between items-start gap-2">
@@ -250,7 +271,7 @@ export default function CentersPage() {
         ))}
 
         {/* Loading skeleton */}
-        {loading && Array.from({ length: 3 }).map((_, i) => (
+        {loading && Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className="bg-card border border-border/40 rounded-xl p-5 space-y-3 animate-pulse">
             <div className="flex justify-between">
               <div className="space-y-1.5">
@@ -279,6 +300,82 @@ export default function CentersPage() {
           </div>
         )}
       </div>
+
+      {/* Pagination Controls */}
+      {!loading && filteredCenters.length > 0 && (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-1 py-2">
+          <div className="text-xs text-muted-foreground">
+            Showing <span className="font-semibold text-foreground">{paginationStart}</span> to{" "}
+            <span className="font-semibold text-foreground">{paginationEnd}</span> of{" "}
+            <span className="font-semibold text-foreground">{filteredCenters.length}</span> branches
+            <span className="text-muted-foreground/80"> · 6 per page</span>
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1.5">
+              <Button
+                variant="outline"
+                size="sm"
+                icon={ChevronLeft}
+                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                disabled={safePage === 1}
+                className="h-8 text-xs px-2.5"
+              >
+                Previous
+              </Button>
+
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => {
+                  const isEllipsisBefore = p === 2 && safePage > 4
+                  const isEllipsisAfter = p === totalPages - 1 && safePage < totalPages - 3
+                  const isVisible =
+                    p === 1 ||
+                    p === totalPages ||
+                    Math.abs(p - safePage) <= 1
+
+                  if (!isVisible) {
+                    if (isEllipsisBefore || isEllipsisAfter) {
+                      return (
+                        <span key={`ellipsis-${p}`} className="px-1 text-xs text-muted-foreground select-none">
+                          …
+                        </span>
+                      )
+                    }
+                    return null
+                  }
+
+                  return (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setCurrentPage(p)}
+                      className={cn(
+                        "h-8 min-w-[32px] px-2.5 rounded-lg border text-xs font-semibold transition-colors cursor-pointer",
+                        p === safePage
+                          ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                          : "border-border bg-card text-muted-foreground hover:text-foreground hover:border-primary/40"
+                      )}
+                    >
+                      {p}
+                    </button>
+                  )
+                })}
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                disabled={safePage === totalPages}
+                className="h-8 text-xs px-2.5"
+              >
+                Next
+                <ChevronRight className="h-3.5 w-3.5 ml-1" />
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

@@ -138,6 +138,7 @@ export interface CenterConfig {
   capacityNoLimit: boolean
   classroomsCount: number
   openingDate: string
+  dateOfJoining: string
   workingDays: string[]
   agreementStartDate: string
   agreementEndDate: string
@@ -201,6 +202,7 @@ export const DEFAULT_CENTER_CONFIG: CenterConfig = {
   capacityNoLimit: false,
   classroomsCount: 6,
   openingDate: "",
+  dateOfJoining: "",
   workingDays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
   agreementStartDate: "",
   agreementEndDate: "",
@@ -325,6 +327,9 @@ export function centerFromApi(data: Record<string, unknown>): CenterConfig {
   if (!base.whatsapp && base.whatsappNumber) base.whatsapp = base.whatsappNumber as string
   if (!base.gmapsUrl && base.googleMaps) base.gmapsUrl = base.googleMaps as string
   if (!base.googleMaps && base.gmapsUrl) base.googleMaps = base.gmapsUrl as string
+  if (!base.dateOfJoining && data.dateOfJoining) base.dateOfJoining = data.dateOfJoining as string
+  if (!base.openingDate && base.dateOfJoining) base.openingDate = base.dateOfJoining
+  if (!base.dateOfJoining && base.openingDate) base.dateOfJoining = base.openingDate
 
   if (Array.isArray(data.enabledModules)) {
     base.enabledModules = data.enabledModules as ModuleKey[]

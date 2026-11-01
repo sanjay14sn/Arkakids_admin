@@ -65,6 +65,24 @@ export interface Student {
 
 const STUDENTS_PAGE_SIZE = 10
 
+function toCalendarDate(val?: string): string {
+  const currentYear = new Date().getFullYear()
+  const defaultDate = `${currentYear}-06-01`
+  if (!val) return defaultDate
+  if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
+    const year = parseInt(val.split("-")[0], 10)
+    if (year < currentYear) return defaultDate
+    return val
+  }
+  const match = val.match(/^(\d{4})/)
+  if (match) {
+    const year = parseInt(match[1], 10)
+    if (year < currentYear) return defaultDate
+    return `${year}-06-01`
+  }
+  return defaultDate
+}
+
 /** Map a raw DB student document to the Student interface */
 function mapStudentFromDB(d: any): Student {
   return {
@@ -132,7 +150,7 @@ export default function StudentsPage() {
   const [parentName, setParentName] = React.useState("")
   const [parentRelation, setParentRelation] = React.useState("Mother")
   const [address, setAddress] = React.useState("")
-  const [academicYear, setAcademicYear] = React.useState("2026-27")
+  const [academicYear, setAcademicYear] = React.useState(`${new Date().getFullYear()}-06-01`)
   const [admissionDate, setAdmissionDate] = React.useState(new Date().toISOString().split("T")[0])
   const [emergencyContact, setEmergencyContact] = React.useState("")
   const [pickupPerson, setPickupPerson] = React.useState("")
@@ -154,7 +172,7 @@ export default function StudentsPage() {
   const [editGender, setEditGender] = React.useState("Female")
   const [editParentName, setEditParentName] = React.useState("")
   const [editParentRelation, setEditParentRelation] = React.useState("Mother")
-  const [editAcademicYear, setEditAcademicYear] = React.useState("2026-27")
+  const [editAcademicYear, setEditAcademicYear] = React.useState(`${new Date().getFullYear()}-06-01`)
   const [editAddress, setEditAddress] = React.useState("")
   const [editAdmissionDate, setEditAdmissionDate] = React.useState("")
   const [editEmergencyContact, setEditEmergencyContact] = React.useState("")
@@ -468,7 +486,15 @@ export default function StudentsPage() {
     }
 
     if (!parentRelation) errs.parentRelation = "Relationship is required"
-    if (!academicYear.trim()) errs.academicYear = "Academic Year is required"
+    if (!academicYear || !academicYear.trim()) {
+      errs.academicYear = "Academic Year is required"
+    } else {
+      const acadYearNum = parseInt(academicYear.split("-")[0], 10)
+      const currentYear = new Date().getFullYear()
+      if (acadYearNum < currentYear) {
+        errs.academicYear = `Academic Year cannot be in the past (minimum ${currentYear})`
+      }
+    }
     if (!address.trim()) errs.address = "Residential Address is required"
     else if (address.trim().length < 5) errs.address = "Please enter full residential address"
 
@@ -659,7 +685,7 @@ export default function StudentsPage() {
     setEditGender(student.gender ? (student.gender.charAt(0).toUpperCase() + student.gender.slice(1)) : "Female")
     setEditParentName(student.parentName || student.guardian?.name || "")
     setEditParentRelation(student.parentRelation || "Mother")
-    setEditAcademicYear(student.academicYear || "2026-27")
+    setEditAcademicYear(toCalendarDate(student.academicYear))
     setEditAddress(student.address || "")
     setEditAdmissionDate(student.admissionDate || student.enrollmentDate ? String(student.admissionDate || student.enrollmentDate).slice(0, 10) : "")
     setEditEmergencyContact(student.emergencyContact || "")
@@ -2037,7 +2063,7 @@ export default function StudentsPage() {
         }}
         title="Enroll New Student"
         description={`Step ${addStep} of 4: ${addStep === 1 ? 'Required Details' : addStep === 2 ? 'Optional Details' : addStep === 3 ? 'Documents' : 'Fees & Payment'}`}
-        className="max-w-2xl"
+        className="max-w-3xl !rounded-md border border-border shadow-2xl"
       >
         <form onSubmit={handleStepNext} className="space-y-4">
           {studentsAtCapacity && policy && (
@@ -2065,10 +2091,10 @@ export default function StudentsPage() {
           <div className="flex items-center gap-2 mb-6">
             {[1, 2, 3, 4].map(step => (
               <React.Fragment key={step}>
-                <div className={`flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold border-2 ${addStep === step ? 'border-primary bg-primary text-white' : addStep > step ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-border bg-card text-muted-foreground'}`}>
+                <div className={`flex items-center justify-center w-8 h-8 rounded-md text-xs font-bold border-2 ${addStep === step ? 'border-primary bg-primary text-white' : addStep > step ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-border bg-card text-muted-foreground'}`}>
                   {addStep > step ? <Check className="h-4 w-4" /> : step}
                 </div>
-                {step < 4 && <div className={`h-1 flex-1 rounded-full ${addStep > step ? 'bg-emerald-500' : 'bg-border'}`} />}
+                {step < 4 && <div className={`h-1 flex-1 rounded-sm ${addStep > step ? 'bg-emerald-500' : 'bg-border'}`} />}
               </React.Fragment>
             ))}
           </div>
@@ -2175,8 +2201,9 @@ export default function StudentsPage() {
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-muted-foreground">Academic Year <span className="text-red-500">*</span></label>
                   <Input
-                    placeholder="e.g. 2026-27"
-                    value={academicYear}
+                    type="date"
+                    min={`${new Date().getFullYear()}-01-01`}
+                    value={toCalendarDate(academicYear)}
                     onChange={(e) => {
                       setAcademicYear(e.target.value)
                       if (addErrors.academicYear) setAddErrors((p) => ({ ...p, academicYear: "" }))
@@ -2626,7 +2653,7 @@ export default function StudentsPage() {
         onClose={() => { setEditingStudent(null); setEditStep(1); }}
         title={`Edit Profile — ${editingStudent?.name || ""}`}
         description={`Step ${editStep} of 4: ${editStep === 1 ? 'Required Details' : editStep === 2 ? 'Optional Details' : editStep === 3 ? 'Documents' : 'Fees & Payment Setup'}`}
-        className="max-w-2xl"
+        className="max-w-3xl !rounded-md border border-border shadow-2xl"
       >
         <form onSubmit={editStep === 4 ? handleSaveEditedStudent : (e) => { e.preventDefault(); setEditStep(p => p + 1); }} className="space-y-4 pt-1 pr-1">
           
@@ -2634,10 +2661,10 @@ export default function StudentsPage() {
           <div className="flex items-center gap-2 mb-6">
             {[1, 2, 3, 4].map(step => (
               <React.Fragment key={step}>
-                <div className={`flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold border-2 ${editStep === step ? 'border-primary bg-primary text-white' : editStep > step ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-border bg-card text-muted-foreground'}`}>
+                <div className={`flex items-center justify-center w-8 h-8 rounded-md text-xs font-bold border-2 ${editStep === step ? 'border-primary bg-primary text-white' : editStep > step ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-border bg-card text-muted-foreground'}`}>
                   {editStep > step ? <Check className="h-4 w-4" /> : step}
                 </div>
-                {step < 4 && <div className={`h-1 flex-1 rounded-full ${editStep > step ? 'bg-emerald-500' : 'bg-border'}`} />}
+                {step < 4 && <div className={`h-1 flex-1 rounded-sm ${editStep > step ? 'bg-emerald-500' : 'bg-border'}`} />}
               </React.Fragment>
             ))}
           </div>
@@ -2707,7 +2734,14 @@ export default function StudentsPage() {
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-muted-foreground">Academic Year <span className="text-red-500">*</span></label>
-                  <Input value={editAcademicYear} onChange={(e) => setEditAcademicYear(e.target.value)} className="bg-card text-xs h-9.5" required />
+                  <Input
+                    type="date"
+                    min={`${new Date().getFullYear()}-01-01`}
+                    value={toCalendarDate(editAcademicYear)}
+                    onChange={(e) => setEditAcademicYear(e.target.value)}
+                    className="bg-card text-xs h-9.5"
+                    required
+                  />
                 </div>
               </div>
 

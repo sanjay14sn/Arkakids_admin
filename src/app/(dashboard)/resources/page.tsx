@@ -28,7 +28,9 @@ interface Resource {
   fileName?: string
   format?: string
   size?: number
+  audience?: string[]
   tenantId: string
+  centerName?: string
   uploadedByName?: string
   createdAt?: string
 }
@@ -56,9 +58,22 @@ function formatSize(bytes?: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+function isImageResource(r?: Resource | null): boolean {
+  if (!r) return false
+  const format = (r.format || "").toLowerCase()
+  const url = (r.url || "").toLowerCase()
+  const fileName = (r.fileName || "").toLowerCase()
+  return (
+    ["png", "jpg", "jpeg", "webp", "gif", "svg", "bmp", "avif"].includes(format) ||
+    /\.(png|jpe?g|webp|gif|svg|bmp|avif)(\?.*)?$/i.test(url) ||
+    /\.(png|jpe?g|webp|gif|svg|bmp|avif)$/i.test(fileName)
+  )
+}
+
 export default function ResourcesPage() {
   const { user, addNotification } = useStore()
-  const canManage = user?.role === "super_admin" || user?.role === "owner"
+  // Only Super Admin (Head Office) has upload & management permissions; other roles have view-only access
+  const canManage = user?.role === "super_admin"
 
   const [resources, setResources] = React.useState<Resource[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -99,8 +114,8 @@ export default function ResourcesPage() {
     video: resources.filter((r) => r.kind === "video").length,
   }
 
-  const canDelete = (r: Resource) =>
-    user?.role === "super_admin" || (user?.role === "owner" && r.tenantId === user?.tenantId)
+  // Only super admin can delete resources; franchise owners/trainers have view-only access
+  const canDelete = (_r: Resource) => user?.role === "super_admin"
 
   const confirmDelete = async () => {
     if (!deleteTarget) return
@@ -215,32 +230,61 @@ export default function ResourcesPage() {
       ) : (
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           {filtered.map((r) => {
+            const isImg = isImageResource(r)
             const embed = r.kind === "video" ? getYoutubeEmbedUrl(r.url) : null
-            const thumb = embed ? `https://img.youtube.com/vi/${embed.split("/").pop()}/hqdefault.jpg` : null
+            const thumb = embed
+              ? `https://img.youtube.com/vi/${embed.split("/").pop()}/hqdefault.jpg`
+              : isImg
+                ? r.url
+                : null
             return (
               <div key={r._id} className="group rounded-2xl border border-border bg-card overflow-hidden flex flex-col hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
                 <button
                   type="button"
                   onClick={() => setViewing(r)}
-                  className="relative h-36 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent flex items-center justify-center overflow-hidden"
+                  className="relative h-36 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent flex items-center justify-center overflow-hidden bg-muted/20"
                 >
                   {thumb ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={thumb} alt="" className="absolute inset-0 h-full w-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-300" />
+                    <img
+                      src={thumb}
+                      alt={r.title}
+                      className={cn(
+                        "absolute inset-0 h-full w-full object-cover group-hover:scale-105 transition-transform duration-300",
+                        isImg ? "opacity-100" : "opacity-90"
+                      )}
+                    />
                   ) : null}
                   {r.kind === "video" ? (
-                    <PlayCircle className="relative h-12 w-12 text-white drop-shadow-lg" style={!thumb ? { color: "var(--color-primary, #8B0000)" } : undefined} />
-                  ) : (
+                    <PlayCircle
+                      className={cn(
+                        "relative h-12 w-12 text-white drop-shadow-lg",
+                        thumb && "bg-black/40 rounded-full p-1"
+                      )}
+                      style={!thumb ? { color: "var(--color-primary, #8B0000)" } : undefined}
+                    />
+                  ) : !thumb ? (
                     <FileText className="relative h-12 w-12 text-primary/70" />
-                  )}
-                  <Badge variant={r.kind === "video" ? "warning" : "secondary"} className="absolute top-3 left-3 text-[9px] uppercase tracking-wider">
+                  ) : null}
+                  <Badge variant={r.kind === "video" ? "warning" : "secondary"} className="absolute top-3 left-3 text-[9px] uppercase tracking-wider backdrop-blur-xs bg-background/80">
                     {r.kind === "video" ? "Video" : (r.format || "Material").toUpperCase()}
                   </Badge>
-                  {r.tenantId === "global" && (
-                    <Badge variant="success" className="absolute top-3 right-3 text-[9px] uppercase tracking-wider">HQ</Badge>
+                  {r.tenantId === "global" ? (
+                    <Badge variant="success" className="absolute top-3 right-3 text-[9px] uppercase tracking-wider bg-emerald-600 text-white border-none shadow-xs">
+                      All Centres
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="absolute top-3 right-3 text-[9px] bg-background/90 backdrop-blur-xs border-primary/30 text-primary font-semibold truncate max-w-[140px]">
+                      {r.centerName || r.tenantId}
+                    </Badge>
                   )}
                 </button>
-                <div className="p-4 flex-1 flex flex-col gap-1.5">
+                <div className="p-4 flex-1 flex flex-col gap-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-semibold text-primary truncate">
+                      {r.tenantId === "global" ? "🌐 Global (All Centres)" : `🏢 ${r.centerName || r.tenantId}`}
+                    </span>
+                  </div>
                   <h3 className="text-sm font-bold text-foreground line-clamp-2">{r.title}</h3>
                   {r.description && <p className="text-xs text-muted-foreground line-clamp-2">{r.description}</p>}
                   <div className="flex flex-wrap gap-1.5 mt-1">
@@ -248,6 +292,24 @@ export default function ResourcesPage() {
                     {r.program && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">{r.program}</span>}
                     {r.size ? <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">{formatSize(r.size)}</span> : null}
                   </div>
+                  {r.audience && r.audience.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1 mt-1 text-[10px]">
+                      <span className="text-muted-foreground font-semibold">For:</span>
+                      {r.audience.map((aud) => {
+                        const labels: Record<string, string> = {
+                          owner: "Owners",
+                          coordinator: "Coordinators",
+                          trainer: "Teachers",
+                          bde: "Counsellors",
+                        }
+                        return (
+                          <span key={aud} className="rounded-md bg-secondary text-secondary-foreground px-1.5 py-0.5 font-medium">
+                            {labels[aud] || aud}
+                          </span>
+                        )
+                      })}
+                    </div>
+                  )}
                   <p className="text-[10px] text-muted-foreground mt-auto pt-2">
                     {r.uploadedByName ? `By ${r.uploadedByName}` : ""}{r.createdAt ? ` · ${new Date(r.createdAt).toLocaleDateString("en-IN")}` : ""}
                   </p>
@@ -302,16 +364,21 @@ function ResourceViewer({ resource, onClose }: { resource: Resource | null; onCl
   const embed = resource.kind === "video" ? getYoutubeEmbedUrl(resource.url) : null
   const isPdf = (resource.format || resource.url).toLowerCase().includes("pdf")
   const isDirectVideo = resource.kind === "video" && !embed
+  const isImg = isImageResource(resource)
+
   return (
     <Dialog isOpen onClose={onClose} title={resource.title} description={resource.category} className="max-w-4xl">
       <div className="space-y-3">
-        <div className="rounded-xl overflow-hidden border border-border bg-black/5 aspect-video">
+        <div className="rounded-xl overflow-hidden border border-border bg-black/5 aspect-video flex items-center justify-center">
           {embed ? (
             <iframe src={embed} className="w-full h-full" allow="accelerometer; autoplay; encrypted-media; picture-in-picture" allowFullScreen title={resource.title} />
           ) : isDirectVideo ? (
             <video src={resource.url} controls className="w-full h-full bg-black" />
           ) : isPdf ? (
             <iframe src={resource.url} className="w-full h-full bg-white" title={resource.title} />
+          ) : isImg ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={resource.url} alt={resource.title} className="max-h-full max-w-full object-contain" />
           ) : (
             <div className="h-full flex flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
               <FileText className="h-10 w-10 text-primary/60" />
@@ -347,12 +414,25 @@ function UploadResourceDialog({
   const [file, setFile] = React.useState<File | null>(null)
   const [link, setLink] = React.useState("")
   const [audience, setAudience] = React.useState<string[]>(["owner", "coordinator", "trainer"])
+  const [centers, setCenters] = React.useState<{ _id: string; name: string; tenantName?: string; location?: string }[]>([])
+  const [targetTenant, setTargetTenant] = React.useState("global")
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState("")
 
+  React.useEffect(() => {
+    if (open) {
+      api.getCenters()
+        .then((data) => {
+          if (Array.isArray(data)) setCenters(data)
+        })
+        .catch(() => {})
+    }
+  }, [open])
+
   const reset = () => {
     setKind("material"); setTitle(""); setDescription(""); setCategory(CATEGORIES[0]); setProgram("")
-    setSource("file"); setFile(null); setLink(""); setAudience(["owner", "coordinator", "trainer"]); setError("")
+    setSource("file"); setFile(null); setLink(""); setAudience(["owner", "coordinator", "trainer"])
+    setTargetTenant("global"); setError("")
   }
 
   const close = () => { reset(); onClose() }
@@ -364,6 +444,7 @@ function UploadResourceDialog({
     if (source === "file" && !file) return setError("Choose a file to upload.")
     if (source === "link" && !/^https?:\/\//i.test(link.trim())) return setError("Enter a valid URL starting with http(s)://")
     if (file && file.size > 100 * 1024 * 1024) return setError("File must be 100 MB or smaller.")
+    if (audience.length === 0) return setError("Select at least one role to make this resource visible to.")
 
     setSaving(true)
     try {
@@ -375,9 +456,18 @@ function UploadResourceDialog({
         url = uploaded.url
         meta = { fileName: file.name, format: uploaded.format || file.name.split(".").pop(), size: uploaded.size || file.size }
       }
+      const selectedCenter = centers.find((c) => (c.tenantName || c._id) === targetTenant)
       const created = await api.createResource({
-        title: title.trim(), description: description.trim(), kind, category, program: program || undefined,
-        url, audience, ...meta,
+        title: title.trim(),
+        description: description.trim(),
+        kind,
+        category,
+        program: program || undefined,
+        url,
+        audience,
+        tenantId: targetTenant || "global",
+        centerName: targetTenant === "global" ? "All Centres" : (selectedCenter?.name || targetTenant),
+        ...meta,
       })
       onCreated(created)
       close()
@@ -392,7 +482,13 @@ function UploadResourceDialog({
     setAudience((prev) => (prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role]))
 
   return (
-    <Dialog isOpen={open} onClose={close} title="Add Resource" description={isSuperAdmin ? "Shared with all franchise centres." : "Visible to your centre's staff."} className="max-w-lg">
+    <Dialog
+      isOpen={open}
+      onClose={close}
+      title="Add Resource"
+      description="Publish training guides, curriculum, SOPs or videos to franchise centres."
+      className="max-w-lg"
+    >
       <form onSubmit={submit} className="space-y-4 pt-1">
         <div className="grid grid-cols-2 gap-2">
           {(["material", "video"] as ResourceKind[]).map((k) => (
@@ -415,11 +511,39 @@ function UploadResourceDialog({
           <label className="text-xs font-semibold text-muted-foreground">Title *</label>
           <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Abacus Level 1 – Teacher Handbook" className="h-10 text-xs" />
         </div>
+
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold text-muted-foreground">Assign to Franchise / Centre *</label>
+          <Select
+            value={targetTenant}
+            onChange={(e) => setTargetTenant(e.target.value)}
+            className="h-10 text-xs font-medium"
+          >
+            <option value="global">🌐 All Franchise Centres (Global HQ)</option>
+            {centers.map((c) => (
+              <option key={c._id || c.tenantName} value={c.tenantName || c._id}>
+                🏢 {c.name} {c.location ? `· ${c.location}` : ""}
+              </option>
+            ))}
+          </Select>
+          <p className="text-[11px] text-muted-foreground">
+            {targetTenant === "global"
+              ? "Visible to all franchise branches across the network."
+              : "Visible only to staff, teachers and coordinators belonging to this specific centre."}
+          </p>
+        </div>
+
         <div className="space-y-1.5">
           <label className="text-xs font-semibold text-muted-foreground">Description</label>
-          <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
-            className="w-full rounded-lg border border-border bg-card px-3 py-2 text-xs focus:outline-none focus:border-primary" />
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={2}
+            className="w-full rounded-lg border border-border bg-card px-3 py-2 text-xs focus:outline-none focus:border-primary"
+            placeholder="Brief description or instructions for teachers / coordinators..."
+          />
         </div>
+
         <div className="grid grid-cols-2 gap-3">
           <Select label="Category" value={category} onChange={(e) => setCategory(e.target.value)} className="h-10 text-xs">
             {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -432,10 +556,18 @@ function UploadResourceDialog({
 
         <div className="space-y-2">
           <div className="flex gap-2">
-            <button type="button" onClick={() => setSource("file")} className={cn("inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold border", source === "file" ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground")}>
+            <button
+              type="button"
+              onClick={() => setSource("file")}
+              className={cn("inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold border", source === "file" ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground")}
+            >
               <Upload className="h-3 w-3" /> Upload file
             </button>
-            <button type="button" onClick={() => setSource("link")} className={cn("inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold border", source === "link" ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground")}>
+            <button
+              type="button"
+              onClick={() => setSource("link")}
+              className={cn("inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold border", source === "link" ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground")}
+            >
               <Link2 className="h-3 w-3" /> {kind === "video" ? "YouTube / video link" : "External link"}
             </button>
           </div>
@@ -462,15 +594,28 @@ function UploadResourceDialog({
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-muted-foreground">Visible to</label>
-          <div className="flex flex-wrap gap-2">
-            {[["owner", "Franchise Owners"], ["coordinator", "Coordinators"], ["trainer", "Teachers & Educators"]].map(([role, label]) => (
-              <label key={role} className="inline-flex items-center gap-1.5 text-xs">
-                <input type="checkbox" checked={audience.includes(role)} onChange={() => toggleAudience(role)} className="accent-[#8B0000]" />
-                {label}
+          <label className="text-xs font-semibold text-muted-foreground">Visible to Roles</label>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              ["owner", "Franchise Owners"],
+              ["coordinator", "Centre Coordinators"],
+              ["trainer", "Teachers & Trainers"],
+              ["bde", "Admissions & Counsellors"],
+            ].map(([role, label]) => (
+              <label key={role} className="inline-flex items-center gap-2 p-2 rounded-lg border border-border bg-card/60 text-xs cursor-pointer hover:border-primary/40">
+                <input
+                  type="checkbox"
+                  checked={audience.includes(role)}
+                  onChange={() => toggleAudience(role)}
+                  className="rounded border-border text-primary focus:ring-primary accent-[#8B0000]"
+                />
+                <span className="font-medium text-foreground">{label}</span>
               </label>
             ))}
           </div>
+          <p className="text-[11px] text-muted-foreground">
+            Only users with the selected roles can see and download this resource.
+          </p>
         </div>
 
         {error && <p className="text-xs text-destructive font-medium">{error}</p>}

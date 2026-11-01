@@ -17,6 +17,7 @@ export interface IResource extends Document {
   uploadedBy?: string
   uploadedByName?: string
   tenantId: string
+  centerName?: string
 }
 
 const ResourceSchema = new Schema<IResource>(
@@ -31,12 +32,13 @@ const ResourceSchema = new Schema<IResource>(
     format: { type: String },
     size: { type: Number },
     thumbnailUrl: { type: String },
-    // Who can see it: owner (franchise), coordinator, trainer (teachers)
+    // Who can see it: owner (franchise), coordinator, trainer (teachers), bde
     audience: { type: [String], default: ["owner", "coordinator", "trainer"] },
     uploadedBy: { type: String },
     uploadedByName: { type: String },
     // "global" = shared by Super Admin with every franchise
     tenantId: { type: String, required: true, default: "global" },
+    centerName: { type: String },
   },
   { timestamps: true }
 )

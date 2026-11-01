@@ -88,6 +88,24 @@ function resolveCityCode(cityStr?: string): string {
   return (letters.slice(0, 3) || "LOC").padEnd(3, "X")
 }
 
+function toCalendarDate(val?: string): string {
+  const currentYear = new Date().getFullYear()
+  const defaultDate = `${currentYear}-06-01`
+  if (!val) return defaultDate
+  if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
+    const year = parseInt(val.split("-")[0], 10)
+    if (year < currentYear) return defaultDate
+    return val
+  }
+  const match = val.match(/^(\d{4})/)
+  if (match) {
+    const year = parseInt(match[1], 10)
+    if (year < currentYear) return defaultDate
+    return `${year}-06-01`
+  }
+  return defaultDate
+}
+
 const ACADEMIC_YEAR_OPTIONS = ["2026–27", "2025–26", "2024–25", "2027–28", "2028–29"]
 
 export default function EditCenterPage() {
@@ -147,6 +165,14 @@ export default function EditCenterPage() {
     }
 
     // Validate date sequences
+    const currentYear = new Date().getFullYear()
+    const effectiveJoining = config.dateOfJoining || config.openingDate
+    if (effectiveJoining && config.agreementStartDate) {
+      if (new Date(effectiveJoining) < new Date(config.agreementStartDate)) {
+        alert(`Invalid date sequence: Date of Joining (${effectiveJoining}) cannot be earlier than Agreement Start Date (${config.agreementStartDate}). The franchise agreement must be on or before the centre's joining date.`)
+        return
+      }
+    }
     if (config.agreementStartDate && config.agreementEndDate) {
       if (new Date(config.agreementEndDate) <= new Date(config.agreementStartDate)) {
         alert(`Invalid date sequence: Agreement End Date (${config.agreementEndDate}) must be after Agreement Start Date (${config.agreementStartDate}).`)
@@ -347,15 +373,13 @@ export default function EditCenterPage() {
 
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-muted-foreground">Academic Year</label>
-              <Select
-                value={config.academicYear || "2026–27"}
+              <Input
+                type="date"
+                min={`${new Date().getFullYear()}-01-01`}
+                value={toCalendarDate(config.academicYear)}
                 onChange={(e) => updateConfig({ academicYear: e.target.value })}
                 className="text-xs h-10"
-              >
-                {ACADEMIC_YEAR_OPTIONS.map(yr => (
-                  <option key={yr} value={yr}>{yr}</option>
-                ))}
-              </Select>
+              />
             </div>
 
             <div className="space-y-1.5">
@@ -721,8 +745,20 @@ export default function EditCenterPage() {
               <label className="text-xs font-semibold text-muted-foreground">Agreement Start Date</label>
               <Input
                 type="date"
+                min={`${new Date().getFullYear()}-01-01`}
                 value={config.agreementStartDate}
-                onChange={(e) => updateConfig({ agreementStartDate: e.target.value })}
+                onChange={(e) => {
+                  const val = e.target.value
+                  const patch: Partial<CenterConfig> = { agreementStartDate: val }
+                  if (val) {
+                    const d = new Date(val)
+                    if (!isNaN(d.getTime())) {
+                      d.setFullYear(d.getFullYear() + 3)
+                      patch.renewalDate = d.toISOString().split("T")[0]
+                    }
+                  }
+                  updateConfig(patch)
+                }}
                 className="text-xs h-10"
               />
             </div>
@@ -731,6 +767,7 @@ export default function EditCenterPage() {
               <label className="text-xs font-semibold text-muted-foreground">Agreement End Date</label>
               <Input
                 type="date"
+                min={config.agreementStartDate || `${new Date().getFullYear()}-01-01`}
                 value={config.agreementEndDate}
                 onChange={(e) => updateConfig({ agreementEndDate: e.target.value })}
                 className="text-xs h-10"
@@ -738,9 +775,13 @@ export default function EditCenterPage() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted-foreground">Renewal Date</label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-muted-foreground">Renewal Date</label>
+                <span className="text-[10px] text-primary font-medium">(Every 3 Years)</span>
+              </div>
               <Input
                 type="date"
+                min={config.agreementStartDate || `${new Date().getFullYear()}-01-01`}
                 value={config.renewalDate}
                 onChange={(e) => updateConfig({ renewalDate: e.target.value })}
                 className="text-xs h-10"

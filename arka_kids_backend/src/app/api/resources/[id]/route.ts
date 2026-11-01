@@ -11,9 +11,8 @@ async function loadEditable(req: NextRequest, id: string) {
   await connectDB()
   const resource = await Resource.findById(id)
   if (!resource) return { error: NextResponse.json({ message: "Resource not found" }, { status: 404 }) }
-  const canEdit =
-    user.role === "super_admin" || (user.role === "owner" && resource.tenantId === user.tenantId)
-  if (!canEdit) return { error: NextResponse.json({ message: "Not allowed" }, { status: 403 }) }
+  const canEdit = user.role === "super_admin"
+  if (!canEdit) return { error: NextResponse.json({ message: "Only Head Office / Super Admin can manage resources." }, { status: 403 }) }
   return { resource }
 }
 
